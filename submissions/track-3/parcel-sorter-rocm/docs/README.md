@@ -10,6 +10,7 @@
 | Optimization | [Optimization roadmap](OPTIMIZATION_ROADMAP.md) | [优化路线图](OPTIMIZATION_ROADMAP_CN.md) |
 | Engineering learning | [Decision log](ENGINEERING_DECISION_LOG.md) | [工程决策日志](ENGINEERING_DECISION_LOG_CN.md) |
 | Step-by-step work | [Development journal](DEVELOPMENT_JOURNAL.md) | [开发与实验日志](DEVELOPMENT_JOURNAL_CN.md) |
+| Engineering workflow | [Engineering playbook](ENGINEERING_PLAYBOOK.md) | [工程流程与学习手册](ENGINEERING_PLAYBOOK_CN.md) |
 | Latest optimization session | [2026-07-25 session](OPTIMIZATION_SESSION_2026-07-25.md) | [2026-07-25 优化记录](OPTIMIZATION_SESSION_2026-07-25_CN.md) |
 | Dataset | [Dataset card](DATASET_CARD.md) | [数据集卡](DATASET_CARD_CN.md) |
 | Model | [Model card](MODEL_CARD.md) | [模型卡](MODEL_CARD_CN.md) |

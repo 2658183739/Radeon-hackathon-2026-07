@@ -769,3 +769,30 @@ evaluation-only. The changed documents use the same current count.
 
 **Revisit trigger.** Any future catalog addition must update the parser-backed
 count and the current status documents in the same commit.
+
+### 39. Add a bilingual engineering playbook
+
+**Problem.** The project had separate roadmap, decision, and development
+documents, but a learner still had to infer the complete path from requirement
+to release.
+
+**Alternatives.** Add another narrative summary, duplicate the existing logs,
+or create a short method document that links to the source of truth.
+
+**Decision.** Add paired `ENGINEERING_PLAYBOOK.md` and
+`ENGINEERING_PLAYBOOK_CN.md`. The playbook defines capability states, the
+contract-first/test-first workflow, one-variable experiments, task/safety/
+performance/reproducibility gates, the code capability map, and a release
+checklist. Raw measurements remain in the journals and `evidence/`.
+
+**Code capability.** Documentation indexing, bilingual parity, a standard
+experiment record schema, and explicit boundaries for verified, smoke-only,
+and planned capabilities.
+
+**Verification.** Both files are linked from the repository README and the
+documentation index. Local validation completed with 76 unit tests, Python
+compilation, and whitespace checks. The remote collection is still running,
+so no unverified training result is added to the claims.
+
+**Revisit trigger.** Update the playbook when the acceptance gates, model
+matrix, or deployment contract changes; do not rewrite historical evidence.

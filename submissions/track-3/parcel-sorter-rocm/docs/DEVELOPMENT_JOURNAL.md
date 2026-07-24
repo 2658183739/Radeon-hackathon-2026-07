@@ -372,3 +372,19 @@ time, covers ACT RGB/RGB-D first, and can add compact Diffusion after the ACT
 gate. Each cell writes a separate log and a CSV status row; failures remain
 visible and do not change later conditions. **Decision: keep the sweep as the
 only supported way to launch the matched model matrix.**
+
+### Record 34: add a bilingual engineering playbook
+
+The repository already contained a roadmap, decision log, and development
+journal, but the learning path was spread across several documents. The new
+`ENGINEERING_PLAYBOOK.md` and `ENGINEERING_PLAYBOOK_CN.md` consolidate the
+workflow from requirement framing through contracts, tests, one-variable
+experiments, safety/performance gates, and release evidence. **Decision: keep
+the playbook as a navigation and method document, while leaving raw results in
+the existing journals and evidence directories.** This avoids duplicating
+claims and gives every future change a common record template.
+
+Local verification completed with 76 unit tests, Python compilation, and
+`git diff --check`. Radeon collection remains asynchronous; no remote model
+result is claimed until its summary, split manifest, checkpoint, and held-out
+closed-loop evaluation exist.
