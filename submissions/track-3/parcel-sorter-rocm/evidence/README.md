@@ -1,8 +1,9 @@
 # Radeon Evidence Index
 
-These files are unmodified outputs copied from the verified single-GPU Radeon
-run. They are committed because they are small enough for Git and allow the
-reported aggregates to be audited without the full dataset or checkpoint.
+This directory contains raw outputs copied from the verified single-GPU Radeon
+run plus paired evidence notes that quote commands and artifact hashes. They are
+small enough for Git and allow the reported aggregates to be audited without
+the full dataset or checkpoint.
 
 | File | Purpose | SHA-256 |
 | --- | --- | --- |
@@ -19,6 +20,7 @@ reported aggregates to be audited without the full dataset or checkpoint.
 | `benchmarks/act-training-fp32-b32.log` | 200-step FP32, batch 32 throughput run | `2f49edbf551c4b8f9ab827cab300c24deb2e0842966a8928b1eb6377068cd634` |
 | `catalog/catalog-v1-submit-smoke.json` | Final 20-second, seven-profile catalog smoke | `7b69a332faea59f6e930acfec653ec118f858c6002cd9d78d20a06bd8f142be0` |
 | `training/diffusion-1-step-rocm.md` | One-step Diffusion Radeon training-path smoke | N/A |
+| `training/diffusion-compact-1step-rocm.md` | Compact 76.6M-parameter Diffusion one-step smoke and checkpoint hashes | N/A |
 
 The JSON summaries include the complete config, runtime versions, per-episode
 randomization values, terminal state, and task metrics. ACT evaluation files

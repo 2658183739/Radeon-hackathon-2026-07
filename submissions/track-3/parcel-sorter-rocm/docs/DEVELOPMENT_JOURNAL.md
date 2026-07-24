@@ -125,3 +125,38 @@ Start from one measurable failure; freeze baseline episodes and safety limits;
 change one major variable; run unit, single-episode, then multi-seed tests;
 separate task, safety, latency, and throughput; record keep/reject/repeat; and
 commit code, config, evidence, and paired documentation together.
+
+## 2026-07-24: balanced collection and compact Diffusion
+
+### Record 13: catalog v2 and targeted data collection
+
+**Problem.** Catalog v1 under-represented medium cartons and could not directly
+collect only known hard profiles. **Alternatives.** Keep the old mixture, use
+manual config copies, or add a balanced catalog plus a deterministic profile
+plan. **Decision.** Add twelve training strata in an exact 20-slot mixture and
+repeatable `--profile` collection/evaluation. Carrier dimensions remain sourced,
+evaluation-only boundaries. **Code.** Added `catalog_v2.toml`, `episode_plan.py`,
+profile-aware expert/policy loops, and overwrite protection. **Verification.**
+Catalog parsing, exact weights, namespace behavior, source URLs, and overwrite
+rejection are covered by the 56-test Radeon suite. **Status: implemented and
+verified at contract level; balanced episodes not yet collected.**
+
+### Record 14: controlled ACT and Diffusion variables
+
+**Evidence.** Several model choices were hard-coded, preventing matched
+ablation. Runtime inspection of pinned LeRobot 0.6.1 confirmed the supported
+fields and showed that ACT observation history is fixed to one step. **Decision.**
+Expose supported variables only and guard temporal ensembling and Diffusion
+horizon invariants. **Verification.** Bash syntax and CLI entry checks passed on
+the Radeon host. **Status: implemented; most combinations still require runs.**
+
+### Record 15: compact Diffusion smoke and one rejected integration attempt
+
+The initial list argument was emitted as three CLI tokens and was rejected
+before policy construction. After changing it to one list-valued token, the
+`[256,512,1024]` model parsed correctly, used 76,597,288 parameters, completed
+one AMP training step in 23.60 seconds of progress time, and saved a checkpoint.
+The previous default smoke had 263,762,728 parameters and about 53 seconds
+including setup. **Decision: keep the compact configuration as a candidate,
+repeat with a meaningful budget, then rank only by matched closed-loop task,
+safety, and latency results.**

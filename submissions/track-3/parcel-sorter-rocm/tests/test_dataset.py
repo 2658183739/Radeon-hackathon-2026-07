@@ -30,6 +30,14 @@ class JsonlTrajectoryWriterTests(unittest.TestCase):
         self.assertEqual(manifest["frames"], 1)
         self.assertEqual(len(frame.state.policy_vector()), len(STATE_NAMES))
 
+    def test_refuses_to_overwrite_existing_audit_episode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            writer = JsonlTrajectoryWriter(directory)
+            (Path(directory) / "episode_000004.jsonl").write_text("existing\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(FileExistsError, "new output shard"):
+                writer.assert_episode_available(4)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from parcel_sorter.config import load_config
 from parcel_sorter.dataset import JsonlTrajectoryWriter, LeRobotTrajectoryWriter
+from parcel_sorter.episode_plan import build_episode_plan
 from parcel_sorter.genesis_env import GenesisParcelEnv
 from parcel_sorter.metrics import MetricsAccumulator
 from parcel_sorter.provenance import runtime_report
@@ -20,6 +21,12 @@ def main() -> int:
     parser.add_argument("--backend", choices=("rocm", "cuda", "cpu"), default="rocm")
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--start-episode", type=int, default=0)
+    parser.add_argument(
+        "--profile",
+        action="append",
+        dest="selected_profiles",
+        help="collect this training profile; repeat for balanced per-profile collection",
+    )
     parser.add_argument("--output", default=None)
     parser.add_argument("--viewer", action="store_true")
     parser.add_argument("--record-video", action="store_true")
@@ -58,11 +65,27 @@ def main() -> int:
 
     metrics = MetricsAccumulator()
     randomizer = DomainRandomizer(config.randomization, config.seed, config.parcel_profiles)
-    reports = []
     try:
-        for offset in range(args.episodes):
-            episode_index = args.start_episode + offset
-            sample = randomizer.sample(episode_index)
+        plan = build_episode_plan(
+            config.parcel_profiles,
+            args.episodes,
+            args.start_episode,
+            tuple(args.selected_profiles or ()),
+            allow_evaluation_only=False,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+    reports = []
+    profile_metrics: dict[str, MetricsAccumulator] = {}
+    try:
+        for offset, spec in enumerate(plan):
+            episode_index = spec.episode_index
+            sample = (
+                randomizer.sample(episode_index)
+                if spec.profile_id is None
+                else randomizer.sample_profile(spec.profile_id, episode_index)
+            )
+            jsonl_writer.assert_episode_available(episode_index)
             should_record_video = args.record_video or (
                 config.output.record_first_episode and offset == 0
             )
@@ -85,10 +108,12 @@ def main() -> int:
             save_episode_writers(report, jsonl_writer, lerobot_writer)
             reports.append(report.to_dict())
             metrics.add(report.result)
+            profile_metrics.setdefault(sample.profile_id, MetricsAccumulator()).add(report.result)
             print(
                 json.dumps(
                     {
                         "episode": episode_index,
+                        "profile": sample.profile_id,
                         "success": report.result.success,
                         "stage": report.terminal_stage,
                         "retries": report.result.retries,
@@ -103,12 +128,18 @@ def main() -> int:
     result = {
         "runtime": runtime_report(),
         "evaluation_range": {
-            "start_episode": args.start_episode,
-            "end_episode": args.start_episode + args.episodes - 1,
-            "num_episodes": args.episodes,
+            "start_episode": min(spec.episode_index for spec in plan),
+            "end_episode": max(spec.episode_index for spec in plan),
+            "num_episodes": len(plan),
+            "profile_filter": list(args.selected_profiles or ()),
+            "episodes_per_profile": args.episodes if args.selected_profiles else None,
         },
         "config": asdict(config),
         "summary": metrics.summary(),
+        "profile_summaries": {
+            profile_id: accumulator.summary()
+            for profile_id, accumulator in sorted(profile_metrics.items())
+        },
         "episodes": reports,
     }
     with (output / "summary.json").open("w", encoding="utf-8") as handle:

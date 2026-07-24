@@ -50,7 +50,16 @@ class JsonlTrajectoryWriter:
         payload["has_depth"] = frame.depth is not None
         self._frames.append(payload)
 
+    def assert_episode_available(self, episode_index: int) -> None:
+        """Fail before simulation rather than silently replacing prior evidence."""
+        episode_path = self.root / f"episode_{episode_index:06d}.jsonl"
+        if episode_path.exists():
+            raise FileExistsError(
+                f"audit episode already exists: {episode_path}; use a new output shard"
+            )
+
     def save_episode(self, episode_index: int, metadata: dict[str, Any]) -> Path:
+        self.assert_episode_available(episode_index)
         episode_path = self.root / f"episode_{episode_index:06d}.jsonl"
         with episode_path.open("w", encoding="utf-8", newline="\n") as handle:
             for frame in self._frames:

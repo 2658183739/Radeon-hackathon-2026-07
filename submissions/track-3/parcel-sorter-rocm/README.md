@@ -50,9 +50,12 @@ rejects a non-HIP PyTorch build.
 6. The same Radeon runs physics, rendering, model training, model inference,
    and performance benchmarks.
 
-The catalog adds seven weighted training profiles, four evaluation-only
-industry-size boundary profiles, Box/Cylinder geometry, stable profile-specific
-episode IDs, and a stratified evaluator.
+The catalog v1 adds seven weighted training profiles, while catalog v2 expands
+this to twelve balanced training strata and four evaluation-only industry-size
+boundary profiles. Both use Box/Cylinder geometry, stable profile-specific
+episode IDs, and a stratified evaluator. Training ranges are explicitly marked
+as Panda-aperture engineering strata; carrier dimensions carry official source
+URLs and remain evaluation-only when the current gripper cannot grasp them.
 
 See [TECHNICAL_REPORT.md](TECHNICAL_REPORT.md) for the design rationale,
 results, limitations, and competition mapping.
@@ -151,6 +154,27 @@ python scripts/evaluate_catalog.py \
 Repeat `--profile <id>` to select strata. Evaluation-only carrier dimensions
 require `--include-evaluation-only` and must not be mixed into training success.
 
+Collect a targeted hard-example shard with catalog v2. Here `--episodes` means
+episodes per selected profile, and each profile receives a separate episode
+namespace. Use a new output directory for each shard:
+
+```bash
+python scripts/run_expert.py \
+  --config configs/catalog_v2.toml \
+  --backend rocm \
+  --episodes 20 \
+  --start-episode 1000 \
+  --profile micro_box \
+  --profile upright_canister \
+  --record-sensors --lerobot \
+  --output outputs/catalog-v2-hard-shard
+```
+
+The audit writer refuses to overwrite an existing episode file. This makes
+repeated collection explicit rather than silently corrupting provenance. Both
+expert and learned-policy summaries include `profile_summaries` for matched
+success, force, drop, latency, and throughput comparisons.
+
 ## 3. Collect an RGB-D LeRobotDataset
 
 ```bash
@@ -239,6 +263,11 @@ are ready for controlled comparison:
 ```bash
 bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-radeon
 
+# Compact one-step smoke or later controlled ablation:
+DIFFUSION_DOWN_DIMS=256,512,1024 DIFFUSION_HORIZON=32 \
+DIFFUSION_N_ACTION_STEPS=8 DIFFUSION_INFERENCE_STEPS=10 \
+bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-compact
+
 SMOLVLA_STEPS=4000 SMOLVLA_BATCH_SIZE=4 \
 SMOLVLA_POLICY_PATH=/workspace/models/smolvla_base \
 bash scripts/train_smolvla_rocm.sh \
@@ -246,7 +275,10 @@ bash scripts/train_smolvla_rocm.sh \
 ```
 
 Diffusion and SmolVLA are implemented training paths, not measured capability
-claims. SmolVLA requires an explicit local open checkpoint path; use
+claims. The compact Diffusion smoke is recorded in
+`evidence/training/diffusion-compact-1step-rocm.md`; it reduced the model to
+76.6M parameters and completed one Radeon step, but has not been selected by
+closed-loop success. SmolVLA requires an explicit local open checkpoint path; use
 `lerobot/smolvla_base` only when the instance can reach Hugging Face. The first
 run freezes the vision encoder and trains the expert path. `evaluate_policy.py`
 automatically loads ACT, Diffusion, or SmolVLA checkpoints behind the same
@@ -306,7 +338,7 @@ bare-metal setup above is the validated primary path.
 | Peak observed GPU utilization | 83% |
 | ACT training throughput, AMP batch 32 | 80 samples/s |
 | Parcel-catalog regression smoke | 4 of 7 one-episode profiles complete; not a success rate |
-| Deterministic unit suite | 48 passing tests |
+| Deterministic unit suite | 56 passing tests |
 
 The 120-episode expert result is the primary capability measurement. The ACT
 result proves that training, checkpoint reload, visual inference, and Genesis
@@ -338,7 +370,7 @@ source scripts/activate_radeon_env.sh
 python -m unittest discover -s tests -q
 ```
 
-The verified suite contains 48 tests covering configuration validation, domain
+The verified suite contains 56 tests covering configuration validation, domain
 randomization, state-machine transitions, dataset contracts, metrics, runner
 behaviour, parcel catalog scheduling and geometry, expert hysteresis and safe
 transfer, safety limits, evaluation aggregation, and matched run comparison.

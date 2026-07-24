@@ -483,3 +483,55 @@ The result is recorded as a training-path smoke only. SmolVLA base probing then
 showed that this instance cannot reach Hugging Face; its script therefore
 requires an explicit staged local checkpoint instead of silently depending on
 network access.
+
+## Implementation session record: balanced collection and compact Diffusion
+
+### 17. Expand the training catalog without inventing carrier standards
+
+Catalog v2 adds twelve weighted training strata with a 20-episode exact block:
+micro box (1), small carton (3), flat mailer (2), book box (2), medium carton
+(3), shoe-box proxy (2), long carton (2), large narrow carton (1), upright
+canister (1), mailing tube (1), near-limit box (1), and electronics box (1).
+The dimensions are explicitly Panda-aperture engineering strata. USPS profiles
+retain exact dimensions, source URLs, and `evaluation_only=true` when the
+parallel jaw cannot physically grasp them. Decision: **keep**, pending balanced
+Radeon collection and multi-seed results.
+
+### 18. Make hard-example collection deterministic and non-destructive
+
+`episode_plan.py` gives each selected profile a million-index namespace and
+keeps the unfiltered contiguous range unchanged. `run_expert.py` and
+`evaluate_act.py` accept repeatable `--profile`; with a filter, `--episodes`
+means episodes per profile. The JSONL writer now refuses to overwrite an audit
+episode. Decision: **keep**. This supports data aggregation without silently
+mixing or replacing provenance; each LeRobot shard still uses a new output
+directory.
+
+### 19. Expose only real LeRobot 0.6.1 optimization variables
+
+ACT exposes seed, chunk size, executed action steps, model width/layers, and
+optional temporal ensembling (guarded because LeRobot requires one action step
+for that mode). Diffusion exposes seed, horizon, observation/action steps, UNet
+widths, scheduler, inference steps, AMP, and compilation. A Bash preflight
+checks the Diffusion horizon/downsampling invariant. Decision: **keep**; the
+defaults preserve previous behavior.
+
+### 20. Run the compact Diffusion training smoke on Radeon
+
+The first retry passed three list tokens to the dynamic LeRobot CLI and stopped
+before model creation. The script was corrected to pass one list-valued argument
+(`"[256,512,1024]"`). The repeated run completed one forward/backward/update
+step on the single `gfx1100` Radeon, produced a 76,597,288-parameter checkpoint,
+and took 23.60 seconds in the training progress (41.10 seconds including
+setup). The artifact and hashes are in
+`evidence/training/diffusion-compact-1step-rocm.md`. Decision: **keep the
+parameterization; repeat with a real budget and closed-loop evaluation before
+selecting the compact model**.
+
+### 21. Classify verification environment honestly
+
+The Windows development host has only the Microsoft Store Python shim, so local
+Python tests could not start. The same change set was copied to the configured
+Radeon host, where 56 unit tests, Python compilation, Bash syntax, and CLI help
+all passed. Decision: **record the host limitation, keep Radeon as the source
+of truth, and add a Windows setup note before asking contributors to run tests**.

@@ -1,7 +1,7 @@
 # Radeon 原始证据索引
 
-本目录保存从单张 Radeon 实测环境复制的小体积原始结果。它们用于审计 README 和技术
-报告中的数字，不替代完整数据集和模型权重。
+本目录保存从单张 Radeon 实测环境复制的小体积原始结果，以及成对记录命令和产物哈希的
+证据说明。它们用于审计 README 和技术报告中的数字，不替代完整数据集和模型权重。
 
 | 文件 | 内容 |
 | --- | --- |
@@ -16,6 +16,7 @@
 | `benchmarks/act-training-*.log` | FP32/AMP 与 batch 吞吐测试 |
 | `catalog/catalog-v1-submit-smoke.json` | 最终 20 秒、7 类 profile 目录回归烟雾 |
 | `training/diffusion-1-step-rocm.md` | Diffusion 单步 Radeon 训练链路记录 |
+| `training/diffusion-compact-1step-rocm.md` | 轻量 76.6M 参数 Diffusion 单步与检查点哈希 |
 
 SHA-256 见英文 [README.md](README.md)。JSON 包含配置、运行版本、episode 随机参数、
 终止结果和指标。大型 RGB-D 数据、206 MB 模型权重、优化器状态和 MP4 不进入普通 Git，

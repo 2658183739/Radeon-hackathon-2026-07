@@ -370,3 +370,42 @@ Genesis 闭环回合。该回合不被提升为 ACT 能力结果。
 `diffusion` 和 `smolvla` extras 后，单步在 Radeon 上完成并保存检查点。该结果只计为训练
 链路烟雾。随后 SmolVLA 基座探针确认实例无法访问 Hugging Face，因此脚本要求显式传入
 已离线准备的本地检查点，不再静默依赖网络。
+
+## 2026-07-24：均衡采集与轻量 Diffusion
+
+### 第 17 步：扩展训练目录，但不伪造“行业标准”
+
+catalog v2 在每个 20 回合 block 中精确分配 12 类训练分层：微型盒 1、小纸箱 3、扁平
+邮包 2、书盒 2、中型纸箱 3、鞋盒代理 2、长纸箱 2、大型窄纸箱 1、直立罐 1、邮筒 1、
+夹爪边界盒 1、电子产品盒 1。训练尺寸明确是适配 Panda 夹爪的工程范围，不冒充承运商
+标准。USPS 精确尺寸保留官方 URL，超出平行夹爪能力时设置为 `evaluation_only=true`。
+**决策：保留**，但需完成 Radeon 均衡采集和多种子评测后才能报告能力。
+
+### 第 18 步：让困难样本采集可重复且不破坏旧证据
+
+`episode_plan.py` 给每个 profile 独立的百万级 episode 命名空间；不传 profile 时仍保持
+原连续区间。`run_expert.py` 与 `evaluate_act.py` 支持重复 `--profile`，此时
+`--episodes` 表示每类回合数。JSONL 写入器拒绝覆盖已有 episode。**决策：保留**。这使
+数据聚合不会静默混淆或替换来源；LeRobot 补采仍要求使用新的输出 shard。
+
+### 第 19 步：只开放 LeRobot 0.6.1 确实支持的优化变量
+
+ACT 开放 seed、chunk、实际执行步数、模型宽度/层数和可选时序集成；由于上游要求时序
+集成时每次只执行一步，脚本显式检查这个条件。Diffusion 开放 seed、horizon、观察/动作
+步数、UNet 宽度、DDPM/DDIM、推理步数、AMP 和编译；启动前检查 horizon 与下采样倍数。
+**决策：保留**，默认值维持旧行为。
+
+### 第 20 步：在 Radeon 上运行轻量 Diffusion 单步
+
+第一次重试把列表拆成三个 CLI token，在模型创建前停止。修正为单个列表值
+`"[256,512,1024]"` 后，单张 `gfx1100` Radeon 完成前向、反向、优化器更新和检查点保存。
+模型为 76,597,288 参数，训练进度约 23.60 秒，含启动约 41.10 秒。哈希和证据见
+`evidence/training/diffusion-compact-1step-rocm_CN.md`。**决策：保留参数化能力；必须完整
+训练并做分层闭环评测后，才能选择轻量模型。**
+
+### 第 21 步：诚实区分验证环境
+
+Windows 开发机只有 Microsoft Store Python 占位命令，本地测试无法启动；这不是测试
+失败。同一变更集同步到 Radeon 后，56 项单元测试、Python 编译、Bash 语法和 CLI help
+全部通过。**决策：记录主机限制，以 Radeon 结果为准，并在要求贡献者本地测试前补充
+Windows Python 环境说明。**

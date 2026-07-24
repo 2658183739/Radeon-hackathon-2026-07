@@ -14,7 +14,7 @@ RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 ## 系统组成
 
 - Genesis 刚体物理环境、Franka Panda、Box/Cylinder 快递和左右分拣格口
-- 7 类带权训练包裹、4 类仅评测行业尺寸和稳定的分层 episode 调度
+- catalog v1 的 7 类带权训练包裹，以及 catalog v2 的 12 类均衡训练分层；另有 4 类仅评测行业尺寸和稳定的分层 episode 调度
 - 顶视 RGB-D 相机、关节位置、末端位姿、目标位置和夹爪接触力
 - IK 专家、机械臂 PD 控制、夹爪力斜坡和末端步长限制
 - 检测、接近、抓取、接触验证、抬升、搬运、释放、重试和安全中止闭环
@@ -64,7 +64,8 @@ HIP/ROCm 设备，不代表使用了 NVIDIA CUDA。预检脚本会检查 `torch.
 | 峰值 GPU 利用率 | 83% |
 | ACT AMP/batch32 训练吞吐 | 80 samples/s |
 | 目录烟雾回归 | 7 类中 4 类单回合完成；仅用于回归，不是成功率 |
-| 当前测试套件 | 48 项通过 |
+| 轻量 Diffusion 单步烟雾 | 76.6M 参数，Radeon 单步约 23.6 秒；不是成功率 |
+| 当前测试套件 | 56 项通过 |
 
 正式专家 120 回合结果是当前机器人能力主指标。固定 10 种子结果只用于回归基线。
 ACT 已经证明数据、训练、保存、重载、ROCm 推理和 Genesis 闭环全部跑通，但成功率
@@ -94,6 +95,28 @@ python scripts/evaluate_catalog.py \
 可重复使用 `--profile small_carton` 只评测指定类别。加入
 `--include-evaluation-only` 会运行超出当前平行夹爪能力的行业尺寸边界，只用于展示限制，
 不能混入训练成功率。
+
+catalog v2 把训练目录扩展为 12 类、每 20 回合精确分配的均衡组合。训练范围都明确标注为
+适配 Panda 80 mm 夹爪的工程分层；USPS 精确尺寸带官方来源 URL，若超出夹爪能力则只评测。
+
+定向补采微型盒与圆筒困难样本：
+
+```bash
+python scripts/run_expert.py \
+  --config configs/catalog_v2.toml \
+  --backend rocm \
+  --episodes 20 \
+  --start-episode 1000 \
+  --profile micro_box \
+  --profile upright_canister \
+  --record-sensors --lerobot \
+  --output outputs/catalog-v2-hard-shard
+```
+
+传入 profile 时，`--episodes` 表示每类回合数。每类使用独立 episode 命名空间，审计写入器
+会拒绝覆盖已有文件；每次补采应使用新的输出 shard。
+专家与学习策略的 summary 都会写出 `profile_summaries`，可直接对比每类成功、接触力、
+掉落、延迟和吞吐，不必再手工拆分 JSON。
 
 ## Radeon Cloud 首次运行
 
@@ -194,13 +217,20 @@ python scripts/summarize_act_evaluations.py \
 ```bash
 bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-radeon
 
+# 轻量配置的正式消融入口
+DIFFUSION_DOWN_DIMS=256,512,1024 DIFFUSION_HORIZON=32 \
+DIFFUSION_N_ACTION_STEPS=8 DIFFUSION_INFERENCE_STEPS=10 \
+bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-compact
+
 SMOLVLA_STEPS=4000 SMOLVLA_BATCH_SIZE=4 \
 SMOLVLA_POLICY_PATH=/workspace/models/smolvla_base \
 bash scripts/train_smolvla_rocm.sh \
   <lerobot_dataset> outputs/train/smolvla-radeon
 ```
 
-Diffusion 和 SmolVLA 是已经准备好的训练入口，不是已经取得的比赛结果。SmolVLA 要求
+Diffusion 和 SmolVLA 是已经准备好的训练入口，不是已经取得的比赛结果。轻量 Diffusion
+已经在 Radeon 上完成 1 步前向、反向、优化器更新和保存：76,597,288 参数，训练进度
+约 23.6 秒；这只证明入口和缩小模型可行，仍需完整训练与分层闭环评测。SmolVLA 要求
 显式指定已下载的开源检查点；若云实例可访问 Hugging Face，也可把路径设为
 `lerobot/smolvla_base`。首轮冻结视觉编码器并只训练动作专家相关部分；视觉解冻必须作为
 独立匹配实验。训练后的 ACT、Diffusion 和 SmolVLA 都通过 `evaluate_policy.py` 进入相同

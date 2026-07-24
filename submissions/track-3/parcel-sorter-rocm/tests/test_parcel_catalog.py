@@ -76,6 +76,24 @@ class ParcelCatalogTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown parcel profile"):
             self.randomizer.sample_profile("not-real", 0)
 
+    def test_catalog_v2_has_balanced_twenty_episode_mix(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "catalog_v2.toml")
+        training = [profile for profile in config.parcel_profiles if not profile.evaluation_only]
+        self.assertEqual(len(training), 12)
+        self.assertEqual(
+            sum(round(profile.selection_weight * config.randomization.catalog_block_size) for profile in training),
+            config.randomization.catalog_block_size,
+        )
+
+    def test_catalog_v2_carrier_profiles_have_source_urls(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "catalog_v2.toml")
+        carrier_profiles = [
+            profile for profile in config.parcel_profiles if profile.profile_id.startswith("usps_")
+        ]
+        self.assertTrue(carrier_profiles)
+        self.assertTrue(all(profile.evaluation_only for profile in carrier_profiles))
+        self.assertTrue(all(profile.source_url.startswith("https://") for profile in carrier_profiles))
+
 
 if __name__ == "__main__":
     unittest.main()

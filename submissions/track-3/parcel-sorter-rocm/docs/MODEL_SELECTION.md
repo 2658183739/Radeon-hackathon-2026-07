@@ -83,8 +83,12 @@ the 35 N boundary, or hides collision by raising the threshold.
 ## 7. Current boundary
 
 ACT data generation, training, save/load, ROCm inference, and Genesis closed-loop
-evaluation are verified. Diffusion completed a one-step Radeon training smoke.
-SmolVLA matches the pinned LeRobot 0.6.1 interface but needs a locally staged
+evaluation are verified. Diffusion completed the original and a compact
+one-step Radeon training smoke. The compact candidate changes the UNet widths
+from `[512,1024,2048]` to `[256,512,1024]`, has 76.6M parameters, and is
+recorded in `evidence/training/diffusion-compact-1step-rocm.md`. This is a
+resource/path result, not a task capability result. SmolVLA matches the pinned
+LeRobot 0.6.1 interface but needs a locally staged
 base checkpoint because the instance cannot reach Hugging Face. Neither policy
 has a formal capability result. The 96 successful episodes
 are insufficient for a broad VLA generalization claim. Cylinders still expose

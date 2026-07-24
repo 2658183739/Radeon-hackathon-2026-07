@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DATASET_ROOT="${1:-${ROOT_DIR}/outputs/radeon-dataset/expert/lerobot_dataset}"
 OUTPUT_DIR="${2:-${ROOT_DIR}/outputs/train/act-rocm}"
 STEPS="${ACT_STEPS:-100000}"
+SEED="${ACT_SEED:-42}"
 BATCH_SIZE="${ACT_BATCH_SIZE:-32}"
 NUM_WORKERS="${ACT_NUM_WORKERS:-4}"
 SAVE_FREQ="${ACT_SAVE_FREQ:-20000}"
@@ -15,6 +16,12 @@ IMAGE_TRANSFORMS="${ACT_IMAGE_TRANSFORMS:-false}"
 PRETRAINED_BACKBONE="${ACT_PRETRAINED_BACKBONE:-imagenet}"
 EVAL_SPLIT="${ACT_EVAL_SPLIT:-0.1}"
 EVAL_STEPS="${ACT_EVAL_STEPS:-1000}"
+CHUNK_SIZE="${ACT_CHUNK_SIZE:-30}"
+N_ACTION_STEPS="${ACT_N_ACTION_STEPS:-10}"
+DIM_MODEL="${ACT_DIM_MODEL:-512}"
+N_ENCODER_LAYERS="${ACT_N_ENCODER_LAYERS:-4}"
+N_DECODER_LAYERS="${ACT_N_DECODER_LAYERS:-1}"
+TEMPORAL_ENSEMBLE_COEFF="${ACT_TEMPORAL_ENSEMBLE_COEFF:-}"
 
 export HIP_VISIBLE_DEVICES="${HIP_VISIBLE_DEVICES:-0}"
 export PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
@@ -47,8 +54,12 @@ TRAIN_ARGS=(
   --policy.push_to_hub false
   --policy.use_amp "${USE_AMP}"
   --policy.input_features "${POLICY_INPUT_FEATURES}"
-  --policy.chunk_size 30
-  --policy.n_action_steps 10
+  --policy.chunk_size "${CHUNK_SIZE}"
+  --policy.n_action_steps "${N_ACTION_STEPS}"
+  --policy.dim_model "${DIM_MODEL}"
+  --policy.n_encoder_layers "${N_ENCODER_LAYERS}"
+  --policy.n_decoder_layers "${N_DECODER_LAYERS}"
+  --seed "${SEED}"
   --output_dir "${OUTPUT_DIR}"
   --job_name parcel-sorter-act-rocm
   --batch_size "${BATCH_SIZE}"
@@ -67,6 +78,13 @@ if [[ "${NUM_WORKERS}" == "0" ]]; then
 fi
 if [[ "${PRETRAINED_BACKBONE}" == "none" ]]; then
   TRAIN_ARGS+=(--policy.pretrained_backbone_weights null)
+fi
+if [[ -n "${TEMPORAL_ENSEMBLE_COEFF}" ]]; then
+  if [[ "${N_ACTION_STEPS}" != "1" ]]; then
+    echo "ERROR: ACT_TEMPORAL_ENSEMBLE_COEFF requires ACT_N_ACTION_STEPS=1 in LeRobot 0.6.1" >&2
+    exit 5
+  fi
+  TRAIN_ARGS+=(--policy.temporal_ensemble_coeff "${TEMPORAL_ENSEMBLE_COEFF}")
 fi
 
 lerobot-train "${TRAIN_ARGS[@]}"
