@@ -864,3 +864,23 @@ the corrected script is copied to the Radeon environment.
 **Revisit trigger.** If automatic resume is introduced, it must validate the
 checkpoint/config hash before reusing an existing cell; never silently mix
 different seeds, modalities, or dataset manifests.
+
+### 43. Let LeRobot own fresh checkpoint directories
+
+**Observation.** The BOM-corrected retry still failed before training because
+the sweep helper created each cell's output directory. LeRobot 0.6.1 treats an
+existing directory with `resume=false` as a protection against accidental
+overwrite.
+
+**Decision.** The sweep now creates only the matrix root and passes a fresh
+cell path to LeRobot. Failed cell directories remain untouched; a retry gets a
+new matrix root rather than changing resume semantics.
+
+**Code capability.** Correct ownership of artifact lifecycle between shell
+orchestration and the training framework, with explicit retry isolation.
+
+**Verification.** Shell syntax remains valid and the next retry uses
+`model-sweep-v3`, whose cell paths do not exist before `lerobot-train` starts.
+
+**Revisit trigger.** If a framework changes its directory contract, add a
+preflight assertion that reports the exact path and resume mode before launch.

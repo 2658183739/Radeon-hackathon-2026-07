@@ -36,8 +36,8 @@ run_one() {
   local modality="$2"
   local seed="$3"
   local output_dir="${OUTPUT_ROOT}/${model}-${modality}-seed${seed}"
-  local log_path="${output_dir}.log"
-  mkdir -p "${output_dir}"
+  local log_path="${OUTPUT_ROOT}/${model}-${modality}-seed${seed}.log"
+  mkdir -p "${OUTPUT_ROOT}"
   echo "[$(date -Is)] start ${model} ${modality} seed=${seed}" | tee "${log_path}"
   local status=0
   if [[ "${model}" == "act" ]]; then

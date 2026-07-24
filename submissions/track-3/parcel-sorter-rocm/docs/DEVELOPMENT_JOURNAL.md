@@ -421,3 +421,11 @@ their output directories. I stopped only the watcher, preserved its logs, made
 the shebang portable, and added an explicit output-root override for retries.
 This separates infrastructure failure evidence from model evidence and keeps
 the original failed cells available for diagnosis.
+
+### Record 38: keep checkpoint-directory ownership with the trainer
+
+The BOM fix exposed a second orchestration bug: creating a cell directory
+before calling LeRobot made the trainer reject every fresh run under
+`resume=false`. The sweep now creates only its root namespace and lets
+LeRobot create each checkpoint directory. The next retry uses a new root, so
+the two infrastructure failures remain available as negative evidence.
