@@ -5,6 +5,20 @@ Track 3 submission. It separates verified evidence from planned work so that a
 reviewer can reproduce the current result without treating an experiment plan
 as a capability claim.
 
+## Current Radeon run
+
+On 2026-07-25, the Radeon collection completed 400 audited expert episodes.
+The strict LeRobot success dataset contains 190 episodes, split deterministically
+into 123 train, 24 validation, and 43 held-out episodes. A five-thousand-step
+ACT RGB/RGB-D smoke matrix has started with this manifest after ROCm preflight;
+the trainer confirms `cfg.steps=5000` for its first RGB seed.
+
+This does **not** clear the formal data gate of at least 300 balanced successful
+RGB-D episodes. The running matrix validates training, checkpoint, and
+orchestration integration only. Formal 30K model comparison and held-out
+closed-loop ranking remain blocked until additional balanced collection passes
+the same audit and a new split manifest is frozen.
+
 ## Hard constraints
 
 - One AMD Radeon GPU, one visible device, and ROCm/PyTorch HIP execution.

@@ -445,3 +445,13 @@ watcher overwrote the inherited environment before inspecting it. Replacing
 that pattern with shell parameter defaults makes externally supplied budgets
 effective. The next attempt will be accepted as a 5K smoke run only if the
 trainer's resolved configuration says `cfg.steps=5000`.
+
+### Record 41: freeze the completed collection as smoke-only evidence
+
+The Radeon collection completed 400 audited episodes. Only 190 successful
+episodes entered the LeRobot dataset, yielding a deterministic 123/24/43
+train/validation/held-out split. The first ACT smoke cell confirms ROCm
+preflight and `cfg.steps=5000`. **Decision: keep the matrix as an integration
+smoke only.** The project still needs at least 300 balanced successful RGB-D
+episodes before a 30K model comparison or closed-loop ranking can be treated as
+formal evidence.
