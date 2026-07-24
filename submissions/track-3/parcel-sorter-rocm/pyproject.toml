@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "parcel-sorter-rocm"
+version = "0.3.0"
+description = "Robust parcel picking and sorting on AMD Radeon GPUs"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Parcel Sorter ROCm Contributors" }]
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,263 @@
+# Parcel Sorter ROCm
+
+Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
+picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis
+rigid-body simulation, a Franka Panda manipulator, aligned RGB-D sensing,
+closed-loop safety supervision, expert demonstration collection, LeRobot ACT
+training, model-driven evaluation, video capture, and ROCm performance
+measurement.
+
+This directory is the Track 3 source submission. The primary reproduction path
+uses AMD Radeon and ROCm. An NVIDIA development path is included for local
+iteration, but CUDA results do not satisfy the competition execution
+requirement.
+
+## Verified system
+
+The complete pipeline was executed on one Radeon device with the following
+runtime:
+
+| Component | Verified value |
+| --- | --- |
+| GPU target | AMD Radeon Graphics, `gfx1100` |
+| VRAM | 47.98 GiB |
+| Operating system | Ubuntu 24.04 |
+| ROCm | 7.2.1 |
+| PyTorch | 2.9.1 ROCm build |
+| Genesis | 1.2.3 at the revision in `UPSTREAM_LOCK.json` |
+| LeRobot | 0.6.1 at the revision in `UPSTREAM_LOCK.json` |
+| Python | 3.12 |
+
+PyTorch exposes a ROCm device through its CUDA-compatible Python API. For this
+reason, `cuda:0` in the source denotes the single HIP/ROCm device and does not
+mean that CUDA is used on the Radeon execution path. The preflight script
+rejects a non-HIP PyTorch build.
+
+## Implemented workflow
+
+1. Genesis creates a randomized parcel-sorting scene with a Franka Panda,
+   rigid parcels, two destination bins, an overhead RGB-D camera, joint state,
+   end-effector pose, and gripper contact force.
+2. A deterministic IK expert and a closed-loop state machine generate safe
+   demonstrations. The supervisor verifies grasp contact, retries failed
+   grasps, checks release and bin placement, and stops on excessive force.
+3. Successful demonstrations are written as a LeRobotDataset. Every attempt,
+   including failures, is retained as JSONL for audit and failure analysis.
+4. A 52M-parameter ACT policy is trained from RGB and a 20-dimensional robot
+   state. Ground-truth parcel pose is deliberately excluded from policy input.
+5. ACT actions pass through finite-value, quaternion-normalization, Cartesian
+   step-limit, gripper, IK, PD, and force-safety boundaries before execution.
+6. The same Radeon runs physics, rendering, model training, model inference,
+   and performance benchmarks.
+
+See [TECHNICAL_REPORT.md](TECHNICAL_REPORT.md) for the design rationale,
+results, limitations, and competition mapping.
+
+## Repository layout
+
+```text
+configs/                 Task, simulation, sensor, and randomization settings
+docs/                    Architecture and supplementary documentation
+scripts/                 Bootstrap, training, evaluation, video, and benchmarks
+src/parcel_sorter/       Simulator integration and Physical AI application code
+tests/                   Deterministic unit tests
+Dockerfile.rocm          Pinned clean-build ROCm container definition
+UPSTREAM_LOCK.json       Exact Genesis and LeRobot source revisions
+TECHNICAL_REPORT.md      Track 3 technical report
+```
+
+Generated datasets, checkpoints, videos, and logs are intentionally excluded
+from Git. They can be reproduced by the commands below and are recorded with
+configuration and runtime provenance in their output directories.
+
+## 1. Bare-metal ROCm setup
+
+The host must expose exactly one supported Radeon device to the process and
+provide a working ROCm PyTorch installation. On the competition image, the
+ROCm PyTorch wheels may already be installed system-wide.
+
+```bash
+git clone <this-fork-url>
+cd Radeon-hackathon-2026-07/submissions/track-3/parcel-sorter-rocm
+
+bash scripts/preflight_radeon.sh
+INSTALL_LEROBOT=1 bash scripts/bootstrap_radeon.sh
+source scripts/activate_radeon_env.sh
+```
+
+The bootstrap downloads only the revisions listed in `UPSTREAM_LOCK.json`,
+installs this project, runs ROCm and Genesis smoke tests, and executes the unit
+test suite.
+
+## 2. Deterministic end-to-end smoke run
+
+```bash
+bash scripts/run_pipeline_radeon.sh outputs/radeon-run
+```
+
+This executes the ROCm smoke test, three expert episodes, the robustness suite,
+a parallel Genesis benchmark, and a generated report draft. For an individual
+expert run with video:
+
+```bash
+python scripts/run_expert.py \
+  --backend rocm \
+  --episodes 10 \
+  --record-video \
+  --output outputs/expert-eval
+```
+
+The summary is written to
+`outputs/expert-eval/expert/summary.json`; MP4 files are stored under its
+`videos/` directory.
+
+## 3. Collect an RGB-D LeRobotDataset
+
+```bash
+python scripts/run_expert.py \
+  --backend rocm \
+  --episodes 120 \
+  --record-sensors \
+  --lerobot \
+  --output outputs/radeon-dataset-120
+```
+
+The policy dataset contains:
+
+| Feature | Shape | Meaning |
+| --- | --- | --- |
+| `observation.images.overhead_rgb` | `3 x 224 x 224` | Overhead RGB image |
+| `observation.images.overhead_depth` | `1 x 224 x 224` | Metric depth in metres |
+| `observation.state` | `20` | Joints, end-effector pose, target, contact force |
+| `observation.privileged_state` | `7` | Parcel pose for audit only; not used by ACT |
+| `action` | `8` | Cartesian position, quaternion, gripper command |
+
+Only successful episodes enter the LeRobot training dataset. Failed attempts
+remain available in the JSONL audit data to support error analysis and future
+hard-example collection.
+
+## 4. Train ACT on one Radeon
+
+```bash
+ACT_STEPS=5000 \
+ACT_BATCH_SIZE=32 \
+ACT_NUM_WORKERS=4 \
+ACT_SAVE_FREQ=1000 \
+ACT_USE_AMP=true \
+bash scripts/train_act_rocm.sh \
+  outputs/radeon-dataset-120/expert/lerobot_dataset \
+  outputs/train/act-radeon-5000
+```
+
+The script validates ROCm before training, keeps weights local, disables cloud
+logging, reserves 10% of episodes for evaluation, and saves periodic
+checkpoints. It trains ACT from RGB and non-privileged robot state; depth is
+retained in the dataset for a later RGB-D fusion policy.
+
+To compare training precision and batch size on the target card:
+
+```bash
+bash scripts/benchmark_act_training_rocm.sh
+```
+
+## 5. Closed-loop ACT evaluation
+
+```bash
+python scripts/evaluate_act.py \
+  --checkpoint outputs/train/act-radeon-5000/checkpoints/004000/pretrained_model \
+  --backend rocm \
+  --episodes 10 \
+  --start-episode 10 \
+  --record-video \
+  --output outputs/eval-act-4000-e10
+```
+
+`--start-episode` selects a deterministic, non-overlapping randomization range.
+Use it to avoid evaluating every checkpoint only on episode zero. The summary
+records the exact start, end, and count of evaluated episodes.
+
+## 6. GPU simulation benchmark
+
+```bash
+python scripts/benchmark_parallel.py \
+  --backend rocm \
+  --env-counts 1,16,64,128 \
+  --output outputs/benchmarks/parallel.json
+```
+
+For supporting evidence, capture `rocm-smi` alongside the benchmark and retain
+the raw JSON, training log, and config used for each reported result.
+
+## 7. Container build
+
+The container pins ROCm 7.2.1, Ubuntu 24.04, Python 3.12, PyTorch 2.9.1, and
+the two upstream source revisions. It does not depend on an untracked local
+`third_party` directory.
+
+```bash
+docker build \
+  -f Dockerfile.rocm \
+  --build-arg INSTALL_LEROBOT=1 \
+  -t parcel-sorter-rocm:rocm7.2.1 .
+
+docker run --rm \
+  --device=/dev/kfd \
+  --device=/dev/dri \
+  --group-add video \
+  --ipc=host \
+  --shm-size=16g \
+  --security-opt seccomp=unconfined \
+  parcel-sorter-rocm:rocm7.2.1
+```
+
+Nested Docker is not required on the competition cloud instance; the
+bare-metal setup above is the validated primary path.
+
+## Verified results and interpretation
+
+| Measurement | Result |
+| --- | ---: |
+| Randomized expert evaluation | 96 / 120 successful episodes (80.0%) |
+| Successful RGB-D demonstrations | 96 episodes, 11,753 frames |
+| Fixed 10-seed expert baseline | 90.0% success, 0% drop rate |
+| Fixed-seed expert throughput | 727 successful parcels/hour |
+| ACT training | 5,000 steps, AMP, batch size 32 |
+| ACT final evaluation loss | 0.1384 |
+| ACT checkpoint 4,000, episodes 10-19 | 30.0% closed-loop success |
+| ACT checkpoint 4,000 inference | 2.05 ms mean, 8.00 ms P95 |
+| ACT checkpoint 5,000, episodes 10-19 | 10.0% closed-loop success |
+| Parallel Genesis, 128 environments | 46,582 environment-steps/s |
+| Peak observed GPU utilization | 83% |
+| ACT training throughput, AMP batch 32 | 80 samples/s |
+
+The 120-episode expert result is the primary capability measurement. The ACT
+result proves that training, checkpoint reload, visual inference, and Genesis
+closed-loop execution all run on ROCm, but the learned policy is not yet
+converged. On the same episode range, the 4,000-step checkpoint outperformed
+the 5,000-step checkpoint, so checkpoint selection must use task success rather
+than offline loss alone. The principal current failure mode is excessive
+contact force during fast approach; 22 of 24 failed expert episodes ended at
+the configured safety boundary. These limitations are reported rather than
+hidden. Raw summaries and logs are indexed in [evidence/README.md](evidence/README.md).
+
+## Reproducibility and tests
+
+```bash
+source scripts/activate_radeon_env.sh
+python -m unittest discover -s tests -q
+```
+
+The verified suite contains 26 tests covering configuration validation, domain
+randomization, state-machine transitions, dataset contracts, metrics, runner
+behaviour, expert geometry, and safety limits. GPU tests and end-to-end
+simulation are intentionally separate because they require Genesis assets and
+a supported GPU runtime.
+
+## Licensing
+
+Original project code is licensed under Apache-2.0. See
+`THIRD_PARTY_NOTICES.md` and `UPSTREAM_LOCK.json` for dependency licenses,
+source repositories, and exact revisions. No third-party source or model weight
+is committed in this submission directory.
+
+The Chinese operator guide is available in [README_CN.md](README_CN.md).

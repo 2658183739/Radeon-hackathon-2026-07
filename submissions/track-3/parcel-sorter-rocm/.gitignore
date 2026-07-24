@@ -1,0 +1,15 @@
+.venv/
+.venv-cuda/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+build/
+dist/
+*.egg-info/
+third_party/
+artifacts/
+checkpoints/
+datasets/
+wandb/
+outputs/
