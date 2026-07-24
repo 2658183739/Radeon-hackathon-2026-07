@@ -69,6 +69,7 @@ English submission documents:
 - [Engineering decision log](docs/ENGINEERING_DECISION_LOG.md) / [中文](docs/ENGINEERING_DECISION_LOG_CN.md)
 - [Development journal](docs/DEVELOPMENT_JOURNAL.md) / [中文](docs/DEVELOPMENT_JOURNAL_CN.md)
 - [Engineering playbook](docs/ENGINEERING_PLAYBOOK.md) / [中文](docs/ENGINEERING_PLAYBOOK_CN.md)
+- [Implementation and optimization learning record](docs/IMPLEMENTATION_AND_OPTIMIZATION_RECORD.md) / [中文](docs/IMPLEMENTATION_AND_OPTIMIZATION_RECORD_CN.md)
 - [Latest evidence-driven optimization session](docs/OPTIMIZATION_SESSION_2026-07-25.md) / [中文](docs/OPTIMIZATION_SESSION_2026-07-25_CN.md)
 - [Model selection](docs/MODEL_SELECTION.md) / [中文](docs/MODEL_SELECTION_CN.md)
 - [Research and open-model matrix](docs/RESEARCH_AND_MODEL_MATRIX.md) / [中文](docs/RESEARCH_AND_MODEL_MATRIX_CN.md)

@@ -2,7 +2,12 @@ from pathlib import Path
 import unittest
 
 from parcel_sorter.config import load_config
-from parcel_sorter.episode_plan import build_episode_plan, catalog_episode_index
+from parcel_sorter.episode_plan import (
+    CollectionRequest,
+    build_episode_plan,
+    build_profile_episode_plan,
+    catalog_episode_index,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +58,36 @@ class EpisodePlanTests(unittest.TestCase):
                 0,
                 ("usps_medium_flat_rate",),
                 allow_evaluation_only=False,
+            )
+
+    def test_profile_requests_support_different_collection_budgets(self) -> None:
+        plan = build_profile_episode_plan(
+            self.config.parcel_profiles,
+            (
+                CollectionRequest("micro_box", episodes=1, start_episode=5),
+                CollectionRequest("mailing_tube", episodes=3, start_episode=8),
+            ),
+            allow_evaluation_only=False,
+        )
+        self.assertEqual(
+            [(item.profile_id, item.local_index) for item in plan],
+            [
+                ("micro_box", 5),
+                ("mailing_tube", 8),
+                ("mailing_tube", 9),
+                ("mailing_tube", 10),
+            ],
+        )
+        self.assertEqual(len({item.episode_index for item in plan}), 4)
+
+    def test_duplicate_profile_requests_are_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unique"):
+            build_profile_episode_plan(
+                self.config.parcel_profiles,
+                (
+                    CollectionRequest("micro_box", episodes=1, start_episode=0),
+                    CollectionRequest("micro_box", episodes=1, start_episode=1),
+                ),
             )
 
     def test_catalog_namespace_rejects_negative_values(self) -> None:

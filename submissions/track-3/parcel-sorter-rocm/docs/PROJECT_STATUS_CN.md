@@ -14,6 +14,12 @@
 只验证训练、checkpoint 和编排接线。正式 30K 模型比较与留出集闭环排名仍被阻断，直到补齐均衡
 采集、通过相同审计，并冻结新的拆分清单。
 
+同一张 Radeon 已对完成的 400 回合审计清单运行 `plan_balanced_collection.py`。它为新的独立
+分片设定了更严格的目标：12 个训练 profile 每类 30 个成功回合，共 360 个；按当前保守成功统计
+估计需要尝试 1,775 个回合。九个 profile 被显式阻塞，必须先做专家诊断：`book_box`、
+`medium_carton`、`shoe_box_proxy`、`long_carton`、`large_narrow_carton`、`upright_canister`、
+`mailing_tube`、`near_limit_box` 和 `electronics_box`。这是规划产物，不是新的数据或模型结果。
+
 ## 硬性约束
 
 - 只使用一张 AMD Radeon GPU，并确保进程只看到一个设备；PyTorch 必须走 ROCm/HIP。
@@ -33,6 +39,7 @@
 | RGB-D ACT | 已集成并通过烟雾 | 修正后的米制深度分片通过审计；单步闭环只证明接口 |
 | 轻量 Diffusion | Radeon 单步烟雾 | 完整匹配训练和闭环比较待做 |
 | 鲁棒性统计 | 已实现 | 分 profile 指标和 Wilson 95% 区间；零重试样本标记为未知 |
+| 均衡采集规划 | 已实现并完成 Radeon 检查 | 新数据集 360 个成功目标、配置/审计指纹、不同 profile 预算和专家诊断门禁 |
 | 行业大箱 | 仅评测 profile | 当前平行夹爪不能宣称具备吸盘处理能力 |
 | 圆柱快递 | 部分/未解决 | 已有作用域滚动物理和接触控制；仍需要 cradle 末端执行器 |
 | VLA | 不在结果主线 | VLA-Adapter 仍是许可证与 ROCm 兼容性试验 |

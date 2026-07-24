@@ -20,6 +20,10 @@ RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 [工程流程与学习手册](docs/ENGINEERING_PLAYBOOK_CN.md)；英文版见
 [Engineering Playbook](docs/ENGINEERING_PLAYBOOK.md)。
 
+本轮新增的采集规划、逐层代码能力、优化优先级、可执行 Radeon 流程和决策依据集中在
+[实施与优化学习记录](docs/IMPLEMENTATION_AND_OPTIMIZATION_RECORD_CN.md)；英文配套版本见
+[Implementation and Optimization Record](docs/IMPLEMENTATION_AND_OPTIMIZATION_RECORD.md)。
+
 当前能力、未实现边界和推荐复现顺序见[项目状态与复现协议](docs/PROJECT_STATUS_CN.md)，
 英文评审入口为 [PROJECT_STATUS.md](docs/PROJECT_STATUS.md)。
 

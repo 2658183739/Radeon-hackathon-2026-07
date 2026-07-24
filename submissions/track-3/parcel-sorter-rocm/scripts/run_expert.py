@@ -5,9 +5,10 @@ from dataclasses import asdict, replace
 import json
 from pathlib import Path
 
+from parcel_sorter.collection_plan import load_collection_requests
 from parcel_sorter.config import load_config
 from parcel_sorter.dataset import JsonlTrajectoryWriter, LeRobotTrajectoryWriter
-from parcel_sorter.episode_plan import build_episode_plan
+from parcel_sorter.episode_plan import build_episode_plan, build_profile_episode_plan
 from parcel_sorter.genesis_env import GenesisParcelEnv
 from parcel_sorter.metrics import MetricsAccumulator
 from parcel_sorter.provenance import runtime_report
@@ -27,6 +28,15 @@ def main() -> int:
         dest="selected_profiles",
         help="collect this training profile; repeat for balanced per-profile collection",
     )
+    parser.add_argument(
+        "--collection-plan",
+        help="frozen JSON from plan_balanced_collection.py; supports per-profile episode counts",
+    )
+    parser.add_argument(
+        "--allow-unready-collection",
+        action="store_true",
+        help="acknowledge that a plan contains profiles requiring expert diagnostics",
+    )
     parser.add_argument("--output", default=None)
     parser.add_argument("--viewer", action="store_true")
     parser.add_argument("--record-video", action="store_true")
@@ -43,6 +53,8 @@ def main() -> int:
         parser.error("episodes must be positive and start-episode cannot be negative")
     if args.lerobot and not args.record_sensors:
         parser.error("--lerobot requires --record-sensors so RGB-D frames are available")
+    if args.collection_plan and args.selected_profiles:
+        parser.error("--collection-plan cannot be combined with repeated --profile")
 
     config = load_config(args.config)
     if args.nominal:
@@ -50,6 +62,34 @@ def main() -> int:
             config,
             randomization=replace(config.randomization, enabled=False),
         )
+    try:
+        if args.collection_plan:
+            requests = load_collection_requests(
+                args.collection_plan,
+                allow_unready=args.allow_unready_collection,
+                expected_training_profile_ids=tuple(
+                    profile.profile_id
+                    for profile in config.parcel_profiles
+                    if not profile.evaluation_only
+                ),
+                expected_config_path=args.config,
+            )
+            plan = build_profile_episode_plan(
+                config.parcel_profiles,
+                requests,
+                allow_evaluation_only=False,
+            )
+        else:
+            plan = build_episode_plan(
+                config.parcel_profiles,
+                args.episodes,
+                args.start_episode,
+                tuple(args.selected_profiles or ()),
+                allow_evaluation_only=False,
+            )
+    except ValueError as exc:
+        parser.error(str(exc))
+
     output = Path(args.output or config.output.root_dir) / "expert"
     output.mkdir(parents=True, exist_ok=True)
     jsonl_writer = JsonlTrajectoryWriter(output / "audit_dataset")
@@ -65,16 +105,6 @@ def main() -> int:
 
     metrics = MetricsAccumulator()
     randomizer = DomainRandomizer(config.randomization, config.seed, config.parcel_profiles)
-    try:
-        plan = build_episode_plan(
-            config.parcel_profiles,
-            args.episodes,
-            args.start_episode,
-            tuple(args.selected_profiles or ()),
-            allow_evaluation_only=False,
-        )
-    except ValueError as exc:
-        parser.error(str(exc))
     reports = []
     profile_metrics: dict[str, MetricsAccumulator] = {}
     try:
@@ -133,6 +163,11 @@ def main() -> int:
             "num_episodes": len(plan),
             "profile_filter": list(args.selected_profiles or ()),
             "episodes_per_profile": args.episodes if args.selected_profiles else None,
+            "collection_plan": args.collection_plan,
+            "profile_episode_counts": {
+                profile_id: sum(spec.profile_id == profile_id for spec in plan)
+                for profile_id in sorted({spec.profile_id for spec in plan if spec.profile_id})
+            },
         },
         "config": asdict(config),
         "summary": metrics.summary(),

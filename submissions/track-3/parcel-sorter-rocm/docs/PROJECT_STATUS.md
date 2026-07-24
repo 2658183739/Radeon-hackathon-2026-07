@@ -19,6 +19,16 @@ orchestration integration only. Formal 30K model comparison and held-out
 closed-loop ranking remain blocked until additional balanced collection passes
 the same audit and a new split manifest is frozen.
 
+On the same Radeon, `plan_balanced_collection.py` was run against the completed
+400-episode audit manifest. It creates a stricter fresh-shard target of 360
+successes (30 for each of 12 training profiles) and estimates 1,775 attempted
+episodes with the current conservative success statistics. Nine profiles are
+explicitly blocked for expert diagnostics before bulk collection:
+`book_box`, `medium_carton`, `shoe_box_proxy`, `long_carton`,
+`large_narrow_carton`, `upright_canister`, `mailing_tube`, `near_limit_box`,
+and `electronics_box`. This is a planning artifact, not a new data or model
+result.
+
 ## Hard constraints
 
 - One AMD Radeon GPU, one visible device, and ROCm/PyTorch HIP execution.
@@ -40,6 +50,7 @@ the same audit and a new split manifest is frozen.
 | RGB-D ACT | Integrated and smoke-tested | Corrected metric-depth shard passes audit; one-step closed loop is interface evidence only |
 | Compact Diffusion | Radeon one-step smoke | Full matched training and closed-loop comparison are pending |
 | Robustness statistics | Implemented | Per-profile metrics and Wilson 95% intervals; zero retry samples are marked unknown |
+| Balanced collection planning | Implemented and Radeon-checked | Fresh 360-success target, configuration/audit fingerprints, profile-specific budgets, and an expert-diagnostic gate |
 | Industry-size cartons | Evaluation-only profiles | Current parallel gripper cannot claim suction handling |
 | Cylindrical parcel handling | Partial/unresolved | Scoped rolling physics and contact controls exist; a cradle end-effector is still required |
 | VLA | Not in the result path | VLA-Adapter remains a license and ROCm compatibility spike |
