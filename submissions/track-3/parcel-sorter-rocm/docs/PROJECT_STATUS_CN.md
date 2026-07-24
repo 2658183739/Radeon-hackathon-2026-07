@@ -49,6 +49,9 @@ profile 拆分 train、validation 和固定 held-out 集。
 紧凑的成功回合索引，按包裹 profile 分层，并输出 ACT 与 Diffusion 共用的精确 episode 列表。
 缺少 `summary.json`、metadata/计数不一致或多任务数据都会被主动拒绝。
 
+watch_and_train_rocm.sh 可以等待采集 summary、生成清单并启动顺序 ACT 矩阵；未完成数据不会
+触发训练，编排过程写入独立日志。
+
 ## 优化门禁
 
 1. **数据门禁：**至少 300 个成功且按 profile 均衡的 RGB-D 回合；保存不可变清单和哈希。

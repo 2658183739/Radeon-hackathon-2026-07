@@ -212,6 +212,11 @@ Diffusion 入口也使用同一个 `DATASET_SPLIT_MANIFEST`。不同 seed、RGB 
 ACT 门禁通过后，再把 MODEL_SWEEP_MODELS=act,diffusion 加入轻量 Diffusion 的 RGB/RGB-D
 对照。矩阵会为每个模型/模态/seed 保存一行 CSV 和一份日志；失败运行会保留，不会静默改变后续实验条件。
 
+在云端可以把等待采集完成、生成清单和启动矩阵连成一个可审计任务：
+
+    nohup bash scripts/watch_and_train_rocm.sh outputs/radeon-dataset-400-v2 \
+      > outputs/radeon-dataset-400-v2/watch-and-train.log 2>&1 &
+
 ## 在 Radeon 上训练 ACT
 
 ```bash

@@ -56,6 +56,10 @@ stratifies each parcel profile, and emits the exact episode list used by both
 ACT and Diffusion training. A missing `summary.json`, metadata/count mismatch,
 or multi-task dataset is rejected by design.
 
+watch_and_train_rocm.sh can wait for the collection summary, create the
+manifest, and launch the sequential ACT matrix. It never starts training from
+an incomplete dataset and writes a separate orchestration log.
+
 ## Optimization gates
 
 1. **Data gate:** at least 300 successful, profile-balanced RGB-D episodes;

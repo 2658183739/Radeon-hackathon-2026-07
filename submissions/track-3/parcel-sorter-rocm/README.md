@@ -257,6 +257,11 @@ compact Diffusion RGB/RGB-D comparison. The sweep records one CSV row and one
 log per model/modality/seed; failed runs are retained and do not silently
 alter later conditions.
 
+On a cloud instance, the same sequence can be left as one auditable job:
+
+    nohup bash scripts/watch_and_train_rocm.sh outputs/radeon-dataset-400-v2 \
+      > outputs/radeon-dataset-400-v2/watch-and-train.log 2>&1 &
+
 ## 4. Train ACT on one Radeon
 
 ```bash
