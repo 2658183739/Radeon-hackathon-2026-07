@@ -45,6 +45,10 @@
 当前 Radeon 采集任务只是数据生成，不是最终模型能力结论。训练前必须先完成审计，按
 profile 拆分 train、validation 和固定 held-out 集。
 
+`scripts/build_dataset_split.py` 是复现边界：它把 audit 中的原始 episode ID 映射到 LeRobot
+紧凑的成功回合索引，按包裹 profile 分层，并输出 ACT 与 Diffusion 共用的精确 episode 列表。
+缺少 `summary.json`、metadata/计数不一致或多任务数据都会被主动拒绝。
+
 ## 优化门禁
 
 1. **数据门禁：**至少 300 个成功且按 profile 均衡的 RGB-D 回合；保存不可变清单和哈希。

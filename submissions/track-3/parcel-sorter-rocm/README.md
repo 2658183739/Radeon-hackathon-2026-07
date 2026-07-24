@@ -216,6 +216,32 @@ python scripts/audit_dataset.py --dataset-root <lerobot_dataset>
 python scripts/audit_dataset.py --dataset-root <lerobot_dataset> --require-depth-rgb
 ```
 
+After collection is complete, freeze the train/validation/held-out split before
+starting model comparison:
+
+```bash
+python scripts/build_dataset_split.py \
+  --audit-root outputs/radeon-dataset-400-v2/expert/audit_dataset \
+  --dataset-root outputs/radeon-dataset-400-v2/expert/lerobot_dataset \
+  --output outputs/radeon-dataset-400-v2/dataset-split.json \
+  --seed 20260725
+```
+
+The manifest stratifies by parcel profile, records original and LeRobot episode
+IDs, and excludes held-out episodes from training. Pass the same manifest to
+every matched run:
+
+```bash
+DATASET_SPLIT_MANIFEST=outputs/radeon-dataset-400-v2/dataset-split.json \
+ACT_SEED=11 ACT_STEPS=30000 ACT_USE_AMP=true \
+bash scripts/train_act_rocm.sh \
+  outputs/radeon-dataset-400-v2/expert/lerobot_dataset \
+  outputs/train/act-rgb-seed11
+```
+
+The Diffusion entry uses the same `DATASET_SPLIT_MANIFEST`. Do not regenerate
+the manifest between seeds or between RGB and RGB-D comparisons.
+
 ## 4. Train ACT on one Radeon
 
 ```bash

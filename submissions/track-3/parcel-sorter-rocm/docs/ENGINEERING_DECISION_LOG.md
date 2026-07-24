@@ -698,6 +698,37 @@ interval fields alongside the numerator and denominator.
 level or hierarchical profile model, add it as a versioned analysis rather than
 overwriting existing summaries.
 
+### 37. Freeze an explicit split before model comparison
+
+**Problem.** LeRobot's default `eval_split` holds out the last episodes per
+task, which is deterministic only if the input episode list is fixed. It does
+not by itself preserve the original catalog episode IDs or a separate held-out
+closed-loop set.
+
+**Alternatives.** Accept the implicit split, copy a new dataset for each seed,
+or build one manifest that maps audit IDs to compact LeRobot indices and feeds
+the same list to every run.
+
+**Decision.** Add `dataset_split.py` and `build_dataset_split.py`. The builder
+requires a completed summary, matches audit and metadata counts/order, rejects
+multi-task data in schema v1, stratifies by profile with a stable SHA-256 key,
+and emits train, validation, and held-out indices. Training scripts accept
+`DATASET_SPLIT_MANIFEST`; validation is the final segment of the explicit
+episode list and held-out episodes are never passed to LeRobot.
+
+**Code capability.** Dataset lineage, deterministic stratified sampling,
+subprocess-safe CLI argument generation, leak checks, and failure-fast data
+contracts.
+
+**Verification.** The local suite increased to 76 tests and passed; the
+splitter tests cover determinism, profile coverage, count mismatches,
+incomplete collections, duplicate indices, and held-out leakage. Radeon shell
+validation is run after synchronization.
+
+**Revisit trigger.** A multi-task VLA dataset requires a versioned schema that
+stratifies by task and profile and updates the LeRobot factory semantics; do not
+silently reuse schema v1.
+
 ### 36. Keep catalog counts consistent across submission documents
 
 **Problem.** Catalog v2 now contains twelve training profiles and nine

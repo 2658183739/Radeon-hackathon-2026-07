@@ -532,6 +532,29 @@ cradle 的执行器尚未实现，因此不能写成当前能力。
 **复盘条件：**若赛事报告要求其他置信水平或分层统计模型，应新增版本化分析，不能覆盖既有
 summary。
 
+### 第 37 步：模型比较前冻结显式数据拆分
+
+**问题：**LeRobot 默认 `eval_split` 按 task 把最后若干回合作为评估集；只有输入 episode
+列表固定时它才是确定的，而且它不会保留原始目录 episode ID，也不会自动生成独立的闭环
+held-out 集。
+
+**候选方案：**接受隐式拆分、为每个 seed 复制一套数据，或生成一个把 audit ID 映射到
+LeRobot 紧凑索引的清单，并让所有运行共用这份清单。
+
+**决策与原因：**新增 `dataset_split.py` 和 `build_dataset_split.py`。拆分器要求采集 summary
+已完成，核对 audit 与 metadata 的数量/顺序，v1 schema 拒绝多任务数据，使用稳定 SHA-256
+键按 profile 分层，并输出 train、validation、held-out 索引。训练脚本接受
+`DATASET_SPLIT_MANIFEST`；validation 放在显式列表末尾，held-out 永远不会传给 LeRobot。
+
+**代码能力：**数据血缘、确定性分层采样、可安全传给子进程的 CLI 参数生成、泄漏检查和快速
+失败的数据契约。
+
+**验证：**本地测试增加到 76 项并通过；拆分器覆盖确定性、profile 覆盖、数量不一致、未完成
+采集、重复索引和 held-out 泄漏。同步后在 Radeon 上重新运行 shell 验证。
+
+**复盘条件：**多任务 VLA 数据需要版本化 schema，按 task 和 profile 同时分层，并重新确认
+LeRobot factory 语义；不能静默复用 v1。
+
 ### 第 36 步：保持所有提交文档的目录数量一致
 
 **问题：**catalog v2 现在包含 12 个训练 profile 和 9 个仅评测 profile，但部分旧文档仍写着

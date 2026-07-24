@@ -50,6 +50,12 @@ The running Radeon collection is a data-generation job, not a final model
 claim. Its output must be audited and split into train, validation, and a fixed
 held-out set before training results are reported.
 
+`scripts/build_dataset_split.py` is the reproducibility boundary. It maps the
+original audit episode IDs to LeRobot's compact successful-episode indices,
+stratifies each parcel profile, and emits the exact episode list used by both
+ACT and Diffusion training. A missing `summary.json`, metadata/count mismatch,
+or multi-task dataset is rejected by design.
+
 ## Optimization gates
 
 1. **Data gate:** at least 300 successful, profile-balanced RGB-D episodes;

@@ -351,3 +351,10 @@ catalog v2 新增五个带来源的边界 profile：USPS 大型 flat-rate 箱、
 旧的 4 个边界快照；现在 README、技术报告、数据集卡和组件矩阵统一写为 9 个，而历史日志
 保留当时的快照语境。**决策：以后任何目录变更都必须在同一提交中更新解析器核对数量和当前
 状态文档。**
+
+### 记录 32：模型比较前冻结拆分
+
+LeRobot 的默认评估拆分只有在输入 episode 列表固定时才可复现。新增拆分器会校验采集已
+完成，把 audit 原始 ID 映射到紧凑的成功回合索引，按 profile 分层，并输出 train、validation
+和 held-out 列表。ACT 与 Diffusion 通过 `DATASET_SPLIT_MANIFEST` 共用清单，held-out 回合
+不会进入训练。**决策：所有匹配 seed 和模态实验都必须使用这份清单。**

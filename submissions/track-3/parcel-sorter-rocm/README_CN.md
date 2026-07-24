@@ -176,6 +176,29 @@ python scripts/audit_dataset.py --dataset-root <lerobot_dataset>
 python scripts/audit_dataset.py --dataset-root <lerobot_dataset> --require-depth-rgb
 ```
 
+采集完成后，训练前先冻结 train/validation/held-out 拆分，不能在不同模型之间重新随机拆分：
+
+```bash
+python scripts/build_dataset_split.py \
+  --audit-root outputs/radeon-dataset-400-v2/expert/audit_dataset \
+  --dataset-root outputs/radeon-dataset-400-v2/expert/lerobot_dataset \
+  --output outputs/radeon-dataset-400-v2/dataset-split.json \
+  --seed 20260725
+```
+
+清单按包裹 profile 分层，并记录原始确定性 episode ID 与 LeRobot 紧凑 episode 索引，
+held-out 回合完全排除出训练。所有匹配实验使用同一清单：
+
+```bash
+DATASET_SPLIT_MANIFEST=outputs/radeon-dataset-400-v2/dataset-split.json \
+ACT_SEED=11 ACT_STEPS=30000 ACT_USE_AMP=true \
+bash scripts/train_act_rocm.sh \
+  outputs/radeon-dataset-400-v2/expert/lerobot_dataset \
+  outputs/train/act-rgb-seed11
+```
+
+Diffusion 入口也使用同一个 `DATASET_SPLIT_MANIFEST`。不同 seed、RGB 和 RGB-D 对照之间都不能重新生成清单。
+
 ## 在 Radeon 上训练 ACT
 
 ```bash

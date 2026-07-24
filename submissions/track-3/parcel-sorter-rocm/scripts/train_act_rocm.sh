@@ -23,8 +23,9 @@ N_ENCODER_LAYERS="${ACT_N_ENCODER_LAYERS:-4}"
 N_DECODER_LAYERS="${ACT_N_DECODER_LAYERS:-1}"
 TEMPORAL_ENSEMBLE_COEFF="${ACT_TEMPORAL_ENSEMBLE_COEFF:-}"
 USE_DEPTH="${ACT_USE_DEPTH:-false}"
+SPLIT_MANIFEST="${DATASET_SPLIT_MANIFEST:-}"
 
-if [[ "${EVAL_SPLIT}" =~ ^0([.]0+)?$ && "${EVAL_STEPS}" != "0" ]]; then
+if [[ -z "${SPLIT_MANIFEST}" && "${EVAL_SPLIT}" =~ ^0([.]0+)?$ && "${EVAL_STEPS}" != "0" ]]; then
   echo "ERROR: ACT_EVAL_STEPS must be 0 when ACT_EVAL_SPLIT is 0" >&2
   exit 7
 fi
@@ -48,6 +49,20 @@ fi
 
 # Do not expose observation.privileged_state (parcel ground truth) to the policy.
 AUDIT_ARGS=(--dataset-root "${DATASET_ROOT}")
+DATASET_ARGS=(--dataset.eval_split "${EVAL_SPLIT}")
+if [[ -n "${SPLIT_MANIFEST}" ]]; then
+  if [[ ! -f "${SPLIT_MANIFEST}" ]]; then
+    echo "ERROR: dataset split manifest not found: ${SPLIT_MANIFEST}" >&2
+    exit 9
+  fi
+  SPLIT_EPISODES="$(python scripts/build_dataset_split.py --manifest "${SPLIT_MANIFEST}" --print episodes)"
+  SPLIT_EVAL="$(python scripts/build_dataset_split.py --manifest "${SPLIT_MANIFEST}" --print eval_split)"
+  if [[ "${SPLIT_EVAL}" == "0" && "${EVAL_STEPS}" != "0" ]]; then
+    echo "ERROR: ACT_EVAL_STEPS must be 0 when the split has no validation episodes" >&2
+    exit 10
+  fi
+  DATASET_ARGS=(--dataset.episodes "${SPLIT_EPISODES}" --dataset.eval_split "${SPLIT_EVAL}")
+fi
 POLICY_INPUT_FEATURES='{observation.state: {type: STATE, shape: [20]}, observation.images.overhead_rgb: {type: VISUAL, shape: [3, 224, 224]}}'
 if [[ "${USE_DEPTH}" == "true" ]]; then
   AUDIT_ARGS+=(--require-depth-rgb)
@@ -61,7 +76,7 @@ TRAIN_ARGS=(
   --dataset.repo_id local/parcel-sorter-expert
   --dataset.root "${DATASET_ROOT}"
   --dataset.depth_output_unit m
-  --dataset.eval_split "${EVAL_SPLIT}"
+  "${DATASET_ARGS[@]}"
   --dataset.image_transforms.enable "${IMAGE_TRANSFORMS}"
   --policy.type act
   --policy.device cuda

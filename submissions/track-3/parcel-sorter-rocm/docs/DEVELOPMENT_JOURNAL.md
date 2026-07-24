@@ -354,3 +354,13 @@ four-boundary snapshot. The current README, technical report, dataset card, and
 component matrix now say “nine,” while historical journal entries retain their
 original snapshot context. **Decision: make every future catalog change update
 the parser-backed count and current documentation in one commit.**
+
+### Record 32: freeze the split before model comparison
+
+LeRobot's default evaluation split is only reproducible when the input episode
+list is fixed. The new splitter validates a completed collection, maps original
+audit IDs to compact successful-episode indices, stratifies by profile, and
+emits train, validation, and held-out lists. ACT and Diffusion consume the same
+manifest through `DATASET_SPLIT_MANIFEST`; held-out episodes are excluded from
+training. **Decision: keep the manifest as a required boundary for all matched
+seeds and modalities.**
