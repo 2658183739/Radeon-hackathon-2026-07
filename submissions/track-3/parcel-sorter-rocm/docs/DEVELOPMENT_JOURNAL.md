@@ -429,3 +429,11 @@ before calling LeRobot made the trainer reject every fresh run under
 `resume=false`. The sweep now creates only its root namespace and lets
 LeRobot create each checkpoint directory. The next retry uses a new root, so
 the two infrastructure failures remain available as negative evidence.
+
+### Record 39: stage a bounded smoke matrix before long training
+
+Once the corrected pipeline reached real training, its observed throughput
+made a 30K x six-cell matrix a multi-hour commitment. I therefore chose a new
+5K-step root for integration validation. This is deliberately not a model
+selection result: it must produce loadable checkpoints first, then be evaluated
+with the same held-out protocol before any scientific claim.

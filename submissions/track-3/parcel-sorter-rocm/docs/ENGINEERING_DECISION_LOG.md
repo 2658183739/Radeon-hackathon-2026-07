@@ -879,8 +879,30 @@ new matrix root rather than changing resume semantics.
 **Code capability.** Correct ownership of artifact lifecycle between shell
 orchestration and the training framework, with explicit retry isolation.
 
-**Verification.** Shell syntax remains valid and the next retry uses
-`model-sweep-v3`, whose cell paths do not exist before `lerobot-train` starts.
+**Verification.** Shell syntax remains valid and the retry uses a new matrix
+root whose cell paths do not exist before `lerobot-train` starts.
 
 **Revisit trigger.** If a framework changes its directory contract, add a
 preflight assertion that reports the exact path and resume mode before launch.
+
+### 44. Separate a short smoke budget from the formal training budget
+
+**Observation.** The corrected ACT pipeline reached real Radeon training, but
+30,000 steps per cell would take hours before exposing a later checkpoint or
+evaluation integration issue.
+
+**Decision.** Run a five-thousand-step, three-seed RGB/RGB-D smoke matrix in a
+new output root first. Treat it only as an integration and checkpoint
+artifact test. Keep 30,000 steps as the formal budget, and do not select a
+model from the smoke matrix without the fixed held-out closed-loop evaluation.
+
+**Code capability.** Budgeted experiment staging, single-GPU scheduling, and
+clear separation between pipeline validation and scientific comparison.
+
+**Verification.** The existing sweep already accepts `MODEL_SWEEP_ACT_STEPS`;
+the retry is launched with `MODEL_SWEEP_ACT_STEPS=5000` and a new artifact
+namespace.
+
+**Revisit trigger.** Promote a smoke cell to formal training only after it
+produces a loadable checkpoint and passes the same data, safety, and evaluation
+contracts as the 30K run.
