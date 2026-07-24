@@ -69,6 +69,28 @@ class ScriptedExpertTests(unittest.TestCase):
         self.assertAlmostEqual(action.target_position[2], transit_z)
         self.assertGreater(action.target_position[0], state.end_effector_pose[0])
 
+    def test_final_pregrasp_descent_uses_reduced_step_limit(self) -> None:
+        decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)
+        parcel = self.state.parcel_pose
+        candidate_config = replace(
+            self.config,
+            control=replace(self.config.control, final_approach_step_m=0.01),
+        )
+        candidate_expert = ScriptedPickPlaceExpert(candidate_config, self.sample)
+        state = RobotState(
+            joint_positions=self.state.joint_positions,
+            end_effector_pose=(parcel[0], parcel[1], 0.30, 1.0, 0.0, 0.0, 0.0),
+            parcel_pose=parcel,
+            target_position=self.state.target_position,
+            gripper_contact_force_n=0.0,
+        )
+
+        action = candidate_expert.action(decision, state)
+        distance = math.dist(action.target_position, state.end_effector_pose[:3])
+
+        self.assertAlmostEqual(distance, candidate_config.control.final_approach_step_m)
+        self.assertLess(distance, candidate_config.control.max_ee_step_m)
+
     def test_lift_and_drop_keep_gripper_closed(self) -> None:
         for command in (Command.MOVE_LIFT, Command.MOVE_DROP):
             action = self.expert.action(ControlDecision("test", command.value, "test", 0), self.state)

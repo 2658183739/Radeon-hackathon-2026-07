@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 import unittest
 
@@ -18,7 +19,18 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(config.sensors.depth)
         self.assertTrue(config.randomization.enabled)
         self.assertEqual(len(config.control.arm_kp), 7)
+        self.assertLessEqual(config.control.final_approach_step_m, config.control.max_ee_step_m)
         self.assertEqual(config.task.left_bin_center_m, (0.48, -0.34, 0.025))
+
+    def test_final_approach_limit_cannot_exceed_global_limit(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            control=replace(config.control, final_approach_step_m=0.05),
+        )
+
+        with self.assertRaisesRegex(ValueError, "final_approach_step_m"):
+            invalid.validate()
 
 
 if __name__ == "__main__":

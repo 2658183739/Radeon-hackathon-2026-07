@@ -1,0 +1,104 @@
+from __future__ import annotations
+
+from typing import Any
+
+
+def compare_expert_runs(
+    baseline: dict[str, Any],
+    candidate: dict[str, Any],
+) -> dict[str, Any]:
+    baseline_episodes = _episode_map(baseline, "baseline")
+    candidate_episodes = _episode_map(candidate, "candidate")
+    if baseline_episodes.keys() != candidate_episodes.keys():
+        missing = sorted(baseline_episodes.keys() - candidate_episodes.keys())
+        extra = sorted(candidate_episodes.keys() - baseline_episodes.keys())
+        raise ValueError(
+            f"episode sets differ; missing from candidate={missing}, extra={extra}"
+        )
+
+    threshold = float(baseline["config"]["task"]["max_contact_force_n"])
+    candidate_threshold = float(candidate["config"]["task"]["max_contact_force_n"])
+    if candidate_threshold != threshold:
+        raise ValueError(
+            "contact-force thresholds differ; comparisons require the same safety boundary"
+        )
+    baseline_summary = baseline["summary"]
+    candidate_summary = candidate["summary"]
+    recovered = []
+    regressed = []
+    force_improved = []
+
+    for episode_index in sorted(baseline_episodes):
+        baseline_episode = baseline_episodes[episode_index]
+        candidate_episode = candidate_episodes[episode_index]
+        if baseline_episode.get("sample") != candidate_episode.get("sample"):
+            raise ValueError(
+                f"episode {episode_index} randomization samples differ"
+            )
+        old = baseline_episode["result"]
+        new = candidate_episode["result"]
+        if not bool(old["success"]) and bool(new["success"]):
+            recovered.append(episode_index)
+        if bool(old["success"]) and not bool(new["success"]):
+            regressed.append(episode_index)
+        old_force = float(old.get("max_contact_force_n", 0.0))
+        new_force = float(new.get("max_contact_force_n", 0.0))
+        if new_force < old_force:
+            force_improved.append(episode_index)
+
+    baseline_force_aborts = _force_abort_indices(baseline_episodes, threshold)
+    candidate_force_aborts = _force_abort_indices(candidate_episodes, threshold)
+    count = len(baseline_episodes)
+    baseline_throughput = float(baseline_summary["successful_parcels_per_hour"])
+    candidate_throughput = float(candidate_summary["successful_parcels_per_hour"])
+    acceptance = {
+        "success_rate_at_least_0_90": float(candidate_summary["success_rate"]) >= 0.90,
+        "force_abort_rate_at_most_0_05": len(candidate_force_aborts) / count <= 0.05,
+        "drop_rate_not_increased": float(candidate_summary["drop_rate"])
+        <= float(baseline_summary["drop_rate"]),
+        "throughput_retained_at_least_0_85": candidate_throughput
+        >= baseline_throughput * 0.85,
+    }
+
+    return {
+        "episode_count": count,
+        "contact_force_threshold_n": threshold,
+        "baseline_summary": baseline_summary,
+        "candidate_summary": candidate_summary,
+        "success_rate_delta": float(candidate_summary["success_rate"])
+        - float(baseline_summary["success_rate"]),
+        "throughput_ratio": (
+            candidate_throughput / baseline_throughput if baseline_throughput else 0.0
+        ),
+        "recovered_episode_indices": recovered,
+        "regressed_episode_indices": regressed,
+        "force_improved_episode_indices": force_improved,
+        "baseline_force_abort_indices": baseline_force_aborts,
+        "candidate_force_abort_indices": candidate_force_aborts,
+        "acceptance": acceptance,
+        "recommendation": "keep" if all(acceptance.values()) else "repeat_or_reject",
+    }
+
+
+def _episode_map(payload: dict[str, Any], label: str) -> dict[int, dict[str, Any]]:
+    episodes: dict[int, dict[str, Any]] = {}
+    for episode in payload.get("episodes", ()):
+        episode_index = int(episode["episode_index"])
+        if episode_index in episodes:
+            raise ValueError(f"{label} repeats episode {episode_index}")
+        episodes[episode_index] = episode
+    if not episodes:
+        raise ValueError(f"{label} has no episodes")
+    return episodes
+
+
+def _force_abort_indices(
+    episodes: dict[int, dict[str, Any]],
+    threshold: float,
+) -> list[int]:
+    return sorted(
+        episode_index
+        for episode_index, episode in episodes.items()
+        if not bool(episode["result"]["success"])
+        and float(episode["result"].get("max_contact_force_n", 0.0)) > threshold
+    )

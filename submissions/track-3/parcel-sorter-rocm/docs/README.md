@@ -1,0 +1,23 @@
+# Documentation Index / 文档索引
+
+| Topic | English | 中文 |
+| --- | --- | --- |
+| Reproduction | [README](../README.md) | [README 中文](../README_CN.md) |
+| Technical report | [Technical report](../TECHNICAL_REPORT.md) | [技术报告](../TECHNICAL_REPORT_CN.md) |
+| Architecture | [Architecture](ARCHITECTURE.md) | [架构](ARCHITECTURE_CN.md) |
+| Components | [Components](COMPONENTS.md) | [组件](COMPONENTS_CN.md) |
+| Optimization | [Optimization roadmap](OPTIMIZATION_ROADMAP.md) | [优化路线图](OPTIMIZATION_ROADMAP_CN.md) |
+| Engineering learning | [Decision log](ENGINEERING_DECISION_LOG.md) | [工程决策日志](ENGINEERING_DECISION_LOG_CN.md) |
+| Dataset | [Dataset card](DATASET_CARD.md) | [数据集卡](DATASET_CARD_CN.md) |
+| Model | [Model card](MODEL_CARD.md) | [模型卡](MODEL_CARD_CN.md) |
+| Video | [Video script](VIDEO_SCRIPT.md) | [视频脚本](VIDEO_SCRIPT_CN.md) |
+| Submission checklist | [Checklist](../SUBMISSION_CHECKLIST.md) | [提交清单](../SUBMISSION_CHECKLIST_CN.md) |
+| Raw evidence | [Evidence](../evidence/README.md) | [原始证据](../evidence/README_CN.md) |
+| Third-party notices | [Notices](../THIRD_PARTY_NOTICES.md) | [第三方说明](../THIRD_PARTY_NOTICES_CN.md) |
+
+English documents are the primary competition materials. Chinese documents are
+paired operator and learning references. Results, plans, and unverified changes
+must remain explicitly distinguished in both languages.
+
+英文文档是比赛主材料，中文文档用于操作和学习。两种语言都必须明确区分已实现结果、
+计划和尚未验证的修改。

@@ -102,6 +102,11 @@ def main() -> int:
 
     result = {
         "runtime": runtime_report(),
+        "evaluation_range": {
+            "start_episode": args.start_episode,
+            "end_episode": args.start_episode + args.episodes - 1,
+            "num_episodes": args.episodes,
+        },
         "config": asdict(config),
         "summary": metrics.summary(),
         "episodes": reports,

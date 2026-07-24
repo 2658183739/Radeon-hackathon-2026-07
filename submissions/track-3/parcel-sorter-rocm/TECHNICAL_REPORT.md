@@ -70,6 +70,7 @@ The baseline uses:
 | Camera resolution | 224 x 224 |
 | Episode limit | 20 s |
 | Maximum Cartesian step | 0.04 m |
+| Final aligned approach step | 0.01 m |
 | Gripper close force | 20 N with a 1 N/step ramp |
 | Safety contact threshold | 35 N |
 | Maximum grasp retries | 2 |
@@ -101,6 +102,11 @@ descend to pregrasp. It then closes the gripper using a force ramp, verifies
 bilateral contact, lifts, moves to the destination, opens, and checks both
 release and final parcel location.
 
+The current optimization revision adds a separate 0.01 m limit for the final
+aligned descent while retaining 0.04 m in free space. This decision directly
+targets the measured force-abort mode and remains subject to same-episode
+Radeon regression before it replaces the recorded baseline.
+
 The supervisor retries failed grasp verification and short contact losses. It
 aborts on a simulator fault or excessive contact force. This behaviour is
 present for both expert and ACT execution, so learned inference remains inside
@@ -125,6 +131,11 @@ Depth is stored in the dataset but the current ACT baseline uses RGB plus robot
 state. This is an explicit limitation and provides a controlled next experiment:
 an RGB-D fusion policy can be compared against the present RGB baseline without
 recollecting demonstrations.
+
+Generic image transforms now default to disabled for synthetic geometry. The
+training entry point retains an explicit switch so augmentation can be evaluated
+as a matched ablation rather than assumed to be beneficial. The recorded
+5,000-step run used the previous enabled setting and remains the baseline.
 
 ## 8. AMD Radeon and ROCm use
 
@@ -177,6 +188,7 @@ from being dominated by episode zero.
 | ACT 4,000, episodes 10-19 | 30.0% success |
 | ACT 4,000 mean / P95 inference latency | 2.05 ms / 8.00 ms |
 | ACT 5,000, episodes 10-19 | 10.0% success |
+| Rejected 0.01 m approach candidate, matched 120 episodes | 75.0% success; 73.6% throughput retained |
 | Parallel Genesis, 128 environments | 46,582 environment-steps/s |
 | Peak observed GPU utilization | 83% |
 
@@ -197,9 +209,12 @@ augmentation, depth fusion, and checkpoint selection by task success.
 
 Twenty-two of the 24 failed formal expert episodes ended at the force safety
 boundary, and two lost the grasp during lift. The largest observed contact force
-was approximately 109.8 N. The primary engineering improvement is therefore a
-slower, force-aware final approach and harder-example recollection, not a higher
-safety threshold.
+was approximately 109.8 N. A fixed 0.01 m final-approach limit was tested on the
+same 120 episodes and rejected: it reduced success from 80.0% to 75.0%, raised
+force aborts from 22 to 25, and retained only 73.6% of throughput. The next
+controller experiment must therefore combine gap and force feedback with
+phase-specific velocity or impedance shaping; neither a higher safety threshold
+nor a fixed slowdown is accepted without closed-loop evidence.
 
 Other current limitations are:
 

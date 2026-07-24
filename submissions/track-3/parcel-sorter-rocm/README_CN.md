@@ -4,9 +4,10 @@
 AMD Radeon GPU 和 ROCm 上完成 Genesis 物理仿真、Franka Panda 机械臂控制、
 RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 
-英文 [README.md](README.md) 是评审复现的主入口；英文
-[TECHNICAL_REPORT.md](TECHNICAL_REPORT.md) 是正式技术报告。本文件用于中文操作和
-结果说明。
+英文 [README.md](README.md) 是评审复现的主入口；中文正式报告见
+[TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)。优化顺序见
+[优化路线图](docs/OPTIMIZATION_ROADMAP_CN.md)，完整工程决策和代码学习记录见
+[工程决策日志](docs/ENGINEERING_DECISION_LOG_CN.md)。
 
 ## 系统组成
 
@@ -66,8 +67,10 @@ ACT 已经证明数据、训练、保存、重载、ROCm 推理和 Genesis 闭�
 优于第 5,000 步，说明模型选择不能只看离线 loss。
 
 120 回合中的 24 次失败有 22 次触发接触力安全中止，2 次在抬升阶段丢失抓取。
-当前优先优化方向是降低最终接近速度、增加困难样本，并比较关闭强图像增强和加入
-深度融合后的模型，而不是提高安全阈值。
+同一组 120 个 episode 的固定 0.01 m 最终接近步长实验已被拒绝：成功率从 80.0%
+降到 75.0%，力中止从 22 次增加到 25 次，吞吐只保留 73.6%。因此默认值恢复为
+0.04 m，独立参数只用于实验复现。下一步应比较距离/接触力联合速度整形、困难样本、
+关闭强图像增强和深度融合，而不是提高安全阈值或假设“越慢一定越安全”。
 
 ## Radeon Cloud 首次运行
 
@@ -84,6 +87,17 @@ python -m unittest discover -s tests -q
 ```bash
 bash scripts/run_pipeline_radeon.sh outputs/radeon-run
 ```
+
+控制优化后，应使用完全相同的 episode 做对比：
+
+```bash
+python scripts/compare_expert_runs.py \
+  --baseline evidence/expert/randomized-120-summary.json \
+  --candidate outputs/expert-candidate/expert/summary.json \
+  --output outputs/expert-candidate/comparison.json
+```
+
+该工具会拒绝样本集合不一致的比较，并列出旧失败恢复、旧成功退化、力中止与吞吐变化。
 
 ## 采集 120 回合 RGB-D 专家数据
 
@@ -108,10 +122,15 @@ ACT_BATCH_SIZE=32 \
 ACT_NUM_WORKERS=4 \
 ACT_SAVE_FREQ=1000 \
 ACT_USE_AMP=true \
+ACT_IMAGE_TRANSFORMS=false \
 bash scripts/train_act_rocm.sh \
   outputs/radeon-dataset-120/expert/lerobot_dataset \
   outputs/train/act-radeon-5000
 ```
+
+合成操作任务依赖精确图像几何，因此通用图像增强默认关闭。只应在其他数据、随机种子和
+检查点完全一致的情况下设置 `ACT_IMAGE_TRANSFORMS=true` 做对照实验。仓库中的 5000
+步原始证据产生于本次修改之前，当时增强已开启；目前不能把旧结果归因于新默认值。
 
 比较 FP32、AMP 和 batch 大小时运行：
 
@@ -135,6 +154,16 @@ python scripts/evaluate_act.py \
 
 `--start-episode` 用于选择确定且互不重叠的随机区间。结果文件会记录本次评估的开始
 episode、结束 episode 和回合数，避免所有检查点只在 episode 0 上比较。
+
+多个检查点评估完成后运行：
+
+```bash
+python scripts/summarize_act_evaluations.py \
+  outputs/eval-act-sweep \
+  --output outputs/act-checkpoint-ranking.json
+```
+
+该工具会拒绝重复 episode，并优先按闭环成功率选择模型。
 
 ## Docker
 
@@ -167,4 +196,4 @@ NVIDIA 专用算子，否则迁回 ROCm 会增加返工。
 小体积的专家、ACT、训练和 benchmark 原始结果保存在 `evidence/`，数据集和 206 MB
 模型权重不直接提交 Git。最终 PR 前仍需填写与 Luma 一致的团队名和法定姓名、上传
 带 SHA-256 的正式权重与数据、录制 3-5 分钟演示视频，并从最终 Git 提交重新跑一次
-完整流程。具体见 [SUBMISSION_CHECKLIST.md](SUBMISSION_CHECKLIST.md)。
+完整流程。具体见 [SUBMISSION_CHECKLIST_CN.md](SUBMISSION_CHECKLIST_CN.md)。

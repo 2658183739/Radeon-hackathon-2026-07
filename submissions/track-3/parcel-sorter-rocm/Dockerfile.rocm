@@ -15,8 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/parcel-sorter-rocm
-COPY pyproject.toml README.md README_CN.md TECHNICAL_REPORT.md SUBMISSION_CHECKLIST.md ./
-COPY LICENSE UPSTREAM_LOCK.json THIRD_PARTY_NOTICES.md ./
+COPY pyproject.toml README.md README_CN.md TECHNICAL_REPORT.md TECHNICAL_REPORT_CN.md ./
+COPY SUBMISSION_CHECKLIST.md SUBMISSION_CHECKLIST_CN.md ./
+COPY LICENSE UPSTREAM_LOCK.json THIRD_PARTY_NOTICES.md THIRD_PARTY_NOTICES_CN.md ./
 COPY src src
 COPY configs configs
 COPY scripts scripts

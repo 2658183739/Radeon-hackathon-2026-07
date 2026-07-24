@@ -53,6 +53,13 @@ rejects a non-HIP PyTorch build.
 See [TECHNICAL_REPORT.md](TECHNICAL_REPORT.md) for the design rationale,
 results, limitations, and competition mapping.
 
+Chinese versions and engineering-learning material are maintained alongside the
+English submission documents:
+
+- [README_CN.md](README_CN.md) and [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)
+- [Optimization roadmap](docs/OPTIMIZATION_ROADMAP.md) / [中文](docs/OPTIMIZATION_ROADMAP_CN.md)
+- [Engineering decision log](docs/ENGINEERING_DECISION_LOG.md) / [中文](docs/ENGINEERING_DECISION_LOG_CN.md)
+
 ## Repository layout
 
 ```text
@@ -64,6 +71,8 @@ tests/                   Deterministic unit tests
 Dockerfile.rocm          Pinned clean-build ROCm container definition
 UPSTREAM_LOCK.json       Exact Genesis and LeRobot source revisions
 TECHNICAL_REPORT.md      Track 3 technical report
+TECHNICAL_REPORT_CN.md   Chinese technical report
+docs/                    Paired architecture, optimization, and learning notes
 ```
 
 Generated datasets, checkpoints, videos, and logs are intentionally excluded
@@ -111,6 +120,18 @@ The summary is written to
 `outputs/expert-eval/expert/summary.json`; MP4 files are stored under its
 `videos/` directory.
 
+Compare a control change against the same episode indices:
+
+```bash
+python scripts/compare_expert_runs.py \
+  --baseline evidence/expert/randomized-120-summary.json \
+  --candidate outputs/expert-candidate/expert/summary.json \
+  --output outputs/expert-candidate/comparison.json
+```
+
+The comparison rejects mismatched episode sets and reports recovered failures,
+regressions, force-abort changes, throughput retention, and acceptance gates.
+
 ## 3. Collect an RGB-D LeRobotDataset
 
 ```bash
@@ -144,6 +165,7 @@ ACT_BATCH_SIZE=32 \
 ACT_NUM_WORKERS=4 \
 ACT_SAVE_FREQ=1000 \
 ACT_USE_AMP=true \
+ACT_IMAGE_TRANSFORMS=false \
 bash scripts/train_act_rocm.sh \
   outputs/radeon-dataset-120/expert/lerobot_dataset \
   outputs/train/act-radeon-5000
@@ -153,6 +175,12 @@ The script validates ROCm before training, keeps weights local, disables cloud
 logging, reserves 10% of episodes for evaluation, and saves periodic
 checkpoints. It trains ACT from RGB and non-privileged robot state; depth is
 retained in the dataset for a later RGB-D fusion policy.
+
+Generic image transforms default to off because synthetic manipulation labels
+depend on precise geometry. Set `ACT_IMAGE_TRANSFORMS=true` only as a controlled
+ablation with otherwise identical data, seeds, and checkpoint steps. The
+committed 5,000-step evidence predates this change and was trained with generic
+transforms enabled; no result is attributed to the new default yet.
 
 To compare training precision and batch size on the target card:
 
@@ -175,6 +203,16 @@ python scripts/evaluate_act.py \
 `--start-episode` selects a deterministic, non-overlapping randomization range.
 Use it to avoid evaluating every checkpoint only on episode zero. The summary
 records the exact start, end, and count of evaluated episodes.
+
+Rank multiple checkpoint summaries by closed-loop task performance:
+
+```bash
+python scripts/summarize_act_evaluations.py \
+  outputs/eval-act-sweep \
+  --output outputs/act-checkpoint-ranking.json
+```
+
+The tool rejects duplicate episode indices and ranks success before latency.
 
 ## 6. GPU simulation benchmark
 
@@ -240,6 +278,13 @@ contact force during fast approach; 22 of 24 failed expert episodes ended at
 the configured safety boundary. These limitations are reported rather than
 hidden. Raw summaries and logs are indexed in [evidence/README.md](evidence/README.md).
 
+A matched 120-episode experiment with a fixed 0.01 m final-approach step was
+rejected: success fell from 80.0% to 75.0%, force aborts rose from 22 to 25,
+and throughput retention was 73.6%. The default therefore remains 0.04 m. The
+separate setting is retained only as an experiment parameter; the next control
+experiment will combine distance- and force-aware velocity shaping instead of
+assuming that a fixed slowdown is sufficient.
+
 ## Reproducibility and tests
 
 ```bash
@@ -247,15 +292,16 @@ source scripts/activate_radeon_env.sh
 python -m unittest discover -s tests -q
 ```
 
-The verified suite contains 26 tests covering configuration validation, domain
+The verified suite contains 35 tests covering configuration validation, domain
 randomization, state-machine transitions, dataset contracts, metrics, runner
-behaviour, expert geometry, and safety limits. GPU tests and end-to-end
+behaviour, expert geometry, safety limits, evaluation aggregation, and matched
+run comparison. GPU tests and end-to-end
 simulation are intentionally separate because they require Genesis assets and
 a supported GPU runtime.
 
 ## Licensing
 
-Original project code is licensed under Apache-2.0. See
+Original project code is licensed under the MIT License. See
 `THIRD_PARTY_NOTICES.md` and `UPSTREAM_LOCK.json` for dependency licenses,
 source repositories, and exact revisions. No third-party source or model weight
 is committed in this submission directory.

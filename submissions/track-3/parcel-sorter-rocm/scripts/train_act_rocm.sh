@@ -11,6 +11,7 @@ SAVE_FREQ="${ACT_SAVE_FREQ:-20000}"
 SAVE_CHECKPOINT="${ACT_SAVE_CHECKPOINT:-true}"
 LOG_FREQ="${ACT_LOG_FREQ:-100}"
 USE_AMP="${ACT_USE_AMP:-false}"
+IMAGE_TRANSFORMS="${ACT_IMAGE_TRANSFORMS:-false}"
 PRETRAINED_BACKBONE="${ACT_PRETRAINED_BACKBONE:-imagenet}"
 EVAL_SPLIT="${ACT_EVAL_SPLIT:-0.1}"
 EVAL_STEPS="${ACT_EVAL_STEPS:-1000}"
@@ -40,7 +41,7 @@ TRAIN_ARGS=(
   --dataset.root "${DATASET_ROOT}"
   --dataset.depth_output_unit m
   --dataset.eval_split "${EVAL_SPLIT}"
-  --dataset.image_transforms.enable true
+  --dataset.image_transforms.enable "${IMAGE_TRANSFORMS}"
   --policy.type act
   --policy.device cuda
   --policy.push_to_hub false

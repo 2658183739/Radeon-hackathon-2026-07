@@ -59,7 +59,10 @@ class ScriptedPickPlaceExpert:
         if command == Command.CLOSE_GRIPPER:
             self._grasp_origin_xy = (parcel[0], parcel[1])
 
-        target = self._bounded_step(current, desired)
+        step_limit = self.config.control.max_ee_step_m
+        if command == Command.MOVE_PREGRASP and self._is_final_approach(current, parcel):
+            step_limit = self.config.control.final_approach_step_m
+        target = self._bounded_step(current, desired, step_limit)
         target_quaternion = self._grasp_quaternion
         if command == Command.MOVE_PREGRASP:
             transit_z = parcel[2] + self.config.task.approach_clearance_m
@@ -106,6 +109,16 @@ class ScriptedPickPlaceExpert:
             return (parcel_pose[0], parcel_pose[1], transit_z)
         return self.pregrasp_position(parcel_pose)
 
+    def _is_final_approach(
+        self,
+        current: tuple[float, ...],
+        parcel_pose: tuple[float, ...],
+    ) -> bool:
+        return math.hypot(
+            current[0] - parcel_pose[0],
+            current[1] - parcel_pose[1],
+        ) <= self.config.task.position_tolerance_m
+
     def lift_position(self) -> tuple[float, float, float]:
         return (
             self.sample.position_xy[0],
@@ -123,10 +136,10 @@ class ScriptedPickPlaceExpert:
         self,
         current: tuple[float, ...],
         desired: tuple[float, float, float],
+        limit: float,
     ) -> tuple[float, float, float]:
         delta = tuple(float(target - value) for value, target in zip(current, desired, strict=True))
         distance = math.sqrt(sum(value * value for value in delta))
-        limit = self.config.control.max_ee_step_m
         if distance <= limit or distance == 0:
             return desired
         scale = limit / distance

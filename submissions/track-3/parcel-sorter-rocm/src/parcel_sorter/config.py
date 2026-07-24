@@ -87,6 +87,7 @@ class ControlConfig:
     close_force_n: float
     close_force_ramp_n_per_step: float
     max_ee_step_m: float
+    final_approach_step_m: float
 
     def validate(self) -> None:
         if len(self.arm_kp) != 7 or len(self.arm_kv) != 7:
@@ -101,8 +102,10 @@ class ControlConfig:
             self.close_force_ramp_n_per_step,
         ) <= 0:
             raise ValueError("finger gains, width, force, and force ramp must be positive")
-        if self.max_ee_step_m <= 0:
-            raise ValueError("max_ee_step_m must be positive")
+        if self.max_ee_step_m <= 0 or self.final_approach_step_m <= 0:
+            raise ValueError("Cartesian step limits must be positive")
+        if self.final_approach_step_m > self.max_ee_step_m:
+            raise ValueError("final_approach_step_m cannot exceed max_ee_step_m")
 
 
 @dataclass(frozen=True)
