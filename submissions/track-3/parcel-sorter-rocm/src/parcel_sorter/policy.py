@@ -7,6 +7,7 @@ from typing import Protocol
 
 from .config import ExperimentConfig
 from .contracts import CartesianAction, PolicyContext
+from .dataset import DEPTH_RGB_KEY, metric_depth_to_visual_rgb
 from .expert import ScriptedPickPlaceExpert
 from .state_machine import Command
 
@@ -52,6 +53,24 @@ class LeRobotPolicyAdapter:
         policy_config.device = "cuda"
         policy_class = get_policy_class(policy_config.type)
         self.policy_type = policy_config.type
+        visual_keys = tuple(
+            key
+            for key in policy_config.input_features
+            if key.startswith("observation.images.")
+        )
+        supported_visual_keys = {
+            "observation.images.overhead_rgb",
+            DEPTH_RGB_KEY,
+        }
+        unknown_visual_keys = sorted(set(visual_keys) - supported_visual_keys)
+        if unknown_visual_keys:
+            raise ValueError(
+                "checkpoint requests unsupported visual input(s): "
+                + ", ".join(unknown_visual_keys)
+            )
+        if "observation.images.overhead_rgb" not in visual_keys:
+            raise ValueError("checkpoint must include observation.images.overhead_rgb")
+        self.visual_input_keys = visual_keys
         self.policy = policy_class.from_pretrained(
             self.checkpoint,
             config=policy_config,
@@ -81,23 +100,26 @@ class LeRobotPolicyAdapter:
             self.policy.reset()
             self._last_stage = context.decision.stage
 
-        rgb_source = context.rgb.copy() if hasattr(context.rgb, "copy") else context.rgb
-        rgb = self.torch.as_tensor(rgb_source, device="cuda")
-        if rgb.ndim != 3 or rgb.shape[-1] < 3:
-            raise ValueError(f"expected HWC RGB image, received shape {tuple(rgb.shape)}")
-        rgb = rgb[..., :3].permute(2, 0, 1).to(self.torch.float32).div_(255.0).unsqueeze(0)
         state = self.torch.tensor(
             context.state.policy_vector(),
             dtype=self.torch.float32,
             device="cuda",
         ).unsqueeze(0)
-        batch = self.preprocessor(
-            {
-                "observation.state": state,
-                "observation.images.overhead_rgb": rgb,
-                "task": [context.task],
-            }
-        )
+        batch_inputs: dict[str, Any] = {
+            "observation.state": state,
+            "task": [context.task],
+        }
+        for key in self.visual_input_keys:
+            if key == "observation.images.overhead_rgb":
+                source = context.rgb
+            else:
+                if context.depth is None:
+                    raise RuntimeError("RGB-D checkpoint requires a metric depth frame")
+                import numpy as np
+
+                source = metric_depth_to_visual_rgb(context.depth, np)
+            batch_inputs[key] = self._visual_tensor(source, key)
+        batch = self.preprocessor(batch_inputs)
         with self.torch.inference_mode():
             action = self.postprocessor(self.policy.select_action(batch))
             self.torch.cuda.synchronize()
@@ -106,6 +128,21 @@ class LeRobotPolicyAdapter:
             values,
             context,
             self.config.control.max_ee_step_m,
+        )
+
+    def _visual_tensor(self, source: Any, key: str) -> Any:
+        image_source = source.copy() if hasattr(source, "copy") else source
+        image = self.torch.as_tensor(image_source, device="cuda")
+        if image.ndim != 3 or image.shape[-1] < 3:
+            raise ValueError(
+                f"expected HWC three-channel image for {key}, received {tuple(image.shape)}"
+            )
+        return (
+            image[..., :3]
+            .permute(2, 0, 1)
+            .to(self.torch.float32)
+            .div_(255.0)
+            .unsqueeze(0)
         )
 
 

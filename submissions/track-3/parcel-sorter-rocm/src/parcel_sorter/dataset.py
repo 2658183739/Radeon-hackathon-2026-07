@@ -32,6 +32,37 @@ PRIVILEGED_STATE_NAMES = (
     "parcel_qz",
 )
 ACTION_NAMES = ("x", "y", "z", "qw", "qx", "qy", "qz", "gripper")
+DEPTH_RGB_KEY = "observation.images.overhead_depth_rgb"
+DEPTH_VIS_NEAR_M = 0.25
+DEPTH_VIS_FAR_M = 4.0
+
+
+def metric_depth_to_visual_rgb(
+    depth_m: Any,
+    np: Any,
+    *,
+    near_m: float = DEPTH_VIS_NEAR_M,
+    far_m: float = DEPTH_VIS_FAR_M,
+) -> Any:
+    """Encode metric depth as deterministic 3-channel uint8 input.
+
+    LeRobot's standard ResNet visual backbones expect three channels. The raw
+    float depth remains in the dataset for audit and future native encoders;
+    this derived view enables a matched RGB versus RGB-D baseline without an
+    unreviewed upstream model fork.
+    """
+    if not 0 < near_m < far_m:
+        raise ValueError("depth visualization requires 0 < near_m < far_m")
+    depth = np.asarray(depth_m, dtype=np.float32)
+    if depth.ndim == 3 and depth.shape[-1] == 1:
+        depth = depth[..., 0]
+    if depth.ndim != 2:
+        raise ValueError(f"expected a 2-D depth map, received shape {depth.shape}")
+    valid = np.isfinite(depth) & (depth > 0)
+    clipped = np.clip(depth, near_m, far_m)
+    normalized = (far_m - clipped) / (far_m - near_m)
+    gray = np.where(valid, np.rint(normalized * 255.0), 0).astype(np.uint8)
+    return np.repeat(gray[..., None], 3, axis=-1)
 
 
 class JsonlTrajectoryWriter:
@@ -123,7 +154,17 @@ class LeRobotTrajectoryWriter:
                 "dtype": "image",
                 "shape": (height, width, 1),
                 "names": ["height", "width", "channels"],
-                "info": {"is_depth_map": True},
+                "info": {"is_depth_map": True, "depth_unit": "m"},
+            }
+            features[DEPTH_RGB_KEY] = {
+                "dtype": "image",
+                "shape": (height, width, 3),
+                "names": ["height", "width", "channels"],
+                "info": {
+                    "derived_from": "observation.images.overhead_depth",
+                    "near_m": DEPTH_VIS_NEAR_M,
+                    "far_m": DEPTH_VIS_FAR_M,
+                },
             }
         self._include_rgb = include_rgb
         self._include_depth = include_depth
@@ -157,6 +198,7 @@ class LeRobotTrajectoryWriter:
                 raise ValueError("depth recording is enabled but the frame has no depth image")
             depth = np.asarray(frame.depth, dtype=np.float32)
             payload["observation.images.overhead_depth"] = depth[..., None] if depth.ndim == 2 else depth
+            payload[DEPTH_RGB_KEY] = metric_depth_to_visual_rgb(depth, np)
         self._dataset.add_frame(payload)
 
     def save_episode(self) -> None:

@@ -24,6 +24,7 @@ the full dataset or checkpoint.
 | `catalog/README.md` | Catalog v2 candidate matrix, hashes, and keep/reject decisions | N/A |
 | `training/diffusion-1-step-rocm.md` | One-step Diffusion Radeon training-path smoke | N/A |
 | `training/diffusion-compact-1step-rocm.md` | Compact 76.6M-parameter Diffusion one-step smoke and checkpoint hashes | N/A |
+| `multimodal/README.md` | Historical depth rejection, corrected sensor audit, and RGB-D ACT smoke | N/A |
 
 The JSON summaries include the complete config, runtime versions, per-episode
 randomization values, terminal state, and task metrics. ACT evaluation files
@@ -41,7 +42,8 @@ formal success rate. See `catalog/README.md` for exact results and hashes.
 
 The large generated artifacts are deliberately not stored in Git:
 
-- 96-episode, 11,753-frame RGB-D LeRobotDataset: approximately 225 MB;
+- 96-episode, 11,753-frame historical RGB/state LeRobotDataset: approximately
+  225 MB; its depth scale is invalid and must not be used for RGB-D;
 - ACT model weights: approximately 206 MB per checkpoint;
 - optimizer state: approximately 413 MB per checkpoint;
 - MP4 recordings and full JSONL frame traces.

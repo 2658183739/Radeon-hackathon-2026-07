@@ -11,6 +11,9 @@ RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 [开发日志](docs/DEVELOPMENT_JOURNAL_CN.md)，模型比较见
 [模型选型](docs/MODEL_SELECTION_CN.md)。本轮逐步优化、代码能力与决策原因见
 [2026-07-25 证据驱动优化记录](docs/OPTIMIZATION_SESSION_2026-07-25_CN.md)。
+新增的[前沿研究与开源模型矩阵](docs/RESEARCH_AND_MODEL_MATRIX_CN.md)和
+[RGB-D 多模态优化记录](docs/MULTIMODAL_OPTIMIZATION_2026-07-25_CN.md)分别说明模型取舍、
+许可证边界和本轮逐步实现/失败/验证过程。
 
 ## 系统组成
 
@@ -20,7 +23,7 @@ RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 - IK 专家、机械臂 PD 控制、夹爪力斜坡和末端步长限制
 - 检测、接近、抓取、接触验证、抬升、搬运、释放、重试和安全中止闭环
 - JSONL 全量审计轨迹和 LeRobotDataset 成功专家回合
-- 52M 参数 ACT 基线，以及 Diffusion/SmolVLA 的 Radeon 训练与通用闭环评测入口
+- 52M 参数 ACT 基线、Diffusion 的 Radeon 训练入口和通用闭环评测适配器
 - 单张 Radeon 上的并行仿真和训练吞吐 benchmark
 
 学习模型不会直接输出关节力矩。策略输出 8 维末端动作，再经过数值检查、四元数
@@ -53,7 +56,7 @@ HIP/ROCm 设备，不代表使用了 NVIDIA CUDA。预检脚本会检查 `torch.
 | 正式随机专家测试 | 120 回合成功 96 回合，成功率 80.0% |
 | 首次成功率 | 77.5% |
 | 发生重试回合的恢复成功率 | 37.5% |
-| 成功 RGB-D 数据 | 96 回合，11,753 帧 |
+| 历史 RGB/状态数据 | 96 回合，11,753 帧；深度不可用于 RGB-D |
 | 固定 10 种子专家基线 | 成功率 90%，掉落率 0% |
 | 固定种子成功吞吐 | 727 件/小时 |
 | ACT 正式训练 | 5,000 步，AMP，batch 32 |
@@ -66,7 +69,7 @@ HIP/ROCm 设备，不代表使用了 NVIDIA CUDA。预检脚本会检查 `torch.
 | ACT AMP/batch32 训练吞吐 | 80 samples/s |
 | 目录烟雾回归 | 7 类中 4 类单回合完成；仅用于回归，不是成功率 |
 | 轻量 Diffusion 单步烟雾 | 76.6M 参数，Radeon 单步约 23.6 秒；不是成功率 |
-| 当前测试套件 | 56 项通过 |
+| 当前测试套件 | Radeon 上 71 项通过 |
 
 正式专家 120 回合结果是当前机器人能力主指标。固定 10 种子结果只用于回归基线。
 ACT 已经证明数据、训练、保存、重载、ROCm 推理和 Genesis 闭环全部跑通，但成功率
@@ -160,7 +163,15 @@ python scripts/run_expert.py \
 
 成功回合进入 `expert/lerobot_dataset`，所有成功和失败回合进入
 `expert/audit_dataset`。ACT 使用顶视 RGB 和 20 维非特权状态；7 维包裹真值位姿只用于
-审计，不输入模型。深度以米为单位保存，供后续 RGB-D 融合实验使用。
+审计，不输入模型。历史 `radeon-dataset-120-v1` 的深度曾被错误乘以 `0.001`，因此它只可
+复现已有 RGB ACT，不可用于 RGB-D。修复后新采数据同时包含米制原始深度和三通道深度视图。
+
+训练前先做门禁：
+
+```bash
+python scripts/audit_dataset.py --dataset-root <lerobot_dataset>
+python scripts/audit_dataset.py --dataset-root <lerobot_dataset> --require-depth-rgb
+```
 
 ## 在 Radeon 上训练 ACT
 
@@ -179,6 +190,10 @@ bash scripts/train_act_rocm.sh \
 合成操作任务依赖精确图像几何，因此通用图像增强默认关闭。只应在其他数据、随机种子和
 检查点完全一致的情况下设置 `ACT_IMAGE_TRANSFORMS=true` 做对照实验。仓库中的 5000
 步原始证据产生于本次修改之前，当时增强已开启；目前不能把旧结果归因于新默认值。
+
+使用修正后的新数据做匹配 RGB-D 实验时添加 `ACT_USE_DEPTH=true`。检查点会声明 RGB 与
+深度视图两个输入，通用评测器会自动读取，不再依赖手工推理开关。RGB 对照必须保持数据
+拆分、种子、训练步数和检查点计划一致，只把该变量设为 `false`。
 
 比较 FP32、AMP 和 batch 大小时运行：
 
@@ -213,7 +228,7 @@ python scripts/summarize_act_evaluations.py \
 
 该工具会拒绝重复 episode，并优先按闭环成功率选择模型。
 
-## Diffusion 与 SmolVLA
+## Diffusion 与 VLA 研究路线
 
 ```bash
 bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-radeon
@@ -222,20 +237,14 @@ bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-r
 DIFFUSION_DOWN_DIMS=256,512,1024 DIFFUSION_HORIZON=32 \
 DIFFUSION_N_ACTION_STEPS=8 DIFFUSION_INFERENCE_STEPS=10 \
 bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-compact
-
-SMOLVLA_STEPS=4000 SMOLVLA_BATCH_SIZE=4 \
-SMOLVLA_POLICY_PATH=/workspace/models/smolvla_base \
-bash scripts/train_smolvla_rocm.sh \
-  <lerobot_dataset> outputs/train/smolvla-radeon
 ```
 
-Diffusion 和 SmolVLA 是已经准备好的训练入口，不是已经取得的比赛结果。轻量 Diffusion
+Diffusion 是已经准备好的训练入口，不是已经取得的比赛结果。轻量 Diffusion
 已经在 Radeon 上完成 1 步前向、反向、优化器更新和保存：76,597,288 参数，训练进度
-约 23.6 秒；这只证明入口和缩小模型可行，仍需完整训练与分层闭环评测。SmolVLA 要求
-显式指定已下载的开源检查点；若云实例可访问 Hugging Face，也可把路径设为
-`lerobot/smolvla_base`。首轮冻结视觉编码器并只训练动作专家相关部分；视觉解冻必须作为
-独立匹配实验。训练后的 ACT、Diffusion 和 SmolVLA 都通过 `evaluate_policy.py` 进入相同
-Genesis 闭环和 35 N 安全边界。
+约 23.6 秒；这只证明入口和缩小模型可行，仍需完整训练与分层闭环评测。VLA-Adapter 0.5B
+是首选语言条件研究候选，但尚未接入；必须先独立完成递归许可证和 ROCm 算子审计。
+SmolVLA 当前检查点 metadata 没有声明许可证，因此暂缓并排除在严格开源主线之外。
+通用评测器会把支持的 LeRobot 检查点放入相同的 Genesis 闭环和 35 N 安全边界。
 
 ## Docker
 

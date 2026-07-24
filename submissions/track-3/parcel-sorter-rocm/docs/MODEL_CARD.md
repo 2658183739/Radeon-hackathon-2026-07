@@ -8,7 +8,7 @@ overhead RGB image and a 20-dimensional non-privileged state.
 
 ## Training
 
-- Data: 96 successful simulated expert episodes, 11,753 RGB-D frames;
+- Data: 96 successful simulated expert episodes, 11,753 RGB/state frames;
 - Policy input: RGB and state; depth is not used in the baseline;
 - Formal run: 5,000 steps, batch 32, AMP, 10% evaluation split;
 - Checkpoints: every 1,000 steps;
@@ -45,7 +45,8 @@ retry limits, and a hard contact-force abort.
 
 - Low closed-loop success and not converged;
 - small simulated dataset and one task instruction;
-- no depth input, real-world evaluation, calibration, or sim-to-real evidence;
+- no valid depth input in this historical checkpoint, real-world evaluation,
+  calibration, or sim-to-real evidence;
 - success can regress while offline loss improves;
 - safety supervisor reduces risk but does not certify a physical robot system.
 

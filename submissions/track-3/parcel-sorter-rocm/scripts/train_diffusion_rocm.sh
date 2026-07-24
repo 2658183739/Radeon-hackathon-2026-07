@@ -20,6 +20,12 @@ DOWN_DIMS_TEXT="${DIFFUSION_DOWN_DIMS:-512,1024,2048}"
 INFERENCE_STEPS="${DIFFUSION_INFERENCE_STEPS:-10}"
 NOISE_SCHEDULER="${DIFFUSION_NOISE_SCHEDULER:-DDPM}"
 COMPILE_MODEL="${DIFFUSION_COMPILE_MODEL:-false}"
+USE_DEPTH="${DIFFUSION_USE_DEPTH:-false}"
+
+if [[ "${EVAL_SPLIT}" =~ ^0([.]0+)?$ && "${EVAL_STEPS}" != "0" ]]; then
+  echo "ERROR: DIFFUSION_EVAL_STEPS must be 0 when DIFFUSION_EVAL_SPLIT is 0" >&2
+  exit 8
+fi
 
 IFS=',' read -r -a DOWN_DIMS <<< "${DOWN_DIMS_TEXT}"
 if [[ "${#DOWN_DIMS[@]}" -lt 1 ]]; then
@@ -56,9 +62,18 @@ if ! python -c "import diffusers" >/dev/null 2>&1; then
   exit 4
 fi
 
-# Keep ground-truth parcel pose out of policy inputs. The policy sees RGB,
-# proprioception, target position, and contact force through observation.state.
+# Keep ground-truth parcel pose out of policy inputs. RGB-D uses a deterministic
+# 3-channel view while retaining the raw metric depth for audit.
+AUDIT_ARGS=(--dataset-root "${DATASET_ROOT}")
 POLICY_INPUT_FEATURES='{observation.state: {type: STATE, shape: [20]}, observation.images.overhead_rgb: {type: VISUAL, shape: [3, 224, 224]}}'
+if [[ "${USE_DEPTH}" == "true" ]]; then
+  AUDIT_ARGS+=(--require-depth-rgb)
+  POLICY_INPUT_FEATURES='{observation.state: {type: STATE, shape: [20]}, observation.images.overhead_rgb: {type: VISUAL, shape: [3, 224, 224]}, observation.images.overhead_depth_rgb: {type: VISUAL, shape: [3, 224, 224]}}'
+elif [[ "${USE_DEPTH}" != "false" ]]; then
+  echo "ERROR: DIFFUSION_USE_DEPTH must be true or false" >&2
+  exit 7
+fi
+python scripts/audit_dataset.py "${AUDIT_ARGS[@]}"
 
 TRAIN_ARGS=(
   --dataset.repo_id local/parcel-sorter-expert

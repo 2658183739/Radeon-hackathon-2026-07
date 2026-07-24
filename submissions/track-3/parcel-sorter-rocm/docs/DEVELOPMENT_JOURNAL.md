@@ -91,12 +91,14 @@ reporting requires multiple seeds per profile.
 ## Model and perception decisions
 
 ACT remains the verified connectivity baseline. Diffusion is the conventional
-multimodal-action comparison, and SmolVLA is the lightweight language-conditioned
-route. All three use the same supervisor and execution safety path.
+multimodal-action comparison. VLA-Adapter 0.5B is the preferred future
+language-conditioned compatibility study after license and ROCm gates. Every
+admitted policy uses the same supervisor and execution safety path.
 
-Current learned input is RGB, 20-D state including force, and task text for
-SmolVLA. Metric depth is recorded but must not be silently treated as RGB. A
-depth encoder or fusion change requires a matched ablation before it is claimed.
+The historical baseline uses RGB and a 20-D state including force. Corrected
+shards also expose a deterministic depth view, whose ACT train/load/inference
+path has passed a smoke test. A capability claim still requires a matched RGB
+versus RGB-D ablation. Task text is reserved for admitted VLA candidates.
 
 The first one-step Diffusion smoke stopped before model creation because the
 optional `diffusers` dependency was absent. The bootstrap now installs LeRobot's
@@ -109,7 +111,9 @@ SmolVLA dependency import succeeded, but probing `lerobot/smolvla_base` failed
 because the instance could not reach Hugging Face. The entry point now requires
 `SMOLVLA_POLICY_PATH`, favoring an offline-staged open checkpoint and allowing a
 Hub ID only when network access exists. Status: entry ready, base not staged,
-training not run.
+training not run. This was later superseded by the checkpoint-license audit:
+the entry remains historical compatibility code and is not in the strict-open
+submission path.
 
 ## Capability map
 
@@ -117,7 +121,8 @@ The codebase now demonstrates validated configuration contracts, deterministic
 catalog scheduling, Box/Cylinder physics, geometry-aware expert control,
 closed-loop safety and recovery, multimodal dataset writing, ACT training and
 inference, generic LeRobot checkpoint evaluation, and Radeon profiling.
-Diffusion has a one-step path smoke; SmolVLA remains unmeasured pending its base.
+Diffusion has a one-step path smoke. VLA-Adapter remains a gated research
+candidate, and SmolVLA is excluded from the strict-open result path.
 
 ## Workflow for the next change
 
@@ -212,8 +217,9 @@ change is now preferred over further single-episode tuning.
    success, then safety and latency.
 4. Train compact Diffusion under the same split and evaluation protocol.
 5. Add depth through a separate encoder and matched RGB versus RGB-D ablation.
-6. Stage an open SmolVLA checkpoint offline and use it first for semantic bin
-   selection, keeping continuous control and safety below it.
+6. Audit VLA-Adapter 0.5B licenses and ROCm operators in isolation; integrate it
+   for semantic bin selection only after both gates pass, keeping continuous
+   control and safety below it.
 7. Profile simulation, rendering, host-to-device transfer, and inference before
    applying ROCm-specific tuning.
 8. Add ROS 2 only after the simulator-policy contract is stable.
@@ -281,3 +287,38 @@ now a profile override: global one frame, mailing tubes three. Sixty-seven
 tests passed on Radeon, and the second full regression restored the exact 8/12
 per-profile completion pattern. Both JSON files are retained. **Decision: keep
 the scoped implementation and treat 8/12 only as a regression smoke.**
+
+## 2026-07-25: metric depth repair and RGB-D policy path
+
+### Record 26: find and classify the historical depth defect
+
+The 96-episode dataset reported a depth median of 0.00117156 m. Upstream Genesis
+camera code defines near/far planes in metres and reconstructs point clouds from
+the returned depth without a 0.001 factor. The project conversion was therefore
+wrong. The old encoded data is retained for RGB/state ACT reproducibility and
+explicitly rejected for RGB-D; it is not silently rescaled.
+
+### Record 27: implement and exercise the corrected path
+
+New collection stores raw float32 metric depth and a deterministic 3-channel
+0.25-4.0 m view. A metadata audit gates training, while checkpoint config drives
+RGB or RGB-D inference. Seventy-one Radeon tests passed. A one-episode shard
+contained 152 frames with 0.737-3.535 m depth and passed strict RGB-D audit.
+
+The first one-step training command was rejected before model creation because
+`eval_split=0` was paired with nonzero evaluation steps. A shell preflight now
+rejects that combination. The corrected retry completed one ACT update with
+51,577,736 parameters and two visual inputs, then saved and reloaded the model.
+One Genesis closed-loop run completed with 3.48 ms mean and 11.53 ms P95 model
+latency but did not solve the task. **Decision: keep as end-to-end interface
+evidence; collect balanced data before comparing capability.**
+
+### Record 28: gate the VLA route by license and Radeon compatibility
+
+Model research found that OpenVLA inherits Llama 2 weight terms, openpi states
+an NVIDIA GPU requirement, and the current SmolVLA checkpoint metadata does not
+declare a license. VLA-Adapter 0.5B is smaller and has MIT-tagged public
+components, but its official setup is CUDA-oriented and its transitive assets
+still require review. **Decision: keep ACT and Diffusion as the reproducible
+main line; treat VLA-Adapter as an isolated compatibility study only after both
+license and ROCm gates pass. Do not present any VLA as a current capability.**

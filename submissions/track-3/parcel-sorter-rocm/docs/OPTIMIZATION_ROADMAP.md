@@ -15,7 +15,7 @@ that an attractive demo cannot substitute for a reproducible result.
 | Robustness | Size, mass, friction, pose, camera and delay randomization | No stratified held-out report yet |
 | Simulation performance | 46,582 env-steps/s at 128 environments | Camera/data collection path is not batched |
 | Training performance | 80 samples/s with AMP batch 32 | Augmentation and checkpoint policy need ablation |
-| Multimodal sensing | RGB-D is stored | ACT currently consumes RGB and state only |
+| Multimodal sensing | Corrected RGB-D smoke is verified | Historical ACT data has invalid depth; balanced recollection pending |
 | Reproducibility | Pinned code, config, evidence, tests | Large artifacts still need release hashes |
 
 ## 2. Optimization principles
@@ -222,19 +222,21 @@ Use bounded queues so video encoding cannot exhaust memory.
 
 ## 7. Priority P2: VLA and frontier models
 
-LeRobot currently exposes ACT, Diffusion policies, and multiple VLA families,
-including SmolVLA. For this project, a VLA should initially perform high-level
-instruction grounding or destination selection while ACT or a compact policy
-retains continuous manipulation control.
+LeRobot currently exposes ACT, Diffusion policies, and multiple VLA families.
+For this project, VLA-Adapter 0.5B is the preferred gated candidate; SmolVLA is
+held until its checkpoint license is explicit. Any admitted VLA should initially
+perform high-level instruction grounding or destination selection while ACT or a
+compact policy retains continuous manipulation control.
 
 Recommended sequence:
 
 1. make ACT exceed 60% on at least 30 held-out episodes;
 2. add multiple package classes or natural-language sorting rules;
-3. fine-tune an open lightweight VLA with LoRA or another parameter-efficient
-   method on the single Radeon;
-4. compare VLA high-level decisions against a deterministic rule baseline;
-5. keep the low-level safety supervisor unchanged.
+3. audit VLA-Adapter's transitive licenses and ROCm operators in isolation;
+4. only after both gates pass, fine-tune it with LoRA or another
+   parameter-efficient method on the single Radeon;
+5. compare VLA high-level decisions against a deterministic rule baseline and
+   keep the low-level safety supervisor unchanged.
 
 Do not add a VLA solely for presentation. It earns technical value only when
 language or semantic generalization changes the task.

@@ -69,6 +69,8 @@ English submission documents:
 - [Development journal](docs/DEVELOPMENT_JOURNAL.md) / [中文](docs/DEVELOPMENT_JOURNAL_CN.md)
 - [Latest evidence-driven optimization session](docs/OPTIMIZATION_SESSION_2026-07-25.md) / [中文](docs/OPTIMIZATION_SESSION_2026-07-25_CN.md)
 - [Model selection](docs/MODEL_SELECTION.md) / [中文](docs/MODEL_SELECTION_CN.md)
+- [Research and open-model matrix](docs/RESEARCH_AND_MODEL_MATRIX.md) / [中文](docs/RESEARCH_AND_MODEL_MATRIX_CN.md)
+- [RGB-D optimization record](docs/MULTIMODAL_OPTIMIZATION_2026-07-25.md) / [中文](docs/MULTIMODAL_OPTIMIZATION_2026-07-25_CN.md)
 
 ## Repository layout
 
@@ -193,6 +195,7 @@ The policy dataset contains:
 | --- | --- | --- |
 | `observation.images.overhead_rgb` | `3 x 224 x 224` | Overhead RGB image |
 | `observation.images.overhead_depth` | `1 x 224 x 224` | Metric depth in metres |
+| `observation.images.overhead_depth_rgb` | `3 x 224 x 224` | Fixed-range depth view for standard visual backbones |
 | `observation.state` | `20` | Joints, end-effector pose, target, contact force |
 | `observation.privileged_state` | `7` | Parcel pose for audit only; not used by ACT |
 | `action` | `8` | Cartesian position, quaternion, gripper command |
@@ -200,6 +203,16 @@ The policy dataset contains:
 Only successful episodes enter the LeRobot training dataset. Failed attempts
 remain available in the JSONL audit data to support error analysis and future
 hard-example collection.
+
+Run the metadata gate before training. Historical `radeon-dataset-120-v1`
+depth was accidentally scaled by `0.001`; it remains valid for the committed
+RGB ACT baseline but must not be used for RGB-D. Newly collected shards include
+the corrected metric depth and derived three-channel view.
+
+```bash
+python scripts/audit_dataset.py --dataset-root <lerobot_dataset>
+python scripts/audit_dataset.py --dataset-root <lerobot_dataset> --require-depth-rgb
+```
 
 ## 4. Train ACT on one Radeon
 
@@ -215,10 +228,12 @@ bash scripts/train_act_rocm.sh \
   outputs/train/act-radeon-5000
 ```
 
-The script validates ROCm before training, keeps weights local, disables cloud
+The script validates ROCm and dataset metadata before training, keeps weights local, disables cloud
 logging, reserves 10% of episodes for evaluation, and saves periodic
-checkpoints. It trains ACT from RGB and non-privileged robot state; depth is
-retained in the dataset for a later RGB-D fusion policy.
+checkpoints. The default trains ACT from RGB and non-privileged robot state.
+For a matched RGB-D experiment on a newly collected valid shard, add
+`ACT_USE_DEPTH=true`; the checkpoint then consumes both RGB and the derived
+depth view, and the generic evaluator discovers the second input automatically.
 
 Generic image transforms default to off because synthetic manipulation labels
 depend on precise geometry. Set `ACT_IMAGE_TRANSFORMS=true` only as a controlled
@@ -258,8 +273,8 @@ python scripts/summarize_act_evaluations.py \
 
 The tool rejects duplicate episode indices and ranks success before latency.
 
-ACT is the verified learned baseline. Two additional Radeon training entries
-are ready for controlled comparison:
+ACT is the verified learned baseline. Diffusion is the next controlled Radeon
+comparison:
 
 ```bash
 bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-radeon
@@ -268,22 +283,18 @@ bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-r
 DIFFUSION_DOWN_DIMS=256,512,1024 DIFFUSION_HORIZON=32 \
 DIFFUSION_N_ACTION_STEPS=8 DIFFUSION_INFERENCE_STEPS=10 \
 bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-compact
-
-SMOLVLA_STEPS=4000 SMOLVLA_BATCH_SIZE=4 \
-SMOLVLA_POLICY_PATH=/workspace/models/smolvla_base \
-bash scripts/train_smolvla_rocm.sh \
-  <lerobot_dataset> outputs/train/smolvla-radeon
 ```
 
-Diffusion and SmolVLA are implemented training paths, not measured capability
-claims. The compact Diffusion smoke is recorded in
+Diffusion is an implemented training path, not a measured capability claim. The
+compact smoke is recorded in
 `evidence/training/diffusion-compact-1step-rocm.md`; it reduced the model to
 76.6M parameters and completed one Radeon step, but has not been selected by
-closed-loop success. SmolVLA requires an explicit local open checkpoint path; use
-`lerobot/smolvla_base` only when the instance can reach Hugging Face. The first
-run freezes the vision encoder and trains the expert path. `evaluate_policy.py`
-automatically loads ACT, Diffusion, or SmolVLA checkpoints behind the same
-Genesis supervisor and 35 N force boundary.
+closed-loop success. VLA-Adapter 0.5B is the preferred language-conditioned
+research candidate, but it is not integrated: its transitive licenses and ROCm
+operators must pass isolated audits first. SmolVLA is held out of the strict-open
+path because its current checkpoint metadata does not declare a license. The
+generic evaluator loads supported LeRobot checkpoints behind the same Genesis
+supervisor and 35 N force boundary.
 
 ## 6. GPU simulation benchmark
 
@@ -327,7 +338,7 @@ bare-metal setup above is the validated primary path.
 | Measurement | Result |
 | --- | ---: |
 | Randomized expert evaluation | 96 / 120 successful episodes (80.0%) |
-| Successful RGB-D demonstrations | 96 episodes, 11,753 frames |
+| Historical RGB/state demonstrations | 96 episodes, 11,753 frames; depth invalid for RGB-D |
 | Fixed 10-seed expert baseline | 90.0% success, 0% drop rate |
 | Fixed-seed expert throughput | 727 successful parcels/hour |
 | ACT training | 5,000 steps, AMP, batch size 32 |
@@ -339,7 +350,7 @@ bare-metal setup above is the validated primary path.
 | Peak observed GPU utilization | 83% |
 | ACT training throughput, AMP batch 32 | 80 samples/s |
 | Parcel-catalog regression smoke | 4 of 7 one-episode profiles complete; not a success rate |
-| Deterministic unit suite | 56 passing tests |
+| Deterministic unit suite | 71 passing tests on Radeon |
 
 The 120-episode expert result is the primary capability measurement. The ACT
 result proves that training, checkpoint reload, visual inference, and Genesis

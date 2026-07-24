@@ -4,7 +4,13 @@ import tempfile
 import unittest
 
 from parcel_sorter.contracts import CartesianAction, RobotState, TrajectoryFrame
-from parcel_sorter.dataset import JsonlTrajectoryWriter, STATE_NAMES
+import numpy as np
+
+from parcel_sorter.dataset import (
+    JsonlTrajectoryWriter,
+    STATE_NAMES,
+    metric_depth_to_visual_rgb,
+)
 
 
 class JsonlTrajectoryWriterTests(unittest.TestCase):
@@ -37,6 +43,17 @@ class JsonlTrajectoryWriterTests(unittest.TestCase):
 
             with self.assertRaisesRegex(FileExistsError, "new output shard"):
                 writer.assert_episode_available(4)
+
+    def test_encodes_metric_depth_for_three_channel_backbones(self) -> None:
+        depth_m = np.asarray([[0.25, 2.125, 4.0, np.inf]], dtype=np.float32)
+
+        encoded = metric_depth_to_visual_rgb(depth_m, np)
+
+        self.assertEqual(encoded.shape, (1, 4, 3))
+        self.assertEqual(encoded.dtype, np.uint8)
+        self.assertTrue(np.array_equal(encoded[0, 0], [255, 255, 255]))
+        self.assertTrue(np.array_equal(encoded[0, 2], [0, 0, 0]))
+        self.assertTrue(np.array_equal(encoded[0, 3], [0, 0, 0]))
 
 
 if __name__ == "__main__":

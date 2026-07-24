@@ -41,8 +41,9 @@ The application is divided into five boundaries:
    contains the Franka robot, parcel, plane, and two destination bins.
 2. **Task supervision.** A deterministic state machine implements detect,
    approach, grasp, verify, lift, place, release, complete, and abort stages.
-3. **Action generation.** The scripted IK expert or an ACT, Diffusion, or
-   SmolVLA policy produces a high-level Cartesian target and gripper command.
+3. **Action generation.** The scripted IK expert or a supported LeRobot policy
+   produces a high-level Cartesian target and gripper command. ACT is verified;
+   Diffusion is the next controlled comparison.
 4. **Low-level execution.** Cartesian targets are step-limited, solved through
    IK, and executed by arm PD control and force-ramped gripper control.
 5. **Evidence and evaluation.** Audit trajectories, LeRobot episodes, MP4
@@ -57,8 +58,8 @@ contact checks, retries, and safe abort behaviour.
 
 Genesis 1.2.3 provides AMD GPU physics and headless rendering. The Franka Panda
 is loaded from the MJCF assets distributed with Genesis. Each episode creates a
-rigid parcel and assigns a left or right destination. The simulator converts
-Genesis depth output from millimetres to float32 metres before dataset storage.
+rigid parcel and assigns a left or right destination. Genesis rasterizer depth
+is already expressed in metres and is stored as float32 without rescaling.
 
 The baseline uses:
 
@@ -122,7 +123,7 @@ the same control and safety envelope.
 ## 7. Dataset and robot learning
 
 The formal collection contains 120 randomized attempts. Ninety-six successful
-episodes were written to LeRobotDataset, producing 11,753 RGB-D frames. Failed
+episodes were written to LeRobotDataset, producing 11,753 RGB/state frames. Failed
 attempts were excluded from imitation targets but retained in JSONL audit data.
 The dataset is self-generated and does not contain personal data or third-party
 recordings.
@@ -134,22 +135,26 @@ precision, 5,000 optimization steps, periodic checkpoints, and a 10% evaluation
 split. Training ran locally on the Radeon; weights were not pushed to a model
 hosting service.
 
-Depth is stored in the dataset but the current ACT baseline uses RGB plus robot
-state. This is an explicit limitation and provides a controlled next experiment:
-an RGB-D fusion policy can be compared against the present RGB baseline without
-recollecting demonstrations.
+The historical shard multiplied already-metric Genesis depth by `0.001`; its
+depth median is only 0.00117 m and is invalid for RGB-D training. It remains
+valid for reproducing the RGB/state ACT baseline. Corrected shards store raw
+metric depth and a derived three-channel depth view, and a one-step Radeon ACT
+smoke verified collection, training, checkpoint reload, and closed-loop input.
+Formal RGB-D comparison requires newly collected balanced demonstrations.
 
 Generic image transforms now default to disabled for synthetic geometry. The
 training entry point retains an explicit switch so augmentation can be evaluated
 as a matched ablation rather than assumed to be beneficial. The recorded
 5,000-step run used the previous enabled setting and remains the baseline.
 
-Radeon training entries are also provided for Diffusion and SmolVLA. Diffusion
-is the conventional imitation comparison and completed a one-step training-path
-smoke. SmolVLA fine-tunes a locally staged open `lerobot/smolvla_base` with the
-vision encoder frozen for the first run. Neither has a formal capability result.
-A generic checkpoint adapter loads ACT, Diffusion, or
-SmolVLA behind the same supervisor, IK/PD execution, and 35 N force boundary.
+A Radeon training entry is provided for Diffusion, the conventional imitation
+comparison; it completed a one-step training-path smoke but has no formal
+capability result. VLA-Adapter 0.5B is the preferred language-conditioned
+compatibility study after transitive-license and ROCm operator audits. It is not
+integrated. SmolVLA is held from the strict-open path because its current
+checkpoint metadata does not declare a license. A generic checkpoint adapter
+places supported LeRobot policies behind the same supervisor, IK/PD execution,
+and 35 N force boundary.
 
 ## 8. AMD Radeon and ROCm use
 
@@ -206,7 +211,7 @@ from being dominated by episode zero.
 | Parallel Genesis, 128 environments | 46,582 environment-steps/s |
 | Peak observed GPU utilization | 83% |
 | Twelve-profile catalog v2 one-episode regression | 8 complete; not a formal success rate |
-| Deterministic unit tests | 67 passing on Radeon |
+| Deterministic unit tests | 71 passing on Radeon |
 
 The larger 120-episode expert run is the primary task-capability result. The
 fixed 10-seed result is useful for regression testing but is not presented as a
@@ -241,8 +246,9 @@ Other current limitations are:
 - The retained tube contact strategy lifted the fixed tube center from 30.9 mm
   to 66.4 mm but did not complete transfer and placement. Higher close-force
   candidates were rejected for crossing the 35 N safety boundary.
-- Diffusion has only a one-step path smoke; SmolVLA still needs a staged local
-  base checkpoint. Neither has formal closed-loop evidence.
+- Diffusion has only a one-step path smoke; VLA-Adapter is not integrated and
+  SmolVLA is held by its checkpoint-license gate. None has formal closed-loop
+  capability evidence.
 - Evaluation is simulation-only; sim-to-real calibration is outside this
   submission's current evidence.
 - The formal container definition is reproducible but the primary validated

@@ -195,7 +195,7 @@ success-rate estimate.
 | Scoring axis | Current capability | Next evidence-producing action |
 | --- | --- | --- |
 | Simulation | Box and true Cylinder primitives, scoped rolling physics, deterministic catalog | add a versioned concave finger adapter or V-cradle and run matched ablation |
-| Learning | ACT train/eval path; compact Diffusion one-step path; SmolVLA offline entry | collect at least 300 successful balanced RGB-D episodes, then run three seeds |
+| Learning | ACT train/eval path; compact Diffusion one-step path; VLA-Adapter gated research route | collect at least 300 successful balanced RGB-D episodes, then run three seeds |
 | Robustness | size/mass/friction/pose/camera/delay randomization and profile summaries | freeze held-out episode IDs and report confidence intervals per profile |
 | Closed loop | approach, stable grasp, lift, place, release, force abort, retry | make recovery collision-aware after a slipped tube before adding more retries |
 | GPU optimization | Radeon-only enforcement, AMP training, simulation throughput evidence | profile physics, rendering, transfer, and inference separately before tuning |

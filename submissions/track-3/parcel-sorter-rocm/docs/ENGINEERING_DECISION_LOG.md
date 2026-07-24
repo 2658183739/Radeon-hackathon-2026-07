@@ -155,14 +155,16 @@ schema-compatible record in the summary.
 **Question.** Which signals are needed for control, learning, and audit?
 
 **Evidence.** Parcel manipulation needs visual geometry, robot state, target,
-contact, and physical outcome. Genesis depth is returned in millimetres.
+contact, and physical outcome. The original implementation assumed Genesis
+depth was millimetres; a later source and data audit disproved that assumption.
 
 **Alternatives.** State-only control, RGB only, or RGB-D plus proprioception and
 contact.
 
-**Decision and reason.** Capture RGB, metric depth, nine joint positions,
-end-effector pose, target, contact force, and privileged parcel pose. Convert
-depth to metres immediately. Keep parcel pose out of learned policy input.
+**Decision and reason.** Capture RGB, raw metric depth, nine joint positions,
+end-effector pose, target, contact force, and privileged parcel pose. Store
+Genesis depth without rescaling and gate modality use through metadata audits.
+Keep parcel pose out of learned policy input.
 
 **Code capability.** Sensor-rate coordination, unit conversion, privileged-data
 separation, and multimodal dataset schemas.
@@ -240,7 +242,8 @@ hard-example analysis.
 validation, and failure provenance.
 
 **Verification.** The formal run contains 120 audit episodes and 96 successful
-LeRobot episodes with 11,753 RGB-D frames.
+LeRobot episodes with 11,753 RGB/state frames. Its depth is invalid for RGB-D;
+the corrected multimodal path has separate smoke evidence.
 
 **Revisit trigger.** Failed data may be used later for value, recovery, or
 preference learning, but not silently mixed into behaviour-cloning targets.
@@ -256,7 +259,7 @@ or bin geometry.
 deterministic task.
 
 **Decision and reason.** Require a successful nominal pipeline, randomized
-expert metrics, correct RGB-D data, and reproducible failures before training.
+expert metrics, audited sensor data, and reproducible failures before training.
 
 **Code capability.** Staged delivery gates, smoke tests, metrics, and evidence-
 based readiness criteria.
@@ -615,3 +618,30 @@ experimental knob.
 to 5/12. A profile override restored the exact 8/12 outcome with 67 tests
 passing on Radeon. **Decision:** default to one frame and use three only for
 mailing tubes. Retain both full-catalog artifacts as rollback evidence.
+
+### 32. Correct depth scale before multimodal training
+
+**Problem.** The historical dataset declared metric depth but its median was
+0.00117156 m, physically inconsistent with the camera pose. **Evidence.** The
+source multiplied Genesis output by 0.001, while upstream camera near/far and
+point-cloud reconstruction use metres. **Alternatives.** Edit metadata, rescale
+old encoded frames, ignore depth, or fix collection and recollect. **Decision.**
+Do not fabricate a retroactive repair. Keep the 96-episode shard for RGB/state,
+hard-reject it for RGB-D, and collect corrected raw depth plus a deterministic
+three-channel view. **Code.** Added metric preservation, dataset audit, derived
+depth feature, checkpoint-driven multimodal inference, and ACT/Diffusion depth
+switches. **Verification.** Seventy-one tests passed; a new 152-frame shard had
+0.737-3.535 m depth and passed audit; a 51,577,736-parameter RGB-D ACT completed
+one Radeon update, saved/reloaded, and ran one closed-loop episode. The episode
+failed and remains interface evidence only. **Decision: keep the pipeline;
+recollect balanced data before any modality capability claim.**
+
+### 33. Select the next model by task and license constraints
+
+**Evidence.** ACT and compact Diffusion already use the pinned open LeRobot
+stack. OpenVLA weights inherit Llama 2 terms; openpi explicitly requires an
+NVIDIA GPU; SmolVLA checkpoint metadata did not declare a license. VLA-Adapter
+uses a 0.5B backbone and its code, base, and sampled checkpoints are tagged MIT,
+but its official setup remains CUDA-oriented. **Decision.** Train matched ACT
+and Diffusion first. Use VLA-Adapter only for a separate ROCm and transitive-
+license spike; do not place it on the reproducible path until both pass.

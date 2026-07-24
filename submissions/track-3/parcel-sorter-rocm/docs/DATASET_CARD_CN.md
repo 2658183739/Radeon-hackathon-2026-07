@@ -10,7 +10,8 @@
 | 字段 | 形状 | 单位/含义 | ACT 是否使用 |
 | --- | --- | --- | --- |
 | `observation.images.overhead_rgb` | `3 x 224 x 224` | uint8 RGB | 是 |
-| `observation.images.overhead_depth` | `1 x 224 x 224` | float 米制深度 | 已保存，基线未用 |
+| `observation.images.overhead_depth` | `1 x 224 x 224` | float 米制深度 | 仅修正后的新 shard 有效 |
+| `observation.images.overhead_depth_rgb` | `3 x 224 x 224` | 固定量程深度视图 | 可选 RGB-D 输入 |
 | `observation.state` | `20` | 关节、末端、目标、接触力 | 是 |
 | `observation.privileged_state` | `7` | 仿真包裹真值位姿 | 否 |
 | `action` | `8` | 位置、四元数、夹爪 | 训练目标 |
@@ -43,7 +44,8 @@
 - 正式 120 回合数据仍主要覆盖当前平行夹爪可处理的刚性包裹；圆筒和行业尺寸边界需要
   单独采集/评测；
 - 96 回合不足以支持广泛语义泛化；
-- 当前 ACT 基线尚未使用深度。
+- 历史 96 回合 shard 存在 1,000 倍深度尺度错误，只可用于 RGB/状态训练，不可用于 RGB-D；
+- 修正 RGB-D 已完成一回合传感器/训练链路烟雾，尚无统计意义上的任务效果结论。
 
 ## 发布要求
 

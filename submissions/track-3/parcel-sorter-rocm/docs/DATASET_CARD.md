@@ -12,7 +12,8 @@ All 120 attempts remain in JSONL audit traces.
 | Feature | Shape | Unit / meaning | ACT use |
 | --- | --- | --- | --- |
 | `observation.images.overhead_rgb` | `3 x 224 x 224` | uint8 RGB | Yes |
-| `observation.images.overhead_depth` | `1 x 224 x 224` | float depth, metres | Stored; not in baseline |
+| `observation.images.overhead_depth` | `1 x 224 x 224` | float depth, metres | New corrected shards only |
+| `observation.images.overhead_depth_rgb` | `3 x 224 x 224` | fixed-range depth view | Optional RGB-D policy input |
 | `observation.state` | `20` | joints, EE pose, target, contact force | Yes |
 | `observation.privileged_state` | `7` | simulator parcel pose | No |
 | `action` | `8` | position, quaternion, gripper | Target |
@@ -50,7 +51,10 @@ selection, recovery learning, or preference learning with an explicit method.
   current parallel gripper; cylinders and industry-size boundaries need separate
   collection/evaluation;
 - 96 episodes are insufficient for broad semantic generalization;
-- current baseline does not use depth in ACT.
+- the historical 96-episode shard has a 1,000x depth-scale defect and is valid
+  only for RGB/state training; it must not be used for RGB-D;
+- corrected RGB-D has been verified on a one-episode sensor/training smoke, not
+  on a statistically meaningful task evaluation.
 
 ## Release requirements
 

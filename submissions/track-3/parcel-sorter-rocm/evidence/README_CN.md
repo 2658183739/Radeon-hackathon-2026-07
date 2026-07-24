@@ -20,9 +20,11 @@
 | `catalog/README_CN.md` | catalog v2 候选矩阵、哈希与保留/拒绝结论 |
 | `training/diffusion-1-step-rocm.md` | Diffusion 单步 Radeon 训练链路记录 |
 | `training/diffusion-compact-1step-rocm.md` | 轻量 76.6M 参数 Diffusion 单步与检查点哈希 |
+| `multimodal/README_CN.md` | 历史深度拒绝、修正传感器审计和 RGB-D ACT 烟雾 |
 
 SHA-256 见英文 [README.md](README.md)。JSON 包含配置、运行版本、episode 随机参数、
-终止结果和指标。大型 RGB-D 数据、206 MB 模型权重、优化器状态和 MP4 不进入普通 Git，
+终止结果和指标。历史 96 回合数据的深度尺度无效，只能用于 RGB/状态；大型数据、206 MB
+模型权重、优化器状态和 MP4 不进入普通 Git，
 最终提交时应通过 release 或对象存储提供，并公布 SHA-256。
 
 失败候选也被保留，因为可复现性不仅覆盖成功结果；comparison 明确记录了为什么不能

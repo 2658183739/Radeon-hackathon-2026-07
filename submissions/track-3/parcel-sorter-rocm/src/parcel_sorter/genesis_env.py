@@ -65,8 +65,12 @@ def parcel_spawn_spec(config: ExperimentConfig, sample: ParcelSample) -> ParcelS
 
 
 def genesis_depth_to_meters(depth: Any, np: Any) -> Any:
-    """Convert Genesis camera depth from millimeters to float32 meters."""
-    return np.asarray(depth, dtype=np.float32) * np.float32(0.001)
+    """Return Genesis rasterizer depth as float32 metres.
+
+    Genesis camera near/far planes and reconstructed point clouds use metres,
+    so applying an additional millimetre conversion corrupts the sensor scale.
+    """
+    return np.asarray(depth, dtype=np.float32)
 
 
 def needs_rolling_friction(sample: ParcelSample) -> bool:

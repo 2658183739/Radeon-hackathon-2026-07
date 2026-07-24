@@ -22,6 +22,12 @@ DIM_MODEL="${ACT_DIM_MODEL:-512}"
 N_ENCODER_LAYERS="${ACT_N_ENCODER_LAYERS:-4}"
 N_DECODER_LAYERS="${ACT_N_DECODER_LAYERS:-1}"
 TEMPORAL_ENSEMBLE_COEFF="${ACT_TEMPORAL_ENSEMBLE_COEFF:-}"
+USE_DEPTH="${ACT_USE_DEPTH:-false}"
+
+if [[ "${EVAL_SPLIT}" =~ ^0([.]0+)?$ && "${EVAL_STEPS}" != "0" ]]; then
+  echo "ERROR: ACT_EVAL_STEPS must be 0 when ACT_EVAL_SPLIT is 0" >&2
+  exit 7
+fi
 
 export HIP_VISIBLE_DEVICES="${HIP_VISIBLE_DEVICES:-0}"
 export PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
@@ -41,8 +47,16 @@ if ! command -v lerobot-train >/dev/null 2>&1; then
 fi
 
 # Do not expose observation.privileged_state (parcel ground truth) to the policy.
-# ACT uses RGB plus proprioception; metric depth remains available for later fusion models.
+AUDIT_ARGS=(--dataset-root "${DATASET_ROOT}")
 POLICY_INPUT_FEATURES='{observation.state: {type: STATE, shape: [20]}, observation.images.overhead_rgb: {type: VISUAL, shape: [3, 224, 224]}}'
+if [[ "${USE_DEPTH}" == "true" ]]; then
+  AUDIT_ARGS+=(--require-depth-rgb)
+  POLICY_INPUT_FEATURES='{observation.state: {type: STATE, shape: [20]}, observation.images.overhead_rgb: {type: VISUAL, shape: [3, 224, 224]}, observation.images.overhead_depth_rgb: {type: VISUAL, shape: [3, 224, 224]}}'
+elif [[ "${USE_DEPTH}" != "false" ]]; then
+  echo "ERROR: ACT_USE_DEPTH must be true or false" >&2
+  exit 6
+fi
+python scripts/audit_dataset.py "${AUDIT_ARGS[@]}"
 TRAIN_ARGS=(
   --dataset.repo_id local/parcel-sorter-expert
   --dataset.root "${DATASET_ROOT}"
