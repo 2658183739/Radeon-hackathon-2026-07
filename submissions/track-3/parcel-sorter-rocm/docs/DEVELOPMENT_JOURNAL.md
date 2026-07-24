@@ -232,3 +232,52 @@ the previous solver path. A 58-test Radeon suite passed, and the full scoped
 catalog returned to the original 8/12 profile result. **Decision: keep the
 scoped physical correction and the regression artifact; reject the global
 solver setting.**
+
+## 2026-07-25: centered mailing-tube grasp and scoped stabilization
+
+### Record 21: repair cylinder sampling before control tuning
+
+The horizontal-cylinder radius and initial height were derived from two
+independently sampled dimensions. The fixed mailing-tube sample therefore
+spawned about 5 mm above the table. Cylinder sampling now shares one radial
+dimension, and spawn height uses the constructed radius. The gripper yaw was
+also corrected so finger length follows the tube axis and closure crosses the
+diameter. Axis alignment reduced the fixed diagnostic peak from 72.92 N to
+43.54 N, but did not yet pass safety. **Decision: keep both geometry fixes;
+they correct the modeled system rather than tune around an invalid state.**
+
+### Record 22: phase-specific approach, verification, and lift control
+
+Mailing-tube profiles now support a 5 mm final approach and 10 mm lift step.
+Three consecutive bilateral-contact frames are required before lift. On the
+fixed diagnostic, the 5 mm approach passed the contact gate at 34.26 N; stable
+verification then exposed slip during lift. The 10 mm lift request extended
+contact but still failed during recovery. **Decision: keep these as scoped
+contact-phase variables, not as a success claim.**
+
+### Record 23: retain friction pads and centered close pose
+
+Setting tube-profile finger friction to 2.0 reduced the peak to 15.62 N and
+allowed all three attempts to enter lift. Trace inspection then showed the
+generic 35 mm cylinder tolerance closed about 33 mm above the intended pose.
+A 10 mm profile tolerance produced the first true lift: tube center rose from
+30.9 mm to 66.4 mm with about 75 frames of bilateral contact before slipping.
+**Decision: retain both material and pose corrections; report the tube as an
+unresolved partial capability.**
+
+### Record 24: reject force escalation
+
+Profile close-force candidates of 25 N and 35 N raised the maximum tube center
+only to 69.2 mm and 69.9 mm. Measured peaks were 36.46 N and 35.19 N, both over
+the frozen 35 N boundary, and neither completed lift. The optional close-force
+field was removed from production code. **Decision: reject; marginal height is
+not worth a safety regression or a larger configuration surface.**
+
+### Record 25: scope stabilization after a full-catalog regression
+
+The first full regression with global three-frame stability fell from 8/12 to
+5/12; `flat_mailer`, `book_box`, and `near_limit_box` regressed. Stability is
+now a profile override: global one frame, mailing tubes three. Sixty-seven
+tests passed on Radeon, and the second full regression restored the exact 8/12
+per-profile completion pattern. Both JSON files are retained. **Decision: keep
+the scoped implementation and treat 8/12 only as a regression smoke.**

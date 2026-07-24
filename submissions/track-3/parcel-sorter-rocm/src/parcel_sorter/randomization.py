@@ -25,6 +25,11 @@ class ParcelSample:
     dimensions_m: tuple[float, float, float] | None = None
     provenance: str = "legacy configured scale range"
     rolling_friction: float = 0.0
+    final_approach_step_m: float | None = None
+    lift_step_m: float | None = None
+    finger_friction: float | None = None
+    pregrasp_tolerance_m: float | None = None
+    grasp_stability_steps: int | None = None
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -132,6 +137,11 @@ class DomainRandomizer:
                 strict=True,
             )
         )
+        if profile.shape == "cylinder":
+            if profile.orientation_mode == "upright":
+                dimensions = (dimensions[0], dimensions[0], dimensions[2])
+            else:
+                dimensions = (dimensions[0], dimensions[1], dimensions[1])
         camera_noise = tuple(
             uniform(-cfg.camera_position_noise_m, cfg.camera_position_noise_m)
             for _ in range(3)
@@ -157,4 +167,9 @@ class DomainRandomizer:
             dimensions_m=dimensions,
             provenance=profile.provenance,
             rolling_friction=profile.rolling_friction,
+            final_approach_step_m=profile.final_approach_step_m,
+            lift_step_m=profile.lift_step_m,
+            finger_friction=profile.finger_friction,
+            pregrasp_tolerance_m=profile.pregrasp_tolerance_m,
+            grasp_stability_steps=profile.grasp_stability_steps,
         )

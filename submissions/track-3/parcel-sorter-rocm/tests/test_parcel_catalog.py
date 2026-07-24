@@ -1,4 +1,5 @@
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 import unittest
 
@@ -70,7 +71,8 @@ class ParcelCatalogTests(unittest.TestCase):
         self.assertEqual(spec.euler_degrees[1], 90.0)
         self.assertAlmostEqual(spec.cylinder_height_m, sample.dimensions_m[0])
         self.assertAlmostEqual(spec.cylinder_radius_m, sample.dimensions_m[1] / 2)
-        self.assertAlmostEqual(spec.initial_z_m, sample.dimensions_m[2] / 2)
+        self.assertAlmostEqual(spec.initial_z_m, spec.cylinder_radius_m)
+        self.assertAlmostEqual(sample.dimensions_m[1], sample.dimensions_m[2])
 
     def test_unknown_profile_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "unknown parcel profile"):
@@ -104,6 +106,37 @@ class ParcelCatalogTests(unittest.TestCase):
         self.assertGreater(profile.rolling_friction, 0.0)
         self.assertAlmostEqual(sample.rolling_friction, profile.rolling_friction)
         self.assertTrue(needs_rolling_friction(sample))
+        self.assertAlmostEqual(sample.final_approach_step_m or 0.0, 0.005)
+        self.assertAlmostEqual(sample.lift_step_m or 0.0, 0.01)
+        self.assertAlmostEqual(sample.finger_friction or 0.0, 2.0)
+        self.assertAlmostEqual(sample.pregrasp_tolerance_m or 0.0, 0.01)
+        self.assertEqual(sample.grasp_stability_steps, 3)
+
+    def test_profile_rejects_nonpositive_lift_step(self) -> None:
+        profile = next(item for item in self.config.parcel_profiles if item.profile_id == "mailing_tube")
+
+        with self.assertRaisesRegex(ValueError, "lift_step_m"):
+            replace(profile, lift_step_m=0.0).validate()
+
+    def test_profile_rejects_finger_friction_outside_genesis_range(self) -> None:
+        profile = next(item for item in self.config.parcel_profiles if item.profile_id == "mailing_tube")
+
+        for invalid in (0.0, 5.1):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "finger_friction"):
+                    replace(profile, finger_friction=invalid).validate()
+
+    def test_profile_rejects_nonpositive_pregrasp_tolerance(self) -> None:
+        profile = next(item for item in self.config.parcel_profiles if item.profile_id == "mailing_tube")
+
+        with self.assertRaisesRegex(ValueError, "pregrasp_tolerance_m"):
+            replace(profile, pregrasp_tolerance_m=0.0).validate()
+
+    def test_profile_rejects_nonpositive_grasp_stability_steps(self) -> None:
+        profile = next(item for item in self.config.parcel_profiles if item.profile_id == "mailing_tube")
+
+        with self.assertRaisesRegex(ValueError, "grasp_stability_steps"):
+            replace(profile, grasp_stability_steps=0).validate()
 
     def test_box_does_not_enable_rolling_solver_path(self) -> None:
         sample = self.randomizer.sample_profile("small_carton", 0)

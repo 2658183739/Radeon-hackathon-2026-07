@@ -67,6 +67,7 @@ English submission documents:
 - [Optimization roadmap](docs/OPTIMIZATION_ROADMAP.md) / [中文](docs/OPTIMIZATION_ROADMAP_CN.md)
 - [Engineering decision log](docs/ENGINEERING_DECISION_LOG.md) / [中文](docs/ENGINEERING_DECISION_LOG_CN.md)
 - [Development journal](docs/DEVELOPMENT_JOURNAL.md) / [中文](docs/DEVELOPMENT_JOURNAL_CN.md)
+- [Latest evidence-driven optimization session](docs/OPTIMIZATION_SESSION_2026-07-25.md) / [中文](docs/OPTIMIZATION_SESSION_2026-07-25_CN.md)
 - [Model selection](docs/MODEL_SELECTION.md) / [中文](docs/MODEL_SELECTION_CN.md)
 
 ## Repository layout

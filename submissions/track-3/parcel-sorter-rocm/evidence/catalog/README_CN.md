@@ -40,3 +40,30 @@
 
 两份全目录文件构成回归门槛：全局 solver 配置被拒绝，限定作用域后所有非邮筒 profile
 恢复到基线结果。两处 8/12 都不是正式成功率。
+
+## 2026-07-25 中心抓取证据
+
+以下序列延续限定滚动物理的对照。每个单邮筒文件只包含同一个固定诊断回合，不是成功率
+估计；两份回归文件各包含 12 个 profile 的固定单回合。
+
+| 产物 | 决策 / 观察结果 | SHA-256 |
+| --- | --- | --- |
+| `catalog-v2-tube-geometry-fix.json` | 规范化圆筒几何；72.92 N 中止 | `72bbfb7c134cee44eeef844c7eceef501fe68f567d306cae4d8ed817b732e13d` |
+| `catalog-v2-tube-geometry-xy005.json` | 拒绝 5 mm XY 门槛；0 N 但接近超时 | `b33c729900b7c75c93bcd6cb18003c610768c9219c446341889f0e9a73732907` |
+| `catalog-v2-tube-geometry-xy010.json` | 拒绝仅 10 mm XY 候选；63.77 N | `2040561aee1cc71a148235d1b9f68191ab194e3472d79c39e6500f91d121c20c` |
+| `catalog-v2-tube-geometry-xy010-step0025.json` | 拒绝组合候选；143.33 N | `032649742823ada893a1e4d88484e284c53ad9748e198270ed7ece1dfd61af9d` |
+| `catalog-v2-tube-rails-prototype.json` | 拒绝双导轨原型；无改善，72.92 N | `47973f22b4ccedc3e35887e385b89307a1329f2f6d41059752475f46b916efd8` |
+| `catalog-v2-tube-axis-aligned.json` | 保留轴向夹爪；改善到 43.54 N | `23009ac98a15447059756857c8035f4c095b3cfd67ae0d1c8e74a905c7031459` |
+| `catalog-v2-tube-axis-step005.json` | 保留 5 mm 最终接近；34.26 N 后抬升丢抓 | `07671138052ed0760d11de62c0cafd83c4cad1a14e49b9d80053f52ad454be16` |
+| `catalog-v2-tube-stable-contact.json` | 三帧稳定后进入抬升；恢复以 48.05 N 中止 | `f0c10d4f919f4c3219e15c8299c4648c8bdd9e09bc24f2cdd6620c36b3a6d969` |
+| `catalog-v2-tube-lift-step010.json` | 保留 10 mm 抬升请求；接触更久，恢复为 35.12 N | `87cb904706bbaa8d2c4f9719689b3755efb503352cb89955fab64470da64b979` |
+| `catalog-v2-tube-pad-friction200.json` | 保留摩擦指垫；峰值 15.62 N，三次进入抬升 | `17f31300b072fe34577d32a7bc94b8522f509450c6096273f850ffd774824de0` |
+| `catalog-v2-tube-centered-grasp.json` | 保留 10 mm 闭合容差；首次真正抬到中心高度 66.4 mm | `d406edbaf642b355874e3d3bbb01838dcbd4d0e2526512db8e5677122444a462` |
+| `catalog-v2-tube-force025.json` | 拒绝 25 N 夹持力；69.2 mm，36.46 N 安全违规 | `808ce89fec19993756ee1aa33a23ac81bcebc70b3d1d365c674d76165dcb8a8c` |
+| `catalog-v2-tube-force035.json` | 拒绝 35 N 夹持力；69.9 mm，35.19 N 安全违规 | `7ec0738ccc77369f656127d8ec175abe243fafd499bddb0aa76e79d01486d96f` |
+| `catalog-v2-centered-regression.json` | 拒绝全局三帧稳定；目录退化到 5/12 | `73a33b088c2e8ea524700f1076afa1985c1255645c1b40e8a0a60ccd7f0bea00` |
+| `catalog-v2-tube-scoped-regression.json` | 保留 profile 限定稳定；完全恢复基线 8/12 | `1e99926b5a9d481349d84758d463902158ee5d264c53cba79245a1154dd83605` |
+
+最终保留实现修复了圆筒构造和邮筒轴向抓取，并为邮筒限定接近、抬升、闭合容差、稳定
+帧数和高摩擦指垫。它不代表邮筒任务成功：最佳保留诊断把物体抬离台面，但没有完成搬运
+和投放。下一项可接受改动必须是结构化夹爪/夹具候选，并经过重复保留集评测。

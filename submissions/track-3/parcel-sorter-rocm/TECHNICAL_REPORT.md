@@ -80,7 +80,8 @@ yaw, camera position, action delay, and destination. Every sample is a pure
 function of the project seed and episode index, so a failure can be replayed
 exactly with `--start-episode`.
 
-The catalog defines seven weighted training profiles and four evaluation-only
+Catalog v1 defines seven weighted training profiles; catalog v2 expands this to
+twelve balanced engineering strata while retaining four evaluation-only
 industry-size boundaries. Genesis creates actual Box or Cylinder geometry. A
 20-episode block has an exact profile allocation, and profile-specific
 evaluation uses stable episode IDs even when the evaluator filters profiles.
@@ -204,8 +205,8 @@ from being dominated by episode zero.
 | Rejected 0.01 m approach candidate, matched 120 episodes | 75.0% success; 73.6% throughput retained |
 | Parallel Genesis, 128 environments | 46,582 environment-steps/s |
 | Peak observed GPU utilization | 83% |
-| Seven-profile one-episode catalog smoke | 4 complete; not a formal success rate |
-| Deterministic unit tests | 48 passing |
+| Twelve-profile catalog v2 one-episode regression | 8 complete; not a formal success rate |
+| Deterministic unit tests | 67 passing on Radeon |
 
 The larger 120-episode expert run is the primary task-capability result. The
 fixed 10-seed result is useful for regression testing but is not presented as a
@@ -235,7 +236,11 @@ Other current limitations are:
 
 - ACT has been trained for only 5,000 steps on 96 successful episodes.
 - The policy does not yet consume the available depth channel.
-- Micro-box, upright-canister, and mailing-tube catalog smokes still fail.
+- The catalog v2 one-case regression still fails for `medium_carton`,
+  `shoe_box_proxy`, `large_narrow_carton`, and `mailing_tube`.
+- The retained tube contact strategy lifted the fixed tube center from 30.9 mm
+  to 66.4 mm but did not complete transfer and placement. Higher close-force
+  candidates were rejected for crossing the 35 N safety boundary.
 - Diffusion has only a one-step path smoke; SmolVLA still needs a staged local
   base checkpoint. Neither has formal closed-loop evidence.
 - Evaluation is simulation-only; sim-to-real calibration is outside this
@@ -275,7 +280,9 @@ Small raw summaries and logs are committed under `evidence/` with a SHA-256
 index.
 
 Paired model-selection and chronological development records are available in
-`docs/MODEL_SELECTION*.md` and `docs/DEVELOPMENT_JOURNAL*.md`.
+`docs/MODEL_SELECTION*.md` and `docs/DEVELOPMENT_JOURNAL*.md`. The latest
+step-by-step evidence and decisions are in
+`docs/OPTIMIZATION_SESSION_2026-07-25*.md`.
 
 ## 14. Team and contributions
 

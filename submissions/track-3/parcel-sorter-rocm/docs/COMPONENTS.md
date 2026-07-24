@@ -6,6 +6,7 @@
 | Robot | Franka Panda MJCF from Genesis | Pick, lift, transport, and placement executed |
 | Parcel task | Random size, mass, friction, pose, and two bins | 80% over 120 episodes; fixed 10-seed baseline 90% |
 | Catalog v2 | 12 weighted Box/Cylinder training strata plus 4 evaluation boundaries | One-case-per-profile regression complete; 8/12 completed, not a success-rate claim |
+| Tube handling | Correct cylinder geometry, scoped rolling physics, axis grasp, friction pads, centered close | Lifted 35.5 mm in one diagnostic; transfer/placement still unresolved |
 | Sensors | RGB-D, joints, end-effector pose, contact | Shapes verified; depth stored in metres |
 | Expert | Truth-based geometry, IK, PD, gripper force | 96/120 formal success; phase-aware approach added |
 | Safety | Verification, retry, bin check, force abort | Unit-tested and exercised on Radeon |
@@ -20,8 +21,8 @@
 
 ## Next gates
 
-1. Add a low tube-staging cradle or a cylinder-capable end effector; do not
-   continue single-episode approach-step tuning.
+1. Add a versioned concave finger adapter or V-cradle and run a matched
+   multi-episode ablation; do not continue single-episode force tuning.
 2. Grow to at least 300 successful balanced expert episodes.
 3. Run three-seed ACT and compact Diffusion training with the same held-out set.
 4. Add RGB-D late fusion and a matched RGB-only ablation.

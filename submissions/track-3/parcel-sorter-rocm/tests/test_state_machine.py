@@ -5,6 +5,24 @@ from parcel_sorter.state_machine import ClosedLoopSupervisor, Command, Stage
 
 
 class ClosedLoopSupervisorTests(unittest.TestCase):
+    def test_requires_consecutive_stable_grasp_contact(self) -> None:
+        supervisor = ClosedLoopSupervisor(grasp_settle_steps=5, grasp_stability_steps=3)
+        supervisor.step(Observation(parcel_visible=True))
+        supervisor.step(Observation(at_pregrasp=True))
+        supervisor.step(Observation())
+
+        first = supervisor.step(Observation(grasp_contact=True))
+        interrupted = supervisor.step(Observation(grasp_contact=False))
+        second_first = supervisor.step(Observation(grasp_contact=True))
+        second = supervisor.step(Observation(grasp_contact=True))
+        third = supervisor.step(Observation(grasp_contact=True))
+
+        self.assertEqual(first.command, Command.HOLD.value)
+        self.assertEqual(interrupted.command, Command.HOLD.value)
+        self.assertEqual(second_first.command, Command.HOLD.value)
+        self.assertEqual(second.command, Command.HOLD.value)
+        self.assertEqual(third.command, Command.MOVE_LIFT.value)
+
     def test_success_after_one_failed_grasp(self) -> None:
         supervisor = ClosedLoopSupervisor(max_grasp_retries=2)
         observations = [

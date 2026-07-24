@@ -108,6 +108,44 @@ class ScriptedExpertTests(unittest.TestCase):
         self.assertAlmostEqual(distance, candidate_config.control.final_approach_step_m)
         self.assertLess(distance, candidate_config.control.max_ee_step_m)
 
+    def test_profile_can_reduce_final_approach_step(self) -> None:
+        sample = replace(self.sample, final_approach_step_m=0.005)
+        expert = ScriptedPickPlaceExpert(self.config, sample)
+        parcel = self.state.parcel_pose
+        state = replace(
+            self.state,
+            end_effector_pose=(parcel[0], parcel[1], 0.30, 1.0, 0.0, 0.0, 0.0),
+        )
+
+        action = expert.action(
+            ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0),
+            state,
+        )
+
+        self.assertAlmostEqual(math.dist(action.target_position, state.end_effector_pose[:3]), 0.005)
+
+    def test_profile_can_reduce_lift_step(self) -> None:
+        sample = replace(self.sample, lift_step_m=0.01)
+        expert = ScriptedPickPlaceExpert(self.config, sample)
+
+        action = expert.action(
+            ControlDecision("lift", Command.MOVE_LIFT.value, "test", 0),
+            self.state,
+        )
+
+        self.assertAlmostEqual(math.dist(action.target_position, self.state.end_effector_pose[:3]), 0.01)
+        self.assertLess(0.01, self.config.control.max_ee_step_m)
+
+    def test_profile_can_override_pregrasp_tolerance(self) -> None:
+        sample = replace(
+            self.sample,
+            shape="cylinder",
+            orientation_mode="horizontal",
+            pregrasp_tolerance_m=0.01,
+        )
+
+        self.assertAlmostEqual(ScriptedPickPlaceExpert(self.config, sample).pregrasp_tolerance_m(), 0.01)
+
     def test_lift_and_drop_keep_gripper_closed(self) -> None:
         for command in (Command.MOVE_LIFT, Command.MOVE_DROP):
             action = self.expert.action(ControlDecision("test", command.value, "test", 0), self.state)
@@ -178,7 +216,7 @@ class ScriptedExpertTests(unittest.TestCase):
             self.config.task.grasp_hand_clearance_m + 0.008,
         )
 
-    def test_horizontal_cylinder_grasp_is_perpendicular_to_axis(self) -> None:
+    def test_horizontal_cylinder_fingers_are_parallel_to_axis(self) -> None:
         sample = replace(
             self.sample,
             profile_id="mailing_tube",
@@ -186,7 +224,7 @@ class ScriptedExpertTests(unittest.TestCase):
             orientation_mode="horizontal",
             yaw_rad=0.0,
         )
-        self.assertAlmostEqual(abs(profile_grasp_yaw(sample)), math.pi / 2)
+        self.assertAlmostEqual(profile_grasp_yaw(sample), 0.0)
 
     def test_large_nonflat_box_gets_a_larger_pregrasp_window(self) -> None:
         sample = replace(

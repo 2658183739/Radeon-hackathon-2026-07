@@ -35,6 +35,7 @@ position_tolerance_m = 0.025
 approach_xy_tolerance_m = 0.015
 release_settle_steps = 12
 grasp_settle_steps = 10
+grasp_stability_steps = 1
 
 [control]
 arm_kp = [4500, 4500, 3500, 3500, 2000, 2000, 2000]
@@ -234,6 +235,11 @@ friction_min = 0.30
 friction_max = 0.90
 provenance = "hardware-feasible rigid mailing-tube training stratum"
 rolling_friction = 0.005
+final_approach_step_m = 0.005
+lift_step_m = 0.01
+finger_friction = 2.0
+pregrasp_tolerance_m = 0.01
+grasp_stability_steps = 3
 
 [[parcel_profiles]]
 profile_id = "near_limit_box"
@@ -338,3 +344,8 @@ friction_max = 0.80
 provenance = "capability-boundary range approaching the USPS 22-inch nonstandard-length threshold"
 source_url = "https://pe.usps.com/text/dmm300/Notice123.htm"
 rolling_friction = 0.005
+final_approach_step_m = 0.005
+lift_step_m = 0.01
+finger_friction = 2.0
+pregrasp_tolerance_m = 0.01
+grasp_stability_steps = 3

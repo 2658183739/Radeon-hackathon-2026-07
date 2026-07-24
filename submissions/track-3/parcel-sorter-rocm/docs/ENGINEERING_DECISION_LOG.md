@@ -586,3 +586,32 @@ with a positive coefficient; the 58-test suite passed and the full catalog
 returned to 8/12. **Decision:** keep the scoped implementation and retain the
 global run as a negative regression artifact. This is the required rollback
 pattern for a cross-cutting simulation feature.
+
+### 28. Correct cylinder geometry before policy tuning
+
+**Evidence:** horizontal-cylinder radius and spawn height came from independent
+radial samples, creating an artificial drop. Axis-aligned grasp yaw also cut
+the diagnostic peak from 72.92 N to 43.54 N. **Decision:** keep canonical
+cylinder dimensions, radius-derived spawn height, and axis-aligned fingers.
+
+### 29. Add profile-scoped contact controls
+
+**Evidence:** a 5 mm final approach passed at 34.26 N; a 10 mm lift request and
+three stable-contact frames improved the lift trace. High-friction pads reduced
+the peak to 15.62 N. A 10 mm close tolerance then lifted the tube center by
+35.5 mm. **Decision:** keep the explicit profile fields and their validation;
+do not claim complete manipulation.
+
+### 30. Remove the rejected close-force API
+
+**Evidence:** 25 N and 35 N commands added at most 3.5 mm of partial lift,
+crossed the measured 35 N boundary, and did not complete the task. **Decision:**
+remove the field, configuration, and tests instead of preserving an unused
+experimental knob.
+
+### 31. Scope stability after cross-profile regression
+
+**Evidence:** global three-frame stability changed the catalog smoke from 8/12
+to 5/12. A profile override restored the exact 8/12 outcome with 67 tests
+passing on Radeon. **Decision:** default to one frame and use three only for
+mailing tubes. Retain both full-catalog artifacts as rollback evidence.

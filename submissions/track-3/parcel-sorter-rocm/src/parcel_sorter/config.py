@@ -46,6 +46,7 @@ class TaskConfig:
     release_settle_steps: int
     grasp_settle_steps: int
     approach_xy_tolerance_m: float = 0.010
+    grasp_stability_steps: int = 1
 
     def validate(self) -> None:
         if self.max_grasp_retries < 0:
@@ -79,8 +80,9 @@ class TaskConfig:
             or self.approach_xy_tolerance_m <= 0
             or self.approach_xy_tolerance_m > self.position_tolerance_m
             or min(self.release_settle_steps, self.grasp_settle_steps) < 0
+            or self.grasp_stability_steps < 1
         ):
-            raise ValueError("position tolerance must be positive and settle steps cannot be negative")
+            raise ValueError("position tolerance must be positive and stability steps must be positive")
 
 
 @dataclass(frozen=True)
@@ -203,6 +205,11 @@ class ParcelProfileConfig:
     provenance: str
     source_url: str = ""
     rolling_friction: float = 0.0
+    final_approach_step_m: float | None = None
+    lift_step_m: float | None = None
+    finger_friction: float | None = None
+    pregrasp_tolerance_m: float | None = None
+    grasp_stability_steps: int | None = None
 
     def validate(self) -> None:
         if not self.profile_id.strip() or not self.material.strip() or not self.provenance.strip():
@@ -211,6 +218,16 @@ class ParcelProfileConfig:
             raise ValueError("parcel profile source_url must be an http(s) URL")
         if self.rolling_friction < 0:
             raise ValueError("parcel profile rolling_friction cannot be negative")
+        if self.final_approach_step_m is not None and self.final_approach_step_m <= 0:
+            raise ValueError("parcel profile final_approach_step_m must be positive when set")
+        if self.lift_step_m is not None and self.lift_step_m <= 0:
+            raise ValueError("parcel profile lift_step_m must be positive when set")
+        if self.finger_friction is not None and not 0 < self.finger_friction <= 5:
+            raise ValueError("parcel profile finger_friction must be in (0, 5] when set")
+        if self.pregrasp_tolerance_m is not None and self.pregrasp_tolerance_m <= 0:
+            raise ValueError("parcel profile pregrasp_tolerance_m must be positive when set")
+        if self.grasp_stability_steps is not None and self.grasp_stability_steps < 1:
+            raise ValueError("parcel profile grasp_stability_steps must be positive when set")
         if self.shape not in {"box", "cylinder"}:
             raise ValueError(f"unsupported parcel shape: {self.shape}")
         if self.orientation_mode not in {"yaw", "upright", "horizontal"}:

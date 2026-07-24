@@ -36,14 +36,19 @@ class ClosedLoopSupervisor:
         max_grasp_retries: int = 2,
         grasp_settle_steps: int = 0,
         release_settle_steps: int = 0,
+        grasp_stability_steps: int = 1,
     ) -> None:
         if min(max_grasp_retries, grasp_settle_steps, release_settle_steps) < 0:
             raise ValueError("retry and settle counts cannot be negative")
+        if grasp_stability_steps < 1:
+            raise ValueError("grasp_stability_steps must be positive")
         self.max_grasp_retries = max_grasp_retries
         self.grasp_settle_steps = grasp_settle_steps
         self.release_settle_steps = release_settle_steps
+        self.grasp_stability_steps = grasp_stability_steps
         self.retry_count = 0
         self._verify_wait_steps = 0
+        self._grasp_contact_steps = 0
         self._lift_contact_loss_steps = 0
         self._release_wait_steps = 0
         self.stage = Stage.DETECT
@@ -51,6 +56,7 @@ class ClosedLoopSupervisor:
     def reset(self) -> None:
         self.retry_count = 0
         self._verify_wait_steps = 0
+        self._grasp_contact_steps = 0
         self._lift_contact_loss_steps = 0
         self._release_wait_steps = 0
         self.stage = Stage.DETECT
@@ -76,14 +82,20 @@ class ClosedLoopSupervisor:
             return self._decision(Command.MOVE_PREGRASP, "approaching parcel")
 
         if self.stage == Stage.GRASP:
+            self._grasp_contact_steps = 0
             self.stage = Stage.VERIFY
             return self._decision(Command.HOLD, "checking contact")
 
         if self.stage == Stage.VERIFY:
             if observation.grasp_contact:
-                self._verify_wait_steps = 0
-                self.stage = Stage.LIFT
-                return self._decision(Command.MOVE_LIFT, "grasp verified")
+                self._grasp_contact_steps += 1
+                if self._grasp_contact_steps >= self.grasp_stability_steps:
+                    self._verify_wait_steps = 0
+                    self._grasp_contact_steps = 0
+                    self.stage = Stage.LIFT
+                    return self._decision(Command.MOVE_LIFT, "stable grasp verified")
+                return self._decision(Command.HOLD, "stabilizing gripper contact")
+            self._grasp_contact_steps = 0
             if self._verify_wait_steps < self.grasp_settle_steps:
                 self._verify_wait_steps += 1
                 return self._decision(Command.HOLD, "waiting for gripper contact")
@@ -126,6 +138,7 @@ class ClosedLoopSupervisor:
 
     def _retry_or_abort(self, reason: str) -> ControlDecision:
         self._verify_wait_steps = 0
+        self._grasp_contact_steps = 0
         self._lift_contact_loss_steps = 0
         self._release_wait_steps = 0
         if self.retry_count >= self.max_grasp_retries:

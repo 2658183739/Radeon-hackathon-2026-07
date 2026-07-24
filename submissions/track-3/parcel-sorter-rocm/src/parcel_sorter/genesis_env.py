@@ -47,15 +47,17 @@ def parcel_spawn_spec(config: ExperimentConfig, sample: ParcelSample) -> ParcelS
     if sample.orientation_mode == "upright":
         height, radius = dimensions[2], dimensions[0] / 2
         euler = (0.0, 0.0, yaw_degrees)
+        initial_z = height / 2
     elif sample.orientation_mode == "horizontal":
         height, radius = dimensions[0], dimensions[1] / 2
         euler = (0.0, 90.0, yaw_degrees)
+        initial_z = radius
     else:
         raise ValueError(f"unsupported cylinder orientation: {sample.orientation_mode}")
     return ParcelSpawnSpec(
         shape="cylinder",
         dimensions_m=dimensions,
-        initial_z_m=dimensions[2] / 2,
+        initial_z_m=initial_z,
         euler_degrees=euler,
         cylinder_height_m=height,
         cylinder_radius_m=radius,
@@ -216,6 +218,9 @@ class GenesisParcelEnv:
         self.end_effector = self.robot.get_link("hand")
         self.left_finger = self.robot.get_link("left_finger")
         self.right_finger = self.robot.get_link("right_finger")
+        if sample.finger_friction is not None:
+            self.left_finger.set_friction(sample.finger_friction)
+            self.right_finger.set_friction(sample.finger_friction)
         self.arm_dofs = self.np.arange(7)
         self.finger_dofs = self.np.arange(7, 9)
 

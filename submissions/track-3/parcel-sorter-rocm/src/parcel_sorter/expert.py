@@ -24,8 +24,8 @@ def profile_grasp_yaw(sample: ParcelSample) -> float:
     if sample.shape == "cylinder" and sample.orientation_mode == "upright":
         return 0.0
     if sample.shape == "cylinder" and sample.orientation_mode == "horizontal":
-        # Pinch across the tube diameter instead of pushing along its axis.
-        return canonical_grasp_yaw(sample.yaw_rad + math.pi / 2, max_abs_yaw_rad=math.pi / 2)
+        # Keep the fingers parallel to the tube axis so jaw closure crosses its diameter.
+        return canonical_grasp_yaw(sample.yaw_rad, max_abs_yaw_rad=math.pi / 2)
     return canonical_grasp_yaw(sample.yaw_rad, max_abs_yaw_rad=math.pi / 2)
 
 
@@ -85,6 +85,10 @@ class ScriptedPickPlaceExpert:
         step_limit = self.config.control.max_ee_step_m
         if command == Command.MOVE_PREGRASP and self._is_final_approach(current, parcel):
             step_limit = self.config.control.final_approach_step_m
+            if self.sample.final_approach_step_m is not None:
+                step_limit = min(step_limit, self.sample.final_approach_step_m)
+        elif command == Command.MOVE_LIFT and self.sample.lift_step_m is not None:
+            step_limit = min(step_limit, self.sample.lift_step_m)
         target = self._bounded_step(current, desired, step_limit)
         target_quaternion = self._grasp_quaternion
         if command == Command.MOVE_PREGRASP:
@@ -122,6 +126,8 @@ class ScriptedPickPlaceExpert:
 
     def pregrasp_tolerance_m(self) -> float:
         """Scale the close-pose window by grasp surface size and shape."""
+        if self.sample.pregrasp_tolerance_m is not None:
+            return self.sample.pregrasp_tolerance_m
         dimensions = self.sample.dimensions_m or tuple(
             base * scale
             for base, scale in zip(

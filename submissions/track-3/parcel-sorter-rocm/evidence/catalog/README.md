@@ -47,3 +47,34 @@ a low staging cradle or a cylinder-capable end effector.
 The full-catalog pair is the regression gate: the global solver configuration
 was rejected, while the scoped implementation restored every non-tube profile
 to its baseline outcome. Neither 8/12 value is a formal success rate.
+
+## 2026-07-25 centered-grasp evidence
+
+The sequence below continues from the scoped rolling-physics comparator. Every
+single-tube file is one fixed diagnostic episode, not a success-rate estimate.
+The two regression files cover one fixed episode for each of twelve profiles.
+
+| Artifact | Decision / observed result | SHA-256 |
+| --- | --- | --- |
+| `catalog-v2-tube-geometry-fix.json` | Canonical cylinder geometry; 72.92 N abort | `72bbfb7c134cee44eeef844c7eceef501fe68f567d306cae4d8ed817b732e13d` |
+| `catalog-v2-tube-geometry-xy005.json` | Rejected 5 mm XY gate; zero force, approach timeout | `b33c729900b7c75c93bcd6cb18003c610768c9219c446341889f0e9a73732907` |
+| `catalog-v2-tube-geometry-xy010.json` | Rejected 10 mm XY-only candidate; 63.77 N | `2040561aee1cc71a148235d1b9f68191ab194e3472d79c39e6500f91d121c20c` |
+| `catalog-v2-tube-geometry-xy010-step0025.json` | Rejected combined candidate; 143.33 N | `032649742823ada893a1e4d88484e284c53ad9748e198270ed7ece1dfd61af9d` |
+| `catalog-v2-tube-rails-prototype.json` | Rejected dual-rail prototype; no improvement, 72.92 N | `47973f22b4ccedc3e35887e385b89307a1329f2f6d41059752475f46b916efd8` |
+| `catalog-v2-tube-axis-aligned.json` | Kept axis-aligned gripper direction; improved to 43.54 N | `23009ac98a15447059756857c8035f4c095b3cfd67ae0d1c8e74a905c7031459` |
+| `catalog-v2-tube-axis-step005.json` | Kept 5 mm final approach; 34.26 N, then lost grasp | `07671138052ed0760d11de62c0cafd83c4cad1a14e49b9d80053f52ad454be16` |
+| `catalog-v2-tube-stable-contact.json` | Three stable frames reached lift; recovery aborted at 48.05 N | `f0c10d4f919f4c3219e15c8299c4648c8bdd9e09bc24f2cdd6620c36b3a6d969` |
+| `catalog-v2-tube-lift-step010.json` | Kept 10 mm lift request; contact lasted longer, recovery 35.12 N | `87cb904706bbaa8d2c4f9719689b3755efb503352cb89955fab64470da64b979` |
+| `catalog-v2-tube-pad-friction200.json` | Kept friction-pad model; peak 15.62 N, three lift attempts | `17f31300b072fe34577d32a7bc94b8522f509450c6096273f850ffd774824de0` |
+| `catalog-v2-tube-centered-grasp.json` | Kept 10 mm close tolerance; first true lift to 66.4 mm center height | `d406edbaf642b355874e3d3bbb01838dcbd4d0e2526512db8e5677122444a462` |
+| `catalog-v2-tube-force025.json` | Rejected 25 N close force; 69.2 mm, 36.46 N safety violation | `808ce89fec19993756ee1aa33a23ac81bcebc70b3d1d365c674d76165dcb8a8c` |
+| `catalog-v2-tube-force035.json` | Rejected 35 N close force; 69.9 mm, 35.19 N safety violation | `7ec0738ccc77369f656127d8ec175abe243fafd499bddb0aa76e79d01486d96f` |
+| `catalog-v2-centered-regression.json` | Rejected global three-frame stability; catalog regressed to 5/12 | `73a33b088c2e8ea524700f1076afa1985c1255645c1b40e8a0a60ccd7f0bea00` |
+| `catalog-v2-tube-scoped-regression.json` | Kept profile-scoped stability; exact baseline outcome restored to 8/12 | `1e99926b5a9d481349d84758d463902158ee5d264c53cba79245a1154dd83605` |
+
+The retained implementation fixes cylinder construction, aligns the grasp to
+the tube axis, uses tube-specific approach/lift/tolerance/stability values, and
+models higher-friction finger pads. It does not claim mailing-tube task success:
+the best retained diagnostic lifted the object but did not transfer and place
+it. The next accepted change requires a structural gripper/fixture candidate
+and repeated held-out evaluation.

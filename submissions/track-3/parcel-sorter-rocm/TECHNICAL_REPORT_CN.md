@@ -36,10 +36,9 @@ Radeon 上复现。
 Genesis 1.2.3 提供 AMD GPU 物理和离屏渲染。Franka Panda 使用 Genesis 提供的 MJCF
 资产。每个 episode 生成一个刚体包裹，并随机分配左右格口。
 
-目录配置定义 7 类带权训练包裹：微型盒、小纸箱、扁盒、长盒、直立罐、横向邮筒和
-近夹爪极限盒；另有 4 类行业尺寸只用于能力边界评测。Genesis 根据 profile 创建 Box 或
-Cylinder，而不是把圆筒伪装成盒子。每 20 回合精确分配训练权重，profile 定点评测使用
-稳定 episode 编号。
+catalog v1 定义 7 类带权训练包裹；catalog v2 扩展为 12 个均衡工程分层，并保留 4 类
+只用于能力边界评测的行业尺寸。Genesis 根据 profile 创建真实 Box 或 Cylinder，而不是
+把圆筒伪装成盒子。每 20 回合精确分配训练权重，profile 定点评测使用稳定 episode 编号。
 
 | 参数 | 数值 |
 | --- | ---: |
@@ -133,8 +132,8 @@ ACT 使用确定且不重叠的 episode 范围评估。检查点汇总工具会�
 | 被拒绝的 0.01 m 接近候选，同组 120 回合 | 成功率 75.0%，吞吐保留 73.6% |
 | 128 并行 Genesis | 46,582 environment-steps/s |
 | 峰值 GPU 利用率 | 83% |
-| 7 类目录单回合烟雾回归 | 4 类完成；不是正式成功率 |
-| 单元测试 | 48 项通过 |
+| 12 类 catalog v2 单回合回归 | 8 类完成；不是正式成功率 |
+| 单元测试 | Radeon 上 67 项通过 |
 
 120 回合专家结果是当前主要机器人能力指标。ACT 已证明 ROCm 数据、训练、检查点、重载、
 视觉推理和物理闭环跑通，但尚未收敛。4000 步在同一组任务上优于 5000 步，说明最终
@@ -151,7 +150,10 @@ ACT 使用确定且不重叠的 episode 范围评估。检查点汇总工具会�
 
 - ACT 只有 96 个成功训练回合和 5000 步训练；
 - 当前策略没有使用已保存的深度；
-- 微型盒、直立罐和横向邮筒在最终目录烟雾中仍失败；
+- catalog v2 单案例回归仍失败的类别是 `medium_carton`、`shoe_box_proxy`、
+  `large_narrow_carton` 和 `mailing_tube`；
+- 当前保留的邮筒接触策略把固定样本中心从 30.9 mm 抬到 66.4 mm，但没有完成搬运和
+  投放；更高夹持力候选因越过 35 N 安全线而被拒绝；
 - Diffusion 只有 1 步链路烟雾，SmolVLA 尚未获得本地基座；二者均无正式闭环统计；
 - 结果为仿真，尚无 sim-to-real 证据；
 - Docker 定义可复现，但主要验证路径使用比赛裸机云镜像；
@@ -191,4 +193,5 @@ bash scripts/run_pipeline_radeon.sh outputs/radeon-run
 完整命令见 [README_CN.md](README_CN.md)，优化顺序见
 [docs/OPTIMIZATION_ROADMAP_CN.md](docs/OPTIMIZATION_ROADMAP_CN.md)，模型取舍和逐次实验见
 [docs/MODEL_SELECTION_CN.md](docs/MODEL_SELECTION_CN.md) 与
-[docs/DEVELOPMENT_JOURNAL_CN.md](docs/DEVELOPMENT_JOURNAL_CN.md)。
+[docs/DEVELOPMENT_JOURNAL_CN.md](docs/DEVELOPMENT_JOURNAL_CN.md)。本轮逐步证据与决策见
+[docs/OPTIMIZATION_SESSION_2026-07-25_CN.md](docs/OPTIMIZATION_SESSION_2026-07-25_CN.md)。

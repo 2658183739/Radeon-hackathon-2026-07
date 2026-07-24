@@ -58,6 +58,7 @@ def run_policy_episode(
         config.task.max_grasp_retries,
         grasp_settle_steps=config.task.grasp_settle_steps,
         release_settle_steps=config.task.release_settle_steps,
+        grasp_stability_steps=sample.grasp_stability_steps or config.task.grasp_stability_steps,
     )
     trace: list[dict[str, Any]] = []
     latencies_ms: list[float] = []

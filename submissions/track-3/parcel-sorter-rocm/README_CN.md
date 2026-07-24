@@ -9,7 +9,8 @@ RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 [优化路线图](docs/OPTIMIZATION_ROADMAP_CN.md)，完整工程决策和代码学习记录见
 [工程决策日志](docs/ENGINEERING_DECISION_LOG_CN.md)，逐次实验见
 [开发日志](docs/DEVELOPMENT_JOURNAL_CN.md)，模型比较见
-[模型选型](docs/MODEL_SELECTION_CN.md)。
+[模型选型](docs/MODEL_SELECTION_CN.md)。本轮逐步优化、代码能力与决策原因见
+[2026-07-25 证据驱动优化记录](docs/OPTIMIZATION_SESSION_2026-07-25_CN.md)。
 
 ## 系统组成
 
