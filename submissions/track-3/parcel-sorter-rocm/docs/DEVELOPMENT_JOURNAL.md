@@ -437,3 +437,11 @@ made a 30K x six-cell matrix a multi-hour commitment. I therefore chose a new
 5K-step root for integration validation. This is deliberately not a model
 selection result: it must produce loadable checkpoints first, then be evaluated
 with the same held-out protocol before any scientific claim.
+
+### Record 40: fix watcher override precedence
+
+The first five-thousand-step request was parsed as thirty thousand because the
+watcher overwrote the inherited environment before inspecting it. Replacing
+that pattern with shell parameter defaults makes externally supplied budgets
+effective. The next attempt will be accepted as a 5K smoke run only if the
+trainer's resolved configuration says `cfg.steps=5000`.

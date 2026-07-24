@@ -906,3 +906,24 @@ namespace.
 **Revisit trigger.** Promote a smoke cell to formal training only after it
 produces a loadable checkpoint and passes the same data, safety, and evaluation
 contracts as the 30K run.
+
+### 45. Preserve caller-provided watcher configuration
+
+**Observation.** The first bounded retry still received 30K steps because the
+watcher assigned defaults before reading its environment. The assignment
+overwrote the caller value, so the later `printenv` read returned the default.
+
+**Decision.** Replace the assignment-plus-read pattern with POSIX parameter
+defaults (`${VARIABLE:-default}`) for polling, model list, seeds, and step
+budget. Caller-provided configuration now has precedence.
+
+**Code capability.** Reliable environment-based configuration with explicit
+defaults, which is required for reproducible smoke versus formal experiment
+budgets.
+
+**Verification.** The corrected watcher is copied before the next retry; its
+command configuration will be verified from the LeRobot log before claiming
+the bounded run has started.
+
+**Revisit trigger.** Add a machine-readable resolved-config JSON at every
+run root if the sweep grows beyond its current environment-variable interface.
