@@ -19,6 +19,9 @@ the full dataset or checkpoint.
 | `benchmarks/act-training-fp32-b8.log` | 200-step FP32, batch 8 throughput run | `009384c98d41b0bcf5876f275044a6d15172183d7b554927b4fcfbcf0a57f92e` |
 | `benchmarks/act-training-fp32-b32.log` | 200-step FP32, batch 32 throughput run | `2f49edbf551c4b8f9ab827cab300c24deb2e0842966a8928b1eb6377068cd634` |
 | `catalog/catalog-v1-submit-smoke.json` | Final 20-second, seven-profile catalog smoke | `7b69a332faea59f6e930acfec653ec118f858c6002cd9d78d20a06bd8f142be0` |
+| `catalog/catalog-v2-baseline.json` | Twelve-profile deterministic baseline smoke | `760b09e0a38ed38ebf37dcadb91d59e5d5999d129b943d7f947c3dfe562a810f` |
+| `catalog/catalog-v2-rolling-scoped.json` | Full catalog after scoped rolling-friction correction | `f0ecdc95781825653ad3395b600e476c19daa28712420808e20bb1cf94b7d9f8` |
+| `catalog/README.md` | Catalog v2 candidate matrix, hashes, and keep/reject decisions | N/A |
 | `training/diffusion-1-step-rocm.md` | One-step Diffusion Radeon training-path smoke | N/A |
 | `training/diffusion-compact-1step-rocm.md` | Compact 76.6M-parameter Diffusion one-step smoke and checkpoint hashes | N/A |
 
@@ -31,6 +34,10 @@ negative results, and the comparison records why it must not become the default.
 The catalog smoke is intentionally a small regression artifact. It reports four
 completed box profiles and three explicit hard cases; it is not a formal
 success-rate estimate. The paired catalog README records the command and hash.
+
+Catalog v2 evidence likewise records one deterministic episode per profile and
+several same-episode control/physics candidates. It must not be combined into a
+formal success rate. See `catalog/README.md` for exact results and hashes.
 
 The large generated artifacts are deliberately not stored in Git:
 

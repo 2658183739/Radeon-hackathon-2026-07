@@ -160,3 +160,75 @@ The previous default smoke had 263,762,728 parameters and about 53 seconds
 including setup. **Decision: keep the compact configuration as a candidate,
 repeat with a meaningful budget, then rank only by matched closed-loop task,
 safety, and latency results.**
+
+## 2026-07-24: catalog v2 evidence-driven control revision
+
+### Record 16: establish a stratified catalog v2 baseline
+
+One deterministic 20-second episode was run for each of the twelve training
+profiles on the single Radeon. Eight profiles completed: `micro_box`,
+`small_carton`, `flat_mailer`, `book_box`, `long_carton`,
+`upright_canister`, `near_limit_box`, and `electronics_box`. The medium carton
+and shoe-box proxy hit the 35 N safety boundary, the large narrow carton
+remained in approach, and the mailing tube rolled away during approach. This
+is a twelve-case regression smoke, not an estimated success rate. **Decision:
+keep the baseline as diagnostic evidence and require multi-episode evaluation
+before any capability claim.**
+
+### Record 17: reject two high-box grasp candidates
+
+The height-aware candidate increased pregrasp height for tall parcels. It did
+not add a successful profile. A second candidate descended after closing to
+seat the grasp; it also added no success and produced peaks of 51.10 N, 51.64 N,
+and 48.33 N on the three targeted boxes. Both candidates violated the task or
+safety acceptance criteria. **Decision: reject both defaults and restore the
+original expert.** The JSON traces remain under `evidence/catalog/` so the
+negative result is reproducible.
+
+### Record 18: separate mailing-tube physics from grasp control
+
+The baseline tube moved roughly 4.2 m without finger contact, indicating a
+physics problem before a policy problem. Genesis rolling friction was enabled;
+the first attempt failed during scene construction because Genesis 1.2.3
+requires torsional friction whenever rolling friction is enabled. Enabling both
+solver options and setting tube rolling friction to 0.002 reduced short-horizon
+drift to 18.3 mm, but the open gripper made a 79.27 N single-finger contact.
+
+Three control candidates were then tested on the same episode. A 2.5 mm final
+approach step still aborted at 36.74 N; 2.0 mm was worse at 98.83 N; a 5 mm XY
+alignment tolerance avoided contact but chased the moving tube for the full
+20 seconds. These profile-specific control overrides were removed. Increasing
+rolling friction to 0.005 reduced short-horizon drift to 3.3 mm, but the grasp
+still aborted at 73.99 N. **Decision: keep the physical rolling-resistance
+support and 0.005 catalog candidate, reject the control overrides, and report
+mailing-tube manipulation as unresolved.** A staging cradle or an end-effector
+change is now preferred over further single-episode tuning.
+
+### Record 19: current optimization order
+
+1. Complete the full catalog regression after the solver change.
+2. Collect at least 300 successful, balanced RGB-D expert episodes.
+3. Train ACT with three seeds and rank checkpoints by held-out closed-loop task
+   success, then safety and latency.
+4. Train compact Diffusion under the same split and evaluation protocol.
+5. Add depth through a separate encoder and matched RGB versus RGB-D ablation.
+6. Stage an open SmolVLA checkpoint offline and use it first for semantic bin
+   selection, keeping continuous control and safety below it.
+7. Profile simulation, rendering, host-to-device transfer, and inference before
+   applying ROCm-specific tuning.
+8. Add ROS 2 only after the simulator-policy contract is stable.
+
+This order optimizes the scored robot capability first while preserving a
+credible ROCm, multimodal, robustness, and deployment story.
+
+### Record 20: scope the Genesis rolling solver path
+
+Enabling rolling and torsional friction globally caused the catalog smoke to
+drop from 8/12 to 6/12: `micro_box` and `electronics_box` regressed. The
+profile comparison showed the new failures were unrelated to rolling parcels.
+The solver flags are now enabled only when the sample is a horizontal cylinder
+with a positive rolling coefficient; ordinary boxes and upright cylinders use
+the previous solver path. A 58-test Radeon suite passed, and the full scoped
+catalog returned to the original 8/12 profile result. **Decision: keep the
+scoped physical correction and the regression artifact; reject the global
+solver setting.**

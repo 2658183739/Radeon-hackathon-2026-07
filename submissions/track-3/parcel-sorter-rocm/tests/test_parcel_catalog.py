@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 from parcel_sorter.config import load_config
-from parcel_sorter.genesis_env import parcel_spawn_spec
+from parcel_sorter.genesis_env import needs_rolling_friction, parcel_spawn_spec
 from parcel_sorter.randomization import DomainRandomizer
 
 
@@ -93,6 +93,22 @@ class ParcelCatalogTests(unittest.TestCase):
         self.assertTrue(carrier_profiles)
         self.assertTrue(all(profile.evaluation_only for profile in carrier_profiles))
         self.assertTrue(all(profile.source_url.startswith("https://") for profile in carrier_profiles))
+
+    def test_horizontal_tube_has_explicit_rolling_resistance_candidate(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "catalog_v2.toml")
+        profile = next(item for item in config.parcel_profiles if item.profile_id == "mailing_tube")
+        sample = DomainRandomizer(config.randomization, config.seed, config.parcel_profiles).sample_profile(
+            profile.profile_id,
+            0,
+        )
+        self.assertGreater(profile.rolling_friction, 0.0)
+        self.assertAlmostEqual(sample.rolling_friction, profile.rolling_friction)
+        self.assertTrue(needs_rolling_friction(sample))
+
+    def test_box_does_not_enable_rolling_solver_path(self) -> None:
+        sample = self.randomizer.sample_profile("small_carton", 0)
+
+        self.assertFalse(needs_rolling_friction(sample))
 
 
 if __name__ == "__main__":

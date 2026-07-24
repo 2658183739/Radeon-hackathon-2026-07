@@ -32,6 +32,17 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "final_approach_step_m"):
             invalid.validate()
 
+    def test_parcel_profile_rejects_negative_rolling_friction(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "catalog_v2.toml")
+        invalid_profile = replace(config.parcel_profiles[0], rolling_friction=-0.001)
+        invalid = replace(
+            config,
+            parcel_profiles=(invalid_profile, *config.parcel_profiles[1:]),
+        )
+
+        with self.assertRaisesRegex(ValueError, "rolling_friction"):
+            invalid.validate()
+
 
 if __name__ == "__main__":
     unittest.main()

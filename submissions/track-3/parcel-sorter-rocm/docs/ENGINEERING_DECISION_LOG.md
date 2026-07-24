@@ -535,3 +535,54 @@ Python tests could not start. The same change set was copied to the configured
 Radeon host, where 56 unit tests, Python compilation, Bash syntax, and CLI help
 all passed. Decision: **record the host limitation, keep Radeon as the source
 of truth, and add a Windows setup note before asking contributors to run tests**.
+
+### 22. Treat catalog v2 smoke as a regression artifact, not a success claim
+
+**Evidence:** one deterministic episode per profile gave 8/12 completion on the
+Radeon. Medium and shoe-box profiles hit the 35 N boundary, the large narrow
+carton timed out in approach, and the mailing tube rolled away. **Decision:**
+keep the profile-level JSON and report it only as a smoke/regression result.
+Formal claims require repeated seeds and a predeclared held-out episode set.
+
+### 23. Reject height-aware and seated-grasp control candidates
+
+**Evidence:** the height-aware candidate added no successful profile. The
+post-close seating candidate added no success and reached 51.10 N, 51.64 N,
+and 48.33 N on the targeted boxes. **Decision:** restore the original expert
+control and retain both traces as negative evidence. A candidate must improve
+task completion without crossing the fixed safety limit to become a default.
+
+### 24. Keep rolling friction as a physics correction, not a grasp claim
+
+**Evidence:** the baseline horizontal tube drifted about 4.2 m without finger
+contact. Genesis 1.2.3 required both rolling and torsional friction flags. With
+rolling friction 0.002, drift fell to 18.3 mm but a single finger still hit at
+79.27 N. A 0.005 candidate reduced short-horizon drift to 3.3 mm but still
+aborted at 73.99 N. **Decision:** keep the solver support and 0.005 catalog
+value as a physical-model candidate; do not call it a manipulation success.
+
+### 25. Reject single-episode control overrides and change the system boundary
+
+The 2.5 mm and 2.0 mm final-approach overrides produced 36.74 N and 98.83 N.
+A 5 mm XY tolerance produced zero contact but timed out while tracking the
+moving object. **Decision:** remove all three overrides. The next justified
+change is a staging cradle or a gripper designed for cylindrical parcels,
+followed by multi-seed validation; further magic constants are not justified.
+
+### 26. Current acceptance gates
+
+No learned policy is promoted until it has: a frozen dataset split, at least
+three training seeds, held-out closed-loop evaluation, per-profile results,
+fixed safety thresholds, device-synchronized latency samples, and a
+reproducible command plus artifact hash. A one-step Diffusion run and a
+single-profile expert smoke remain pipeline evidence only.
+
+### 27. Scope a physics feature after a regression
+
+**Evidence:** global rolling/torsional friction changed the catalog from 8/12
+to 6/12 and introduced failures for `micro_box` and `electronics_box`. The
+scoped implementation enables the solver path only for horizontal cylinders
+with a positive coefficient; the 58-test suite passed and the full catalog
+returned to 8/12. **Decision:** keep the scoped implementation and retain the
+global run as a negative regression artifact. This is the required rollback
+pattern for a cross-cutting simulation feature.

@@ -24,6 +24,7 @@ class ParcelSample:
     material: str = "rigid_cardboard_proxy"
     dimensions_m: tuple[float, float, float] | None = None
     provenance: str = "legacy configured scale range"
+    rolling_friction: float = 0.0
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -155,4 +156,5 @@ class DomainRandomizer:
             material=profile.material,
             dimensions_m=dimensions,
             provenance=profile.provenance,
+            rolling_friction=profile.rolling_friction,
         )

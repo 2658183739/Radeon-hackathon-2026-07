@@ -202,12 +202,15 @@ class ParcelProfileConfig:
     friction_max: float
     provenance: str
     source_url: str = ""
+    rolling_friction: float = 0.0
 
     def validate(self) -> None:
         if not self.profile_id.strip() or not self.material.strip() or not self.provenance.strip():
             raise ValueError("parcel profile id, material, and provenance are required")
         if self.source_url and not self.source_url.startswith(("https://", "http://")):
             raise ValueError("parcel profile source_url must be an http(s) URL")
+        if self.rolling_friction < 0:
+            raise ValueError("parcel profile rolling_friction cannot be negative")
         if self.shape not in {"box", "cylinder"}:
             raise ValueError(f"unsupported parcel shape: {self.shape}")
         if self.orientation_mode not in {"yaw", "upright", "horizontal"}:

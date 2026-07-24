@@ -15,6 +15,9 @@
 | `benchmarks/parallel-radeon.json` | 1/16/64/128 环境仿真扫描 |
 | `benchmarks/act-training-*.log` | FP32/AMP 与 batch 吞吐测试 |
 | `catalog/catalog-v1-submit-smoke.json` | 最终 20 秒、7 类 profile 目录回归烟雾 |
+| `catalog/catalog-v2-baseline.json` | 12 类确定性基线烟雾 |
+| `catalog/catalog-v2-rolling-scoped.json` | 限定滚动摩擦作用域后的完整目录回归 |
+| `catalog/README_CN.md` | catalog v2 候选矩阵、哈希与保留/拒绝结论 |
 | `training/diffusion-1-step-rocm.md` | Diffusion 单步 Radeon 训练链路记录 |
 | `training/diffusion-compact-1step-rocm.md` | 轻量 76.6M 参数 Diffusion 单步与检查点哈希 |
 
@@ -27,3 +30,6 @@ SHA-256 见英文 [README.md](README.md)。JSON 包含配置、运行版本、ep
 
 目录烟雾同样只是小体积回归证据：4 个盒类完成，3 个困难 profile 失败，不构成正式成功率。
 其 SHA-256 记录在 `evidence/catalog/README_CN.md`。
+
+Catalog v2 同样只记录每类一个确定性回合以及同 episode 的物理/控制候选，不能合并为
+正式成功率。准确结果和哈希见 `catalog/README_CN.md`。

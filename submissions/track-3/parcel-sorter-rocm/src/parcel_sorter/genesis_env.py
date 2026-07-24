@@ -67,6 +67,15 @@ def genesis_depth_to_meters(depth: Any, np: Any) -> Any:
     return np.asarray(depth, dtype=np.float32) * np.float32(0.001)
 
 
+def needs_rolling_friction(sample: ParcelSample) -> bool:
+    """Enable the more expensive solver path only for rolling-prone parcels."""
+    return (
+        sample.shape == "cylinder"
+        and sample.orientation_mode == "horizontal"
+        and sample.rolling_friction > 0
+    )
+
+
 def initialize_genesis(backend: str) -> tuple[Any, Any, Any]:
     """Initialize the pinned Genesis runtime and validate the selected GPU stack."""
     global _INITIALIZED_BACKEND
@@ -133,12 +142,15 @@ class GenesisParcelEnv:
         )
 
         physics_dt = 1.0 / config.simulation.physics_hz
+        rolling_friction = needs_rolling_friction(sample)
         self.scene = self.gs.Scene(
             sim_options=self.gs.options.SimOptions(dt=physics_dt),
             rigid_options=self.gs.options.RigidOptions(
                 box_box_detection=True,
                 enable_collision=True,
                 enable_joint_limit=True,
+                enable_torsional_friction=rolling_friction,
+                enable_rolling_friction=rolling_friction,
             ),
             viewer_options=self.gs.options.ViewerOptions(
                 camera_pos=(1.35, -1.15, 0.95),
@@ -174,7 +186,10 @@ class GenesisParcelEnv:
             )
         self.parcel = self.scene.add_entity(
             parcel_morph,
-            material=self.gs.materials.Rigid(friction=sample.friction),
+            material=self.gs.materials.Rigid(
+                friction=sample.friction,
+                friction_rolling=sample.rolling_friction,
+            ),
             surface=self.gs.surfaces.Rough(
                 diffuse_texture=self.gs.textures.ColorTexture(color=color)
             ),

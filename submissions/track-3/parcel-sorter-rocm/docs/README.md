@@ -8,6 +8,7 @@
 | Components | [Components](COMPONENTS.md) | [组件](COMPONENTS_CN.md) |
 | Optimization | [Optimization roadmap](OPTIMIZATION_ROADMAP.md) | [优化路线图](OPTIMIZATION_ROADMAP_CN.md) |
 | Engineering learning | [Decision log](ENGINEERING_DECISION_LOG.md) | [工程决策日志](ENGINEERING_DECISION_LOG_CN.md) |
+| Step-by-step work | [Development journal](DEVELOPMENT_JOURNAL.md) | [开发与实验日志](DEVELOPMENT_JOURNAL_CN.md) |
 | Dataset | [Dataset card](DATASET_CARD.md) | [数据集卡](DATASET_CARD_CN.md) |
 | Model | [Model card](MODEL_CARD.md) | [模型卡](MODEL_CARD_CN.md) |
 | Video | [Video script](VIDEO_SCRIPT.md) | [视频脚本](VIDEO_SCRIPT_CN.md) |

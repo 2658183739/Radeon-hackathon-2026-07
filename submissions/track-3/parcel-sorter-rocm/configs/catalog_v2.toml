@@ -233,6 +233,7 @@ mass_kg_max = 0.80
 friction_min = 0.30
 friction_max = 0.90
 provenance = "hardware-feasible rigid mailing-tube training stratum"
+rolling_friction = 0.005
 
 [[parcel_profiles]]
 profile_id = "near_limit_box"
@@ -336,3 +337,4 @@ friction_min = 0.25
 friction_max = 0.80
 provenance = "capability-boundary range approaching the USPS 22-inch nonstandard-length threshold"
 source_url = "https://pe.usps.com/text/dmm300/Notice123.htm"
+rolling_friction = 0.005
