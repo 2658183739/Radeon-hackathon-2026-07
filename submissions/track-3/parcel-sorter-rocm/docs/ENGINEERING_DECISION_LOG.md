@@ -796,3 +796,22 @@ so no unverified training result is added to the claims.
 
 **Revisit trigger.** Update the playbook when the acceptance gates, model
 matrix, or deployment contract changes; do not rewrite historical evidence.
+
+### 40. Enforce matched, profile-balanced checkpoint selection
+
+**Problem.** A checkpoint rank could combine disjoint episode sets, use a
+different force threshold, and win on aggregate success while failing one
+important parcel profile.
+
+**Decision.** Reject mismatched episode sets and safety thresholds. Add Wilson
+95% intervals, per-profile counts, macro profile success, and safety-violation
+rates. Canonicalize each randomized sample into a SHA-256 evaluation fingerprint
+so equal episode IDs with different conditions are rejected. Rank safety first,
+then macro profile success, overall success, drops, latency, and peak force.
+
+**Verification.** The local suite increased to 81 tests and passed. Existing
+historical summaries are not rewritten; they must be reprocessed only when
+their raw episode sets and threshold metadata satisfy the new contract.
+
+**Revisit trigger.** If evaluation becomes multi-task, version the manifest
+schema and macro aggregation rather than mixing task and profile averages.

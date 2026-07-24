@@ -28,6 +28,8 @@ generalist VLA claim.
 | ACT | MIT reference; Apache-2.0 LeRobot implementation | Strong low-data action-chunking baseline; already integrated | 5,000-step training and closed-loop inference verified | P0 baseline; retrain with corrected data and 3 seeds |
 | Diffusion Policy | MIT reference; LeRobot implementation | Strong multimodal action distribution, but iterative denoising adds latency | Compact 76.6M one-step training verified | P0 comparison; sweep 5/10/20 denoising steps |
 | 3D Diffusion Policy (DP3) | MIT code; RSS 2024 paper | Native point cloud can exploit geometry better than a depth image | No ROCm evidence in this repository | P1 only after RGB-D ablation and operator audit |
+| RISE | Public 3D-policy repository; IROS 2024 paper | Sparse 3D tokens fit parcel geometry and occlusion | GitHub API does not declare a license; ROCm unverified | Research only until license and sparse-operator audits pass |
+| FlowPolicy | MIT repository; AAAI 2025 paper | Fast 3D flow matching may reduce iterative diffusion cost | ROCm and the current action interface are unverified | P1 after ACT/Diffusion; compare with DP3 under one budget |
 | Consistency Policy | Public paper and code ecosystem | Distillation can reduce diffusion inference latency | Not integrated | P2 if Diffusion succeeds but misses latency target |
 | VLA-Adapter 0.5B | MIT repository; public MIT-tagged base/checkpoints | Language-conditioned, 0.5B, reported 10-48 GB training configurations | Official setup is CUDA-oriented; ROCm unverified | Preferred VLA compatibility spike |
 | SmolVLA | Apache-2.0 LeRobot code; public checkpoint | Native LeRobot path and compact architecture | Entry exists; checkpoint unavailable on the Radeon host | Hold: checkpoint metadata did not declare a license |
@@ -76,6 +78,9 @@ Primary papers and identifiers:
 - DP3: Ze et al., RSS 2024, DOI `10.15607/RSS.2024.XX.067`, arXiv `2403.03954`.
 - Consistency Policy: Prasad et al., RSS 2024, DOI
   `10.15607/RSS.2024.XX.071`.
+- RISE: IROS 2024, DOI `10.1109/IROS58592.2024.10801678`.
+- FlowPolicy: AAAI 2025, DOI `10.1609/AAAI.V39I14.33617`.
+- DROID: RSS 2024, DOI `10.15607/RSS.2024.XX.120`.
 - Octo: Ghosh et al., RSS 2024, DOI `10.15607/RSS.2024.XX.090`.
 - OpenVLA: Kim et al., arXiv `2406.09246`.
 - OpenVLA-OFT: Kim et al., RSS 2025, DOI `10.15607/RSS.2025.XXI.017`.
@@ -116,6 +121,11 @@ performance or transitive license compatibility.
 | RDT-1B, arXiv `2410.07864` | *RDT-1B: a Diffusion Foundation Model for Bimanual Manipulation*, published 2024-10-10 | Compatibility fallback, not the first single-arm route |
 | pi0, arXiv `2410.24164` | *$\\pi_0$: A Vision-Language-Action Flow Model for General Robot Control*, published 2024-10-31 | Frontier reference; official NVIDIA constraint keeps it outside the main path |
 | SmolVLA, arXiv `2506.01844` | *SmolVLA: A Vision-Language-Action Model for Affordable and Efficient Robotics*, published 2025-06-02 | Hold until checkpoint license is explicit |
+| RISE, IROS 2024 | *RISE: 3D Perception Makes Real-World Robot Imitation Simple and Effective* | Sparse 3D encoder candidate; current license gate fails |
+| FlowPolicy, AAAI 2025 | *FlowPolicy: Enabling Fast and Robust 3D Flow-Based Policy via Consistency Flow Matching for Robot Manipulation* | Candidate after RGB-D benefit and a matched latency budget are established |
+| DROID, RSS 2024 | *DROID: A Large-Scale In-The-Wild Robot Manipulation Dataset* | Supports diversity-first collection; not directly reusable for this embodiment |
+| AXIS, arXiv `2607.21588` | *AXIS: A Growable Community-Driven Data Engine for Scalable Robot Manipulation* | Very recent data-engine signal, not evidence for this task |
+| Bias-aware collection, arXiv `2607.21582` | *Scale Up Strategically: Learning Compositional Generalization via Bias-Aware Evaluation and Data Collection for Robotic Manipulation* | Motivates failure-stratified recollection after the frozen baseline |
 | `huggingface/lerobot` | GitHub API: Apache-2.0, default branch `main` | Use pinned LeRobot policy/data interfaces |
 | `OpenHelix-Team/VLA-Adapter` | GitHub API: MIT, default branch `main` | Candidate for isolated ROCm and recursive-license spike |
 | `Physical-Intelligence/openpi` | GitHub API: Apache-2.0, default branch `main` | Keep as reference; README's NVIDIA requirement is disqualifying for the main path |
@@ -160,3 +170,22 @@ Warnings: citation counts and repository activity are time-dependent. GitHub
 license metadata describes the repository, not all weights or dependencies.
 No candidate is considered ROCm-compatible until it executes on the target
 Radeon and produces a retained log.
+
+The 2026 arXiv entries above are frontier signals, not stable baselines. They
+are used only to refine data-collection experiments and do not bypass the
+repository-license, ROCm, or held-out-evaluation gates.
+
+## Matched model-selection protocol
+
+The ranker now rejects comparisons whose checkpoints were not evaluated on
+identical episode sets, randomized-sample SHA-256 fingerprints, or contact-force
+thresholds. It reports Wilson 95% intervals and per-profile success summaries,
+then ranks by:
+
+1. zero/minimum safety-violation rate;
+2. macro-average profile success, so a dominant box class cannot hide tube or
+   large-parcel failures;
+3. overall success, drop rate, P95 latency, and peak contact force.
+
+This is an evaluation improvement, not a model-performance claim. New results
+remain pending until Radeon collection, training, and held-out execution finish.

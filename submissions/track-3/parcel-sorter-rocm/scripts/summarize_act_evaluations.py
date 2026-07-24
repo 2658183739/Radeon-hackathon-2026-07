@@ -46,6 +46,8 @@ def main() -> int:
     )
     payload = {
         "selection_rule": [
+            "safety_violation_rate ascending (hard gate)",
+            "macro_profile_success_rate descending",
             "success_rate descending",
             "drop_rate ascending",
             "p95_inference_latency_ms ascending",

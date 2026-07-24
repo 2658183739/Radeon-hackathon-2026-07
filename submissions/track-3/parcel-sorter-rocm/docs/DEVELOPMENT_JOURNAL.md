@@ -388,3 +388,16 @@ Local verification completed with 76 unit tests, Python compilation, and
 `git diff --check`. Radeon collection remains asynchronous; no remote model
 result is claimed until its summary, split manifest, checkpoint, and held-out
 closed-loop evaluation exist.
+
+### Record 35: make checkpoint comparison matched and profile-balanced
+
+The previous ranker prevented duplicate episodes within one checkpoint but did
+not require different checkpoints to use the same episode set. It also ranked
+only by aggregate success, allowing a frequent box profile to hide a failed
+tube profile. The evaluator now rejects unmatched episode sets and inconsistent
+force thresholds, reports Wilson intervals and per-profile results, and applies
+a safety-first, macro-profile ranking. A canonical SHA-256 fingerprint also
+proves that matching episode IDs contain identical randomized samples.
+**Decision: keep this as the mandatory model-selection protocol.** Eighty-one
+local tests and Python compilation pass;
+no historical score is changed until its raw summaries are reprocessed.

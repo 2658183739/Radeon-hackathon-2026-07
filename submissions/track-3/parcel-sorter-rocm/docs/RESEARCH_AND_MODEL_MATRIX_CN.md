@@ -93,6 +93,11 @@ GitHub 的 license 字段不覆盖所有模型和依赖。任何方法只有在�
 | RDT-1B，arXiv `2410.07864` | *RDT-1B: a Diffusion Foundation Model for Bimanual Manipulation*，2024-10-10 | 兼容性备选，不是单臂第一路线 |
 | pi0，arXiv `2410.24164` | *$\\pi_0$: A Vision-Language-Action Flow Model for General Robot Control*，2024-10-31 | 前沿参考；官方 NVIDIA 约束排除出主线 |
 | SmolVLA，arXiv `2506.01844` | *SmolVLA: A Vision-Language-Action Model for Affordable and Efficient Robotics*，2025-06-02 | 检查点许可证明确前暂缓 |
+| RISE，IROS 2024 | *RISE: 3D Perception Makes Real-World Robot Imitation Simple and Effective* | 稀疏 3D 编码候选；当前许可证门禁未通过 |
+| FlowPolicy，AAAI 2025 | *FlowPolicy: Enabling Fast and Robust 3D Flow-Based Policy via Consistency Flow Matching for Robot Manipulation* | RGB-D 先证明收益且延迟预算固定后才进入候选 |
+| DROID，RSS 2024 | *DROID: A Large-Scale In-The-Wild Robot Manipulation Dataset* | 支持“数据多样性优先”，但不能直接复用到当前 embodiment |
+| AXIS，arXiv `2607.21588` | *AXIS: A Growable Community-Driven Data Engine for Scalable Robot Manipulation* | 很新的数据引擎信号，不能作为当前任务证据 |
+| 偏差感知采集，arXiv `2607.21582` | *Scale Up Strategically: Learning Compositional Generalization via Bias-Aware Evaluation and Data Collection for Robotic Manipulation* | 支持在冻结基线后按失败分层补采 |
 | `huggingface/lerobot` | GitHub API：Apache-2.0，默认分支 `main` | 使用固定的 LeRobot 数据/策略接口 |
 | `OpenHelix-Team/VLA-Adapter` | GitHub API：MIT，默认分支 `main` | 做独立 ROCm 与递归许可证试验 |
 | `Physical-Intelligence/openpi` | GitHub API：Apache-2.0，默认分支 `main` | 作为参考；README 的 NVIDIA 要求不满足主线 |
@@ -128,3 +133,18 @@ FedEx 和 UPS 包装页只作为定性包装参考，不把没有来源的数字
 - https://pe.usps.com/text/dmm300/Notice123.htm
 - https://www.fedex.com/en-us/shipping/packaging.html
 - https://www.ups.com/us/en/supplychain/resources/glossary-term/ups-packaging-guidelines.page
+
+上面的 2026 年 arXiv 条目只作为前沿信号，不作为稳定基线。它们只用于改进数据采集实验，
+不能绕过仓库许可证、ROCm 或固定留出评测门禁。
+
+## 匹配模型选取协议
+
+模型排名现在会拒绝 episode 集、随机样本 SHA-256 指纹或接触力阈值不一致的检查点比较，
+同时输出 Wilson 95% 区间和逐 profile 成功率，再按以下顺序排序：
+
+1. 安全违规率为零或最低；
+2. profile 成功率宏平均，避免样本更多的盒类掩盖圆柱和大箱失败；
+3. 总成功率、掉落率、P95 延迟和峰值接触力。
+
+这只是评测能力改进，不是模型性能结论。新的结果必须等 Radeon 采集、训练和固定留出集闭环
+全部完成后才能写入。
