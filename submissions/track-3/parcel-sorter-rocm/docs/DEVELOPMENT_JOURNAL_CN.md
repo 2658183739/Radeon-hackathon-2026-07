@@ -358,3 +358,9 @@ LeRobot 的默认评估拆分只有在输入 episode 列表固定时才可复现
 完成，把 audit 原始 ID 映射到紧凑的成功回合索引，按 profile 分层，并输出 train、validation
 和 held-out 列表。ACT 与 Diffusion 通过 `DATASET_SPLIT_MANIFEST` 共用清单，held-out 回合
 不会进入训练。**决策：所有匹配 seed 和模态实验都必须使用这份清单。**
+
+### 记录 33：增加顺序模型矩阵
+
+新增 Radeon 矩阵入口固定 seed 11、22、33，逐个运行模型单元，先覆盖 ACT RGB/RGB-D，再在
+ACT 门禁通过后加入轻量 Diffusion。每个单元都有独立日志和 CSV 状态行；失败会保留，不改变
+后续条件。**决策：匹配模型矩阵统一使用该入口启动。**

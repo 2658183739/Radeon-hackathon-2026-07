@@ -199,6 +199,19 @@ bash scripts/train_act_rocm.sh \
 
 Diffusion 入口也使用同一个 `DATASET_SPLIT_MANIFEST`。不同 seed、RGB 和 RGB-D 对照之间都不能重新生成清单。
 
+## 可复现模型矩阵
+
+先在单张 GPU 上顺序运行 ACT：
+
+    MODEL_SWEEP_MODELS=act MODEL_SWEEP_SEEDS=11,22,33 \
+    bash scripts/run_model_sweep_rocm.sh \
+      outputs/radeon-dataset-400-v2/expert/lerobot_dataset \
+      outputs/radeon-dataset-400-v2/dataset-split.json \
+      outputs/model-sweep/act
+
+ACT 门禁通过后，再把 MODEL_SWEEP_MODELS=act,diffusion 加入轻量 Diffusion 的 RGB/RGB-D
+对照。矩阵会为每个模型/模态/seed 保存一行 CSV 和一份日志；失败运行会保留，不会静默改变后续实验条件。
+
 ## 在 Radeon 上训练 ACT
 
 ```bash

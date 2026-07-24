@@ -729,6 +729,27 @@ validation is run after synchronization.
 stratifies by task and profile and updates the LeRobot factory semantics; do not
 silently reuse schema v1.
 
+### 38. Make the model sweep sequential and failure-preserving
+
+**Problem.** Running every candidate by hand makes it easy to change a seed,
+modality, budget, or split without recording the change, and concurrent jobs
+would compete for the single Radeon.
+
+**Decision.** Add run_model_sweep_rocm.sh with fixed default seeds 11, 22, and
+33. It runs ACT RGB/RGB-D first, optionally adds compact Diffusion, executes one
+job at a time, and records a CSV status plus a separate log for every cell.
+Failed cells are retained and later cells still run.
+
+**Code capability.** Reproducible experiment orchestration, environment
+propagation, single-device scheduling, and failure-tolerant result collection.
+
+**Verification.** The new script passes shell syntax validation; actual model
+cells remain gated on the completed frozen dataset and are not counted until
+closed-loop evaluation finishes.
+
+**Revisit trigger.** Add a candidate only when its input contract, license,
+ROCm execution, and evaluation adapter are recorded in the model matrix.
+
 ### 36. Keep catalog counts consistent across submission documents
 
 **Problem.** Catalog v2 now contains twelve training profiles and nine

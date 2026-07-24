@@ -242,6 +242,21 @@ bash scripts/train_act_rocm.sh \
 The Diffusion entry uses the same `DATASET_SPLIT_MANIFEST`. Do not regenerate
 the manifest between seeds or between RGB and RGB-D comparisons.
 
+## Reproducible model sweep
+
+Run ACT first and keep models sequential on the single GPU:
+
+    MODEL_SWEEP_MODELS=act MODEL_SWEEP_SEEDS=11,22,33 \
+    bash scripts/run_model_sweep_rocm.sh \
+      outputs/radeon-dataset-400-v2/expert/lerobot_dataset \
+      outputs/radeon-dataset-400-v2/dataset-split.json \
+      outputs/model-sweep/act
+
+After the ACT gate passes, set MODEL_SWEEP_MODELS=act,diffusion to add the
+compact Diffusion RGB/RGB-D comparison. The sweep records one CSV row and one
+log per model/modality/seed; failed runs are retained and do not silently
+alter later conditions.
+
 ## 4. Train ACT on one Radeon
 
 ```bash

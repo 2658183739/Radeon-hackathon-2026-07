@@ -364,3 +364,11 @@ emits train, validation, and held-out lists. ACT and Diffusion consume the same
 manifest through `DATASET_SPLIT_MANIFEST`; held-out episodes are excluded from
 training. **Decision: keep the manifest as a required boundary for all matched
 seeds and modalities.**
+
+### Record 33: add a sequential model matrix
+
+The new Radeon sweep entry fixes seeds 11, 22, and 33, runs one model cell at a
+time, covers ACT RGB/RGB-D first, and can add compact Diffusion after the ACT
+gate. Each cell writes a separate log and a CSV status row; failures remain
+visible and do not change later conditions. **Decision: keep the sweep as the
+only supported way to launch the matched model matrix.**
