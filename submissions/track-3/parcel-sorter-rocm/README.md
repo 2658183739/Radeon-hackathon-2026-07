@@ -73,6 +73,7 @@ English submission documents:
 - [Model selection](docs/MODEL_SELECTION.md) / [中文](docs/MODEL_SELECTION_CN.md)
 - [Research and open-model matrix](docs/RESEARCH_AND_MODEL_MATRIX.md) / [中文](docs/RESEARCH_AND_MODEL_MATRIX_CN.md)
 - [RGB-D optimization record](docs/MULTIMODAL_OPTIMIZATION_2026-07-25.md) / [中文](docs/MULTIMODAL_OPTIMIZATION_2026-07-25_CN.md)
+- [End-effector capability contract](docs/END_EFFECTOR_CAPABILITY.md) / [中文](docs/END_EFFECTOR_CAPABILITY_CN.md)
 - [Project status and reproduction protocol](docs/PROJECT_STATUS.md) / [中文](docs/PROJECT_STATUS_CN.md)
 
 ## Repository layout

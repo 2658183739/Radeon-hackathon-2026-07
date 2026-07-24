@@ -8,6 +8,7 @@ from typing import Any
 
 from .config import ExperimentConfig
 from .contracts import CartesianAction, Observation, RobotState
+from .capabilities import require_supported_handling
 from .expert import ScriptedPickPlaceExpert
 from .randomization import ParcelSample
 
@@ -131,6 +132,9 @@ class GenesisParcelEnv:
     ) -> None:
         self.config = config
         self.sample = sample
+        # Check the end-effector contract before importing/building Genesis.
+        # Evaluation-only catalog entries must not be mistaken for support.
+        require_supported_handling(sample.handling_class)
         self.backend = backend
         self.gs, self.torch, self.np = initialize_genesis(backend)
         self.gs.set_random_seed(config.seed + sample.episode_index)

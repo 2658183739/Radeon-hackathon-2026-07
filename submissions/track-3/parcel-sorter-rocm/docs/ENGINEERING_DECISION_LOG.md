@@ -815,3 +815,30 @@ their raw episode sets and threshold metadata satisfy the new contract.
 
 **Revisit trigger.** If evaluation becomes multi-task, version the manifest
 schema and macro aggregation rather than mixing task and profile averages.
+
+### 41. Gate unsupported end-effectors before simulation
+
+**Problem.** Catalog v2 includes real-world boundary profiles labelled
+`suction_required` and `cradle_required`, while the current Genesis scene only
+contains the Panda parallel jaw gripper. Letting those profiles reach the
+scene would produce a misleading result under the wrong tool.
+
+**Alternatives.** Silently run every profile with parallel jaws; remove the
+boundary profiles; or add an explicit capability registry and fail early.
+
+**Decision.** Add a small capability module with `parallel_jaw` as the only
+implemented class. `GenesisParcelEnv` checks the sample before Genesis
+initialization and raises an actionable error for unsupported classes. The
+catalog remains useful for documented evaluation boundaries without changing
+the training distribution.
+
+**Code capability.** Contract-first runtime validation, capability registry
+design, and prevention of invalid benchmark claims before expensive simulation.
+
+**Verification.** Added unit tests for the supported class, actionable failure,
+and explicit registry extension. The capability contract is documented in
+English and Chinese. Existing parallel-jaw collection paths are unchanged.
+
+**Revisit trigger.** Enable suction or cradle only after adding versioned
+geometry, a control adapter, reset/release behavior, tool-specific safety
+metrics, balanced splits, and a ROCm closed-loop report.

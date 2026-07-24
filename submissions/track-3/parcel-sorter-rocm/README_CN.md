@@ -14,6 +14,7 @@ RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 新增的[前沿研究与开源模型矩阵](docs/RESEARCH_AND_MODEL_MATRIX_CN.md)和
 [RGB-D 多模态优化记录](docs/MULTIMODAL_OPTIMIZATION_2026-07-25_CN.md)分别说明模型取舍、
 许可证边界和本轮逐步实现/失败/验证过程。
+末端执行器的已实现范围与扩展门禁见[能力契约](docs/END_EFFECTOR_CAPABILITY_CN.md)，当前只对平行夹爪闭环结果做正式声明。
 
 如果你要按规范学习“需求 -> 契约 -> 代码 -> 实验 -> 验收 -> 发布”的完整流程，请先读
 [工程流程与学习手册](docs/ENGINEERING_PLAYBOOK_CN.md)；英文版见

@@ -401,3 +401,14 @@ proves that matching episode IDs contain identical randomized samples.
 **Decision: keep this as the mandatory model-selection protocol.** Eighty-one
 local tests and Python compilation pass;
 no historical score is changed until its raw summaries are reprocessed.
+
+### Record 36: make end-effector support executable and auditable
+
+The catalog intentionally distinguishes `parallel_jaw`, `suction_required`,
+and `cradle_required`. The scene currently contains only the first tool.
+I added a pre-Genesis capability check and paired capability-contract
+documentation. This is a small but important engineering step: unsupported
+hardware must fail clearly instead of being treated as a successful robot
+generalization result. Unit tests cover both the current path and a future
+explicit registry extension. The remote dataset collection remains separate
+from this local change and is not reclassified by it.
