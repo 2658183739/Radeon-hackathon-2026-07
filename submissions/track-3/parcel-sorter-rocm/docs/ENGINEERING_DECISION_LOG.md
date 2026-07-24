@@ -419,7 +419,7 @@ links, hashes, video, and a tagged-commit rerun are complete.
 | State-machine design | `state_machine.py` | Make recovery and terminal paths explicit |
 | Simulation integration | `genesis_env.py` | Isolate vendor APIs behind an application boundary |
 | Dataset engineering | `dataset.py` | Preserve units, shapes, episodes, and provenance |
-| ML integration | ACT adapter and train script | Keep privileged truth out of model inputs |
+| ML integration | Generic LeRobot adapter and train scripts | Keep privileged truth out of model inputs |
 | Evaluation science | metrics and aggregation | Use held-out task outcomes and detect overlap |
 | Performance engineering | benchmarks and ROCm evidence | Profile end to end and time asynchronous devices correctly |
 | Test engineering | `tests/` | Test deterministic logic without requiring a GPU |
@@ -461,3 +461,25 @@ how to produce the next reliable patch independently.
 The quoting failure is recorded because cross-shell automation is part of the
 engineering process. It is classified separately from a code failure: the
 command parser rejected an invalid environment assignment before tests ran.
+
+## Implementation session record: catalog and policy revision
+
+The follow-up revision added a weighted parcel catalog, Box/Cylinder spawn
+mapping, profile-filtered evaluation, geometry-aware pregrasp windows, latched
+final descent, and lift-transfer-descend motion. A complete remote run passed
+48 unit tests and produced a seven-profile 20-second smoke artifact under
+`evidence/catalog/`. Four box profiles completed; the micro box and two
+cylinders remained hard cases. This is a regression smoke, not a statistical
+success claim.
+
+The generic checkpoint adapter was verified by loading an existing ACT checkpoint
+on `cuda:0` (the ROCm/HIP device) and by running one Genesis closed-loop episode.
+That episode was intentionally not promoted to an ACT success result.
+
+The first Diffusion smoke stopped before model creation because the optional
+`diffusers` package was missing. After installing LeRobot's pinned `diffusion`
+and `smolvla` extras, one step completed and a checkpoint was saved on Radeon.
+The result is recorded as a training-path smoke only. SmolVLA base probing then
+showed that this instance cannot reach Hugging Face; its script therefore
+requires an explicit staged local checkpoint instead of silently depending on
+network access.

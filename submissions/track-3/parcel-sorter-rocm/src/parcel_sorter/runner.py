@@ -100,6 +100,13 @@ def run_policy_episode(
                 "command": decision.command,
                 "reason": decision.reason,
                 "retry_count": decision.retry_count,
+                "contact_force_n": state.gripper_contact_force_n,
+                "ee_position_m": list(state.end_effector_pose[:3]),
+                "parcel_position_m": list(state.parcel_pose[:3]),
+                "at_pregrasp": observation.at_pregrasp,
+                "grasp_contact": observation.grasp_contact,
+                "parcel_lifted": observation.parcel_lifted,
+                "excessive_contact_force": observation.excessive_contact_force,
             }
         )
 

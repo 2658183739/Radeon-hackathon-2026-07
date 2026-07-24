@@ -50,6 +50,10 @@ rejects a non-HIP PyTorch build.
 6. The same Radeon runs physics, rendering, model training, model inference,
    and performance benchmarks.
 
+The catalog adds seven weighted training profiles, four evaluation-only
+industry-size boundary profiles, Box/Cylinder geometry, stable profile-specific
+episode IDs, and a stratified evaluator.
+
 See [TECHNICAL_REPORT.md](TECHNICAL_REPORT.md) for the design rationale,
 results, limitations, and competition mapping.
 
@@ -59,6 +63,8 @@ English submission documents:
 - [README_CN.md](README_CN.md) and [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)
 - [Optimization roadmap](docs/OPTIMIZATION_ROADMAP.md) / [中文](docs/OPTIMIZATION_ROADMAP_CN.md)
 - [Engineering decision log](docs/ENGINEERING_DECISION_LOG.md) / [中文](docs/ENGINEERING_DECISION_LOG_CN.md)
+- [Development journal](docs/DEVELOPMENT_JOURNAL.md) / [中文](docs/DEVELOPMENT_JOURNAL_CN.md)
+- [Model selection](docs/MODEL_SELECTION.md) / [中文](docs/MODEL_SELECTION_CN.md)
 
 ## Repository layout
 
@@ -90,6 +96,7 @@ git clone <this-fork-url>
 cd Radeon-hackathon-2026-07/submissions/track-3/parcel-sorter-rocm
 
 bash scripts/preflight_radeon.sh
+ROCM_PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
 INSTALL_LEROBOT=1 bash scripts/bootstrap_radeon.sh
 source scripts/activate_radeon_env.sh
 ```
@@ -131,6 +138,18 @@ python scripts/compare_expert_runs.py \
 
 The comparison rejects mismatched episode sets and reports recovered failures,
 regressions, force-abort changes, throughput retention, and acceptance gates.
+
+Run one deterministic episode for every training parcel profile:
+
+```bash
+python scripts/evaluate_catalog.py \
+  --backend rocm \
+  --episodes-per-profile 1 \
+  --output outputs/catalog-v1-smoke
+```
+
+Repeat `--profile <id>` to select strata. Evaluation-only carrier dimensions
+require `--include-evaluation-only` and must not be mixed into training success.
 
 ## 3. Collect an RGB-D LeRobotDataset
 
@@ -188,10 +207,10 @@ To compare training precision and batch size on the target card:
 bash scripts/benchmark_act_training_rocm.sh
 ```
 
-## 5. Closed-loop ACT evaluation
+## 5. Closed-loop learned-policy evaluation
 
 ```bash
-python scripts/evaluate_act.py \
+python scripts/evaluate_policy.py \
   --checkpoint outputs/train/act-radeon-5000/checkpoints/004000/pretrained_model \
   --backend rocm \
   --episodes 10 \
@@ -213,6 +232,25 @@ python scripts/summarize_act_evaluations.py \
 ```
 
 The tool rejects duplicate episode indices and ranks success before latency.
+
+ACT is the verified learned baseline. Two additional Radeon training entries
+are ready for controlled comparison:
+
+```bash
+bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-radeon
+
+SMOLVLA_STEPS=4000 SMOLVLA_BATCH_SIZE=4 \
+SMOLVLA_POLICY_PATH=/workspace/models/smolvla_base \
+bash scripts/train_smolvla_rocm.sh \
+  <lerobot_dataset> outputs/train/smolvla-radeon
+```
+
+Diffusion and SmolVLA are implemented training paths, not measured capability
+claims. SmolVLA requires an explicit local open checkpoint path; use
+`lerobot/smolvla_base` only when the instance can reach Hugging Face. The first
+run freezes the vision encoder and trains the expert path. `evaluate_policy.py`
+automatically loads ACT, Diffusion, or SmolVLA checkpoints behind the same
+Genesis supervisor and 35 N force boundary.
 
 ## 6. GPU simulation benchmark
 
@@ -267,6 +305,8 @@ bare-metal setup above is the validated primary path.
 | Parallel Genesis, 128 environments | 46,582 environment-steps/s |
 | Peak observed GPU utilization | 83% |
 | ACT training throughput, AMP batch 32 | 80 samples/s |
+| Parcel-catalog regression smoke | 4 of 7 one-episode profiles complete; not a success rate |
+| Deterministic unit suite | 48 passing tests |
 
 The 120-episode expert result is the primary capability measurement. The ACT
 result proves that training, checkpoint reload, visual inference, and Genesis
@@ -285,6 +325,12 @@ separate setting is retained only as an experiment parameter; the next control
 experiment will combine distance- and force-aware velocity shaping instead of
 assuming that a fixed slowdown is sufficient.
 
+The catalog's 0.01 m setting is not that rejected isolated candidate. It applies
+only after a separate XY gate and latched descent, together with geometry-aware
+pregrasp tolerance and lift-transfer-descend motion. In the final one-episode
+smoke, four box profiles completed while the micro box and both cylinder
+profiles remained explicit hard cases.
+
 ## Reproducibility and tests
 
 ```bash
@@ -292,10 +338,11 @@ source scripts/activate_radeon_env.sh
 python -m unittest discover -s tests -q
 ```
 
-The verified suite contains 35 tests covering configuration validation, domain
+The verified suite contains 48 tests covering configuration validation, domain
 randomization, state-machine transitions, dataset contracts, metrics, runner
-behaviour, expert geometry, safety limits, evaluation aggregation, and matched
-run comparison. GPU tests and end-to-end
+behaviour, parcel catalog scheduling and geometry, expert hysteresis and safe
+transfer, safety limits, evaluation aggregation, and matched run comparison.
+GPU tests and end-to-end
 simulation are intentionally separate because they require Genesis assets and
 a supported GPU runtime.
 

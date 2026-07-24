@@ -35,7 +35,7 @@ def main() -> None:
 
     trace = [asdict(supervisor.step(observation)) for observation in observations]
 
-    randomizer = DomainRandomizer(config.randomization, config.seed)
+    randomizer = DomainRandomizer(config.randomization, config.seed, config.parcel_profiles)
     samples = [randomizer.sample(index).to_dict() for index in range(3)]
     metrics = MetricsAccumulator()
     metrics.add(

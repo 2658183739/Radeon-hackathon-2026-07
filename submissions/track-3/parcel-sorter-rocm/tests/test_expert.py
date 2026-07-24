@@ -5,7 +5,7 @@ import unittest
 
 from parcel_sorter.config import load_config
 from parcel_sorter.contracts import ControlDecision, RobotState
-from parcel_sorter.expert import ScriptedPickPlaceExpert, canonical_grasp_yaw
+from parcel_sorter.expert import ScriptedPickPlaceExpert, canonical_grasp_yaw, profile_grasp_yaw
 from parcel_sorter.randomization import DomainRandomizer
 from parcel_sorter.state_machine import Command
 
@@ -69,6 +69,23 @@ class ScriptedExpertTests(unittest.TestCase):
         self.assertAlmostEqual(action.target_position[2], transit_z)
         self.assertGreater(action.target_position[0], state.end_effector_pose[0])
 
+    def test_final_descent_stays_committed_after_xy_alignment(self) -> None:
+        decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)
+        parcel = self.state.parcel_pose
+        aligned_state = replace(
+            self.state,
+            end_effector_pose=(parcel[0], parcel[1], 0.30, 1.0, 0.0, 0.0, 0.0),
+        )
+        self.expert.action(decision, aligned_state)
+        drifted_state = replace(
+            aligned_state,
+            end_effector_pose=(parcel[0] + 0.05, parcel[1], 0.25, 1.0, 0.0, 0.0, 0.0),
+        )
+
+        action = self.expert.action(decision, drifted_state)
+
+        self.assertLess(action.target_position[2], drifted_state.end_effector_pose[2])
+
     def test_final_pregrasp_descent_uses_reduced_step_limit(self) -> None:
         decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)
         parcel = self.state.parcel_pose
@@ -96,6 +113,19 @@ class ScriptedExpertTests(unittest.TestCase):
             action = self.expert.action(ControlDecision("test", command.value, "test", 0), self.state)
             self.assertLess(action.gripper, 0)
 
+    def test_drop_path_rises_before_translating(self) -> None:
+        decision = ControlDecision("place", Command.MOVE_DROP.value, "test", 0)
+        state = replace(
+            self.state,
+            end_effector_pose=(0.35, 0.0, 0.20, 1.0, 0.0, 0.0, 0.0),
+        )
+
+        action = self.expert.action(decision, state)
+
+        self.assertAlmostEqual(action.target_position[0], state.end_effector_pose[0])
+        self.assertAlmostEqual(action.target_position[1], state.end_effector_pose[1])
+        self.assertGreater(action.target_position[2], state.end_effector_pose[2])
+
     def test_retry_lift_uses_latest_grasp_location(self) -> None:
         close = ControlDecision("grasp", Command.CLOSE_GRIPPER.value, "test", 1)
         self.expert.action(close, self.state)
@@ -121,6 +151,60 @@ class ScriptedExpertTests(unittest.TestCase):
     def test_grasp_yaw_uses_symmetry_and_wrist_limit(self) -> None:
         self.assertAlmostEqual(canonical_grasp_yaw(-2.234778763), 0.906813891)
         self.assertEqual(canonical_grasp_yaw(-1.5037), 0.0)
+
+    def test_catalog_profile_uses_full_parallel_jaw_symmetry(self) -> None:
+        sample = replace(self.sample, profile_id="small_carton", yaw_rad=-1.5037)
+        self.assertAlmostEqual(profile_grasp_yaw(sample), -1.5037)
+
+    def test_upright_cylinder_does_not_rotate_wrist_for_symmetric_shape(self) -> None:
+        sample = replace(
+            self.sample,
+            profile_id="upright_canister",
+            shape="cylinder",
+            orientation_mode="upright",
+        )
+        self.assertEqual(profile_grasp_yaw(sample), 0.0)
+
+    def test_upright_cylinder_uses_extra_palm_clearance(self) -> None:
+        sample = replace(
+            self.sample,
+            profile_id="upright_canister",
+            shape="cylinder",
+            orientation_mode="upright",
+        )
+        expert = ScriptedPickPlaceExpert(self.config, sample)
+        self.assertAlmostEqual(
+            expert.grasp_hand_clearance_m(),
+            self.config.task.grasp_hand_clearance_m + 0.008,
+        )
+
+    def test_horizontal_cylinder_grasp_is_perpendicular_to_axis(self) -> None:
+        sample = replace(
+            self.sample,
+            profile_id="mailing_tube",
+            shape="cylinder",
+            orientation_mode="horizontal",
+            yaw_rad=0.0,
+        )
+        self.assertAlmostEqual(abs(profile_grasp_yaw(sample)), math.pi / 2)
+
+    def test_large_nonflat_box_gets_a_larger_pregrasp_window(self) -> None:
+        sample = replace(
+            self.sample,
+            profile_id="long_box",
+            dimensions_m=(0.25, 0.06, 0.08),
+        )
+        expert = ScriptedPickPlaceExpert(self.config, sample)
+        self.assertAlmostEqual(expert.pregrasp_tolerance_m(), 0.035)
+
+    def test_flat_box_keeps_the_precise_pregrasp_window(self) -> None:
+        sample = replace(
+            self.sample,
+            profile_id="flat_box",
+            dimensions_m=(0.22, 0.05, 0.035),
+        )
+        expert = ScriptedPickPlaceExpert(self.config, sample)
+        self.assertAlmostEqual(expert.pregrasp_tolerance_m(), 0.010)
 
     def test_gripper_keeps_downward_orientation_until_safe_height(self) -> None:
         decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)

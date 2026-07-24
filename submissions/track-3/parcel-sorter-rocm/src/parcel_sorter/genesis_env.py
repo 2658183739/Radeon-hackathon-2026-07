@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import dataclass
 import math
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,53 @@ from .randomization import ParcelSample
 
 
 _INITIALIZED_BACKEND: str | None = None
+
+
+@dataclass(frozen=True)
+class ParcelSpawnSpec:
+    shape: str
+    dimensions_m: tuple[float, float, float]
+    initial_z_m: float
+    euler_degrees: tuple[float, float, float]
+    cylinder_height_m: float | None = None
+    cylinder_radius_m: float | None = None
+
+
+def parcel_spawn_spec(config: ExperimentConfig, sample: ParcelSample) -> ParcelSpawnSpec:
+    dimensions = sample.dimensions_m or tuple(
+        base * scale
+        for base, scale in zip(
+            config.task.parcel_base_size_m,
+            sample.size_scale_xyz,
+            strict=True,
+        )
+    )
+    yaw_degrees = math.degrees(sample.yaw_rad)
+    if sample.shape == "box":
+        return ParcelSpawnSpec(
+            shape="box",
+            dimensions_m=dimensions,
+            initial_z_m=dimensions[2] / 2,
+            euler_degrees=(0.0, 0.0, yaw_degrees),
+        )
+    if sample.shape != "cylinder":
+        raise ValueError(f"unsupported parcel shape: {sample.shape}")
+    if sample.orientation_mode == "upright":
+        height, radius = dimensions[2], dimensions[0] / 2
+        euler = (0.0, 0.0, yaw_degrees)
+    elif sample.orientation_mode == "horizontal":
+        height, radius = dimensions[0], dimensions[1] / 2
+        euler = (0.0, 90.0, yaw_degrees)
+    else:
+        raise ValueError(f"unsupported cylinder orientation: {sample.orientation_mode}")
+    return ParcelSpawnSpec(
+        shape="cylinder",
+        dimensions_m=dimensions,
+        initial_z_m=dimensions[2] / 2,
+        euler_degrees=euler,
+        cylinder_height_m=height,
+        cylinder_radius_m=radius,
+    )
 
 
 def genesis_depth_to_meters(depth: Any, np: Any) -> Any:
@@ -108,22 +156,24 @@ class GenesisParcelEnv:
             visualize_contact=show_viewer,
         )
 
-        parcel_size = tuple(
-            base * scale
-            for base, scale in zip(
-                config.task.parcel_base_size_m,
-                sample.size_scale_xyz,
-                strict=True,
-            )
-        )
-        self._initial_parcel_z = parcel_size[2] / 2
+        spawn = parcel_spawn_spec(config, sample)
+        self._initial_parcel_z = spawn.initial_z_m
         color = (0.10, 0.55, 0.92) if sample.destination == "left" else (0.96, 0.55, 0.12)
+        if spawn.shape == "box":
+            parcel_morph = self.gs.morphs.Box(
+                size=spawn.dimensions_m,
+                pos=(sample.position_xy[0], sample.position_xy[1], spawn.initial_z_m),
+                euler=spawn.euler_degrees,
+            )
+        else:
+            parcel_morph = self.gs.morphs.Cylinder(
+                height=spawn.cylinder_height_m,
+                radius=spawn.cylinder_radius_m,
+                pos=(sample.position_xy[0], sample.position_xy[1], spawn.initial_z_m),
+                euler=spawn.euler_degrees,
+            )
         self.parcel = self.scene.add_entity(
-            self.gs.morphs.Box(
-                size=parcel_size,
-                pos=(sample.position_xy[0], sample.position_xy[1], self._initial_parcel_z),
-                euler=(0.0, 0.0, math.degrees(sample.yaw_rad)),
-            ),
+            parcel_morph,
             material=self.gs.materials.Rigid(friction=sample.friction),
             surface=self.gs.surfaces.Rough(
                 diffuse_texture=self.gs.textures.ColorTexture(color=color)
@@ -240,7 +290,7 @@ class GenesisParcelEnv:
             parcel_visible=finite and parcel_position[2] > -0.02,
             at_pregrasp=self._distance(
                 ee_position, self.expert.pregrasp_position(state.parcel_pose)
-            ) <= self.config.task.position_tolerance_m,
+            ) <= self.expert.pregrasp_tolerance_m(),
             grasp_contact=has_contact,
             parcel_lifted=parcel_position[2]
             >= self._initial_parcel_z + self.config.task.lift_height_m * 0.65,

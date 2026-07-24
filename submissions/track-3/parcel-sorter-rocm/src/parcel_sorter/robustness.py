@@ -16,7 +16,11 @@ def sample_for_profile(
 ) -> ParcelSample:
     if profile not in PROFILES:
         raise ValueError(f"profile must be one of: {', '.join(PROFILES)}")
-    base = DomainRandomizer(config.randomization, config.seed).sample(episode_index)
+    base = DomainRandomizer(
+        config.randomization,
+        config.seed,
+        config.parcel_profiles,
+    ).sample(episode_index)
     if profile == "in_domain":
         return base
     if profile == "nominal":

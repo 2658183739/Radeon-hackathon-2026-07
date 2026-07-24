@@ -6,7 +6,7 @@
 | 项目 | 锁定提交 | 许可证 | 用途 |
 | --- | --- | --- | --- |
 | Genesis World | `ec0efcc0daf9b9932920e6b73f5f810961330997` | Apache-2.0 | ROCm 物理仿真、传感器、渲染和机器人控制 |
-| LeRobot | `73dbb6f43a5088583706c91fb73c6957bca5f806` | Apache-2.0 | 数据集格式和可选 ACT 策略 |
+| LeRobot | `73dbb6f43a5088583706c91fb73c6957bca5f806` | Apache-2.0 | 数据集格式、ACT、Diffusion 和 SmolVLA 策略路径 |
 | PyTorch | 云端镜像所带版本 | BSD 类许可证 | ROCm 模型训练与推理 |
 
 本项目未提交任何第三方源码。下载到 `third_party/` 的源码不会进入 Git，并继续保留

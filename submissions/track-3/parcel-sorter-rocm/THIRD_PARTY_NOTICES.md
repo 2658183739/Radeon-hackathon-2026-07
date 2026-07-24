@@ -7,7 +7,7 @@ vendored in this repository.
 | Project | Locked revision | License | Intended use |
 | --- | --- | --- | --- |
 | Genesis World | `ec0efcc0daf9b9932920e6b73f5f810961330997` | Apache-2.0 | ROCm physics, sensors, rendering, robot control |
-| LeRobot | `73dbb6f43a5088583706c91fb73c6957bca5f806` | Apache-2.0 | Dataset format and optional ACT policy |
+| LeRobot | `73dbb6f43a5088583706c91fb73c6957bca5f806` | Apache-2.0 | Dataset format, ACT, Diffusion, and SmolVLA policy paths |
 | PyTorch | Cloud image version | BSD-style | ROCm model training and inference |
 
 No third-party source is committed in this project. Sources downloaded under

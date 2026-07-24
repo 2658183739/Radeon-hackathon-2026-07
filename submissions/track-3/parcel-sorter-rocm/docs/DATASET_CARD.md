@@ -23,8 +23,11 @@ latest camera frame is held between camera updates.
 ## Randomization
 
 Parcel size, mass, friction, XY position, yaw, destination, camera position, and
-action delay are deterministic functions of seed and episode index. Exact
-ranges are in `configs/baseline.toml`.
+action delay are deterministic functions of seed and episode index. The baseline
+ACT data uses `configs/baseline.toml`; the catalog generator uses
+`configs/catalog_v1.toml` with seven weighted training profiles and four
+evaluation-only industry-size profiles. Genesis creates Box and Cylinder
+geometry explicitly, and the catalog evaluator keeps stable profile episode IDs.
 
 ## Inclusion policy
 
@@ -43,7 +46,9 @@ selection, recovery learning, or preference learning with an explicit method.
 
 - Simulation-only and no real sensor calibration;
 - successful-only imitation targets create selection bias;
-- one overhead camera and simple box geometry;
+- the formal 120-episode set is concentrated on rigid parcels feasible for the
+  current parallel gripper; cylinders and industry-size boundaries need separate
+  collection/evaluation;
 - 96 episodes are insufficient for broad semantic generalization;
 - current baseline does not use depth in ACT.
 

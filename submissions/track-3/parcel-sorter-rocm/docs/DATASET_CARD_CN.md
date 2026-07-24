@@ -20,7 +20,9 @@
 ## 随机化
 
 包裹尺寸、质量、摩擦、XY、yaw、目标、相机位置和动作延迟由 seed 与 episode 索引确定。
-准确范围见 `configs/baseline.toml`。
+基础 ACT 数据使用 `configs/baseline.toml`；目录数据使用 `configs/catalog_v1.toml`，其中
+包含 7 类带权训练 profile 和 4 类仅评测行业尺寸 profile。Box 与 Cylinder 按实际几何
+创建，目录 evaluator 维持稳定的 profile episode 编号。
 
 ## 纳入规则
 
@@ -38,7 +40,8 @@
 
 - 只有仿真，没有真机标定；
 - 成功样本训练存在选择偏差；
-- 单顶视相机和简单盒状包裹；
+- 正式 120 回合数据仍主要覆盖当前平行夹爪可处理的刚性包裹；圆筒和行业尺寸边界需要
+  单独采集/评测；
 - 96 回合不足以支持广泛语义泛化；
 - 当前 ACT 基线尚未使用深度。
 

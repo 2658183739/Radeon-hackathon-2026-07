@@ -41,8 +41,8 @@ The application is divided into five boundaries:
    contains the Franka robot, parcel, plane, and two destination bins.
 2. **Task supervision.** A deterministic state machine implements detect,
    approach, grasp, verify, lift, place, release, complete, and abort stages.
-3. **Action generation.** Either the scripted IK expert or ACT produces a safe
-   high-level Cartesian target and gripper command.
+3. **Action generation.** The scripted IK expert or an ACT, Diffusion, or
+   SmolVLA policy produces a high-level Cartesian target and gripper command.
 4. **Low-level execution.** Cartesian targets are step-limited, solved through
    IK, and executed by arm PD control and force-ramped gripper control.
 5. **Evidence and evaluation.** Audit trajectories, LeRobot episodes, MP4
@@ -80,6 +80,11 @@ yaw, camera position, action delay, and destination. Every sample is a pure
 function of the project seed and episode index, so a failure can be replayed
 exactly with `--start-episode`.
 
+The catalog defines seven weighted training profiles and four evaluation-only
+industry-size boundaries. Genesis creates actual Box or Cylinder geometry. A
+20-episode block has an exact profile allocation, and profile-specific
+evaluation uses stable episode IDs even when the evaluator filters profiles.
+
 ## 5. Perception and action contracts
 
 The simulator exposes RGB, metric depth, seven arm joint positions, seven-value
@@ -102,10 +107,11 @@ descend to pregrasp. It then closes the gripper using a force ramp, verifies
 bilateral contact, lifts, moves to the destination, opens, and checks both
 release and final parcel location.
 
-The current optimization revision adds a separate 0.01 m limit for the final
-aligned descent while retaining 0.04 m in free space. This decision directly
-targets the measured force-abort mode and remains subject to same-episode
-Radeon regression before it replaces the recorded baseline.
+The catalog controller separates horizontal and final-pose tolerances, latches
+the 0.01 m descent after XY alignment, adapts pregrasp tolerance to geometry,
+and transfers through lift, horizontal motion, and descent. This is not the
+rejected isolated global 0.01 m candidate: that earlier candidate lacked the
+XY gate, hysteresis, and geometry window and regressed from 80% to 75%.
 
 The supervisor retries failed grasp verification and short contact losses. It
 aborts on a simulator fault or excessive contact force. This behaviour is
@@ -136,6 +142,13 @@ Generic image transforms now default to disabled for synthetic geometry. The
 training entry point retains an explicit switch so augmentation can be evaluated
 as a matched ablation rather than assumed to be beneficial. The recorded
 5,000-step run used the previous enabled setting and remains the baseline.
+
+Radeon training entries are also provided for Diffusion and SmolVLA. Diffusion
+is the conventional imitation comparison and completed a one-step training-path
+smoke. SmolVLA fine-tunes a locally staged open `lerobot/smolvla_base` with the
+vision encoder frozen for the first run. Neither has a formal capability result.
+A generic checkpoint adapter loads ACT, Diffusion, or
+SmolVLA behind the same supervisor, IK/PD execution, and 35 N force boundary.
 
 ## 8. AMD Radeon and ROCm use
 
@@ -191,6 +204,8 @@ from being dominated by episode zero.
 | Rejected 0.01 m approach candidate, matched 120 episodes | 75.0% success; 73.6% throughput retained |
 | Parallel Genesis, 128 environments | 46,582 environment-steps/s |
 | Peak observed GPU utilization | 83% |
+| Seven-profile one-episode catalog smoke | 4 complete; not a formal success rate |
+| Deterministic unit tests | 48 passing |
 
 The larger 120-episode expert run is the primary task-capability result. The
 fixed 10-seed result is useful for regression testing but is not presented as a
@@ -220,6 +235,9 @@ Other current limitations are:
 
 - ACT has been trained for only 5,000 steps on 96 successful episodes.
 - The policy does not yet consume the available depth channel.
+- Micro-box, upright-canister, and mailing-tube catalog smokes still fail.
+- Diffusion has only a one-step path smoke; SmolVLA still needs a staged local
+  base checkpoint. Neither has formal closed-loop evidence.
 - Evaluation is simulation-only; sim-to-real calibration is outside this
   submission's current evidence.
 - The formal container definition is reproducible but the primary validated
@@ -237,6 +255,7 @@ single isolated model. Its main design choices are:
 - one safety and action contract shared by expert and learned policies;
 - complete audit retention even when failures are excluded from imitation data;
 - disjoint episode-range evaluation to reduce checkpoint-selection bias;
+- explicit multi-geometry parcel strata and geometry-aware control;
 - one-GPU ROCm execution spanning simulation, training, and inference;
 - explicit performance and limitation reporting alongside task success.
 
@@ -254,6 +273,9 @@ reproducible from the documented commands and can be attached to the final
 submission through release storage without weakening source reproducibility.
 Small raw summaries and logs are committed under `evidence/` with a SHA-256
 index.
+
+Paired model-selection and chronological development records are available in
+`docs/MODEL_SELECTION*.md` and `docs/DEVELOPMENT_JOURNAL*.md`.
 
 ## 14. Team and contributions
 

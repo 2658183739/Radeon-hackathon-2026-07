@@ -17,16 +17,35 @@ def canonical_grasp_yaw(yaw_rad: float, max_abs_yaw_rad: float = math.pi / 3) ->
     return wrapped if abs(wrapped) <= max_abs_yaw_rad else 0.0
 
 
+def profile_grasp_yaw(sample: ParcelSample) -> float:
+    """Choose a geometry-aware wrist yaw without changing the legacy baseline."""
+    if sample.profile_id == "legacy_box":
+        return canonical_grasp_yaw(sample.yaw_rad)
+    if sample.shape == "cylinder" and sample.orientation_mode == "upright":
+        return 0.0
+    if sample.shape == "cylinder" and sample.orientation_mode == "horizontal":
+        # Pinch across the tube diameter instead of pushing along its axis.
+        return canonical_grasp_yaw(sample.yaw_rad + math.pi / 2, max_abs_yaw_rad=math.pi / 2)
+    return canonical_grasp_yaw(sample.yaw_rad, max_abs_yaw_rad=math.pi / 2)
+
+
 class ScriptedPickPlaceExpert:
     """Ground-truth Cartesian expert used before a visual policy is trained."""
 
     def __init__(self, config: ExperimentConfig, sample: ParcelSample) -> None:
         self.config = config
         self.sample = sample
-        size_z = config.task.parcel_base_size_m[2] * sample.size_scale_xyz[2]
+        size_z = (
+            sample.dimensions_m[2]
+            if sample.dimensions_m is not None
+            else config.task.parcel_base_size_m[2] * sample.size_scale_xyz[2]
+        )
         self._initial_parcel_z = size_z / 2
         self._grasp_origin_xy: tuple[float, float] | None = None
-        half_yaw = canonical_grasp_yaw(sample.yaw_rad) / 2
+        self._descent_committed = False
+        self._drop_descent_committed = False
+        self._last_retry_count = 0
+        half_yaw = profile_grasp_yaw(sample) / 2
         self._grasp_quaternion = (0.0, math.cos(half_yaw), math.sin(half_yaw), 0.0)
 
     @property
@@ -36,6 +55,11 @@ class ScriptedPickPlaceExpert:
         return self.config.task.right_bin_center_m
 
     def action(self, decision: ControlDecision, state: RobotState) -> CartesianAction:
+        if decision.retry_count != self._last_retry_count:
+            self._descent_committed = False
+            self._drop_descent_committed = False
+            self._grasp_origin_xy = None
+            self._last_retry_count = decision.retry_count
         command = Command(decision.command)
         current = state.end_effector_pose[:3]
         parcel = state.parcel_pose[:3]
@@ -48,12 +72,11 @@ class ScriptedPickPlaceExpert:
                 grasp_xy[0],
                 grasp_xy[1],
                 self._initial_parcel_z
-                + self.config.task.grasp_hand_clearance_m
+                + self.grasp_hand_clearance_m()
                 + self.config.task.lift_height_m,
             )
         elif command == Command.MOVE_DROP:
-            destination = self.destination_position
-            desired = (destination[0], destination[1], self.config.task.drop_hand_height_m)
+            desired = self._safe_drop_position(current)
         else:
             desired = tuple(float(value) for value in current)
         if command == Command.CLOSE_GRIPPER:
@@ -88,25 +111,54 @@ class ScriptedPickPlaceExpert:
         return (
             parcel_pose[0],
             parcel_pose[1],
-            parcel_pose[2] + self.config.task.grasp_hand_clearance_m,
+            parcel_pose[2] + self.grasp_hand_clearance_m(),
         )
+
+    def grasp_hand_clearance_m(self) -> float:
+        clearance = self.config.task.grasp_hand_clearance_m
+        if self.sample.shape == "cylinder" and self.sample.orientation_mode == "upright":
+            return clearance + 0.008
+        return clearance
+
+    def pregrasp_tolerance_m(self) -> float:
+        """Scale the close-pose window by grasp surface size and shape."""
+        dimensions = self.sample.dimensions_m or tuple(
+            base * scale
+            for base, scale in zip(
+                self.config.task.parcel_base_size_m,
+                self.sample.size_scale_xyz,
+                strict=True,
+            )
+        )
+        if self.sample.shape == "cylinder":
+            return max(self.config.task.position_tolerance_m, 0.035)
+        is_flat_parcel = max(dimensions[:2]) > 0.12 and dimensions[2] <= 0.04
+        if is_flat_parcel:
+            return min(self.config.task.position_tolerance_m, 0.010)
+        has_large_grasp_surface = max(dimensions[:2]) > 0.12 and dimensions[2] > 0.04
+        if has_large_grasp_surface:
+            return max(self.config.task.position_tolerance_m, 0.035)
+        return self.config.task.position_tolerance_m
 
     def _safe_approach_position(
         self,
         current: tuple[float, ...],
         parcel_pose: tuple[float, ...],
     ) -> tuple[float, float, float]:
-        tolerance = self.config.task.position_tolerance_m
+        tolerance = self.config.task.approach_xy_tolerance_m
         transit_z = parcel_pose[2] + self.config.task.approach_clearance_m
         horizontal_distance = math.hypot(
             current[0] - parcel_pose[0],
             current[1] - parcel_pose[1],
         )
 
+        if self._descent_committed:
+            return self.pregrasp_position(parcel_pose)
         if horizontal_distance > tolerance and current[2] < transit_z - tolerance:
             return (current[0], current[1], transit_z)
         if horizontal_distance > tolerance:
             return (parcel_pose[0], parcel_pose[1], transit_z)
+        self._descent_committed = True
         return self.pregrasp_position(parcel_pose)
 
     def _is_final_approach(
@@ -117,20 +169,43 @@ class ScriptedPickPlaceExpert:
         return math.hypot(
             current[0] - parcel_pose[0],
             current[1] - parcel_pose[1],
-        ) <= self.config.task.position_tolerance_m
+        ) <= self.config.task.approach_xy_tolerance_m
 
     def lift_position(self) -> tuple[float, float, float]:
         return (
             self.sample.position_xy[0],
             self.sample.position_xy[1],
             self._initial_parcel_z
-            + self.config.task.grasp_hand_clearance_m
+            + self.grasp_hand_clearance_m()
             + self.config.task.lift_height_m,
         )
 
     def drop_position(self) -> tuple[float, float, float]:
         destination = self.destination_position
         return (destination[0], destination[1], self.config.task.drop_hand_height_m)
+
+    def _safe_drop_position(
+        self,
+        current: tuple[float, ...],
+    ) -> tuple[float, float, float]:
+        destination = self.destination_position
+        tolerance = self.config.task.position_tolerance_m
+        transfer_z = max(
+            self.config.task.drop_hand_height_m + 0.10,
+            self.lift_position()[2] + 0.05,
+        )
+        horizontal_distance = math.hypot(
+            current[0] - destination[0],
+            current[1] - destination[1],
+        )
+        if self._drop_descent_committed:
+            return self.drop_position()
+        if current[2] < transfer_z - tolerance:
+            return (current[0], current[1], transfer_z)
+        if horizontal_distance > tolerance:
+            return (destination[0], destination[1], transfer_z)
+        self._drop_descent_committed = True
+        return self.drop_position()
 
     def _bounded_step(
         self,

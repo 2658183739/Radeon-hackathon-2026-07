@@ -9,14 +9,16 @@ from parcel_sorter.config import load_config
 from parcel_sorter.dataset import JsonlTrajectoryWriter
 from parcel_sorter.genesis_env import GenesisParcelEnv
 from parcel_sorter.metrics import MetricsAccumulator
-from parcel_sorter.policy import ACTPolicyAdapter
+from parcel_sorter.policy import LeRobotPolicyAdapter
 from parcel_sorter.provenance import runtime_report
 from parcel_sorter.randomization import DomainRandomizer
 from parcel_sorter.runner import run_policy_episode, save_episode_writers
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Evaluate a LeRobot ACT checkpoint in Genesis")
+    parser = argparse.ArgumentParser(
+        description="Evaluate an ACT, Diffusion, or SmolVLA LeRobot checkpoint in Genesis"
+    )
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--config", default="configs/baseline.toml")
     parser.add_argument("--backend", choices=("rocm", "cuda"), default="rocm")
@@ -36,8 +38,8 @@ def main() -> int:
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     writer = JsonlTrajectoryWriter(output / "audit_dataset")
-    policy = ACTPolicyAdapter(args.checkpoint, config)
-    randomizer = DomainRandomizer(config.randomization, config.seed)
+    policy = LeRobotPolicyAdapter(args.checkpoint, config)
+    randomizer = DomainRandomizer(config.randomization, config.seed, config.parcel_profiles)
     metrics = MetricsAccumulator()
     reports = []
 
@@ -71,6 +73,7 @@ def main() -> int:
     payload = {
         "runtime": runtime_report(),
         "checkpoint": str(Path(args.checkpoint).resolve()),
+        "policy_type": policy.policy_type,
         "evaluation_range": {
             "start_episode": args.start_episode,
             "end_episode": args.start_episode + args.episodes - 1,

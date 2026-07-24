@@ -17,12 +17,18 @@ reported aggregates to be audited without the full dataset or checkpoint.
 | `benchmarks/act-training-amp-b32.log` | 200-step AMP, batch 32 throughput run | `36cc6539305a0585fe7d5b4db3fd62155fa2acef75f6fef1c045efca44215cbe` |
 | `benchmarks/act-training-fp32-b8.log` | 200-step FP32, batch 8 throughput run | `009384c98d41b0bcf5876f275044a6d15172183d7b554927b4fcfbcf0a57f92e` |
 | `benchmarks/act-training-fp32-b32.log` | 200-step FP32, batch 32 throughput run | `2f49edbf551c4b8f9ab827cab300c24deb2e0842966a8928b1eb6377068cd634` |
+| `catalog/catalog-v1-submit-smoke.json` | Final 20-second, seven-profile catalog smoke | `7b69a332faea59f6e930acfec653ec118f858c6002cd9d78d20a06bd8f142be0` |
+| `training/diffusion-1-step-rocm.md` | One-step Diffusion Radeon training-path smoke | N/A |
 
 The JSON summaries include the complete config, runtime versions, per-episode
 randomization values, terminal state, and task metrics. ACT evaluation files
 also contain the deterministic episode range and inference latency samples.
 The rejected candidate is intentionally retained: reproducibility includes
 negative results, and the comparison records why it must not become the default.
+
+The catalog smoke is intentionally a small regression artifact. It reports four
+completed box profiles and three explicit hard cases; it is not a formal
+success-rate estimate. The paired catalog README records the command and hash.
 
 The large generated artifacts are deliberately not stored in Git:
 

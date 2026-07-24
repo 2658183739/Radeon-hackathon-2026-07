@@ -10,6 +10,11 @@ LEROBOT_SHA="73dbb6f43a5088583706c91fb73c6957bca5f806"
 export HIP_VISIBLE_DEVICES="${HIP_VISIBLE_DEVICES:-0}"
 mkdir -p "${THIRD_PARTY_DIR}"
 
+PIP_INDEX_ARGS=()
+if [[ -n "${ROCM_PIP_INDEX_URL:-}" ]]; then
+  PIP_INDEX_ARGS+=(--index-url "${ROCM_PIP_INDEX_URL}")
+fi
+
 if ! source "${ROOT_DIR}/scripts/activate_radeon_env.sh"; then
   python3 -m venv --system-site-packages "${VENV_DIR}"
   source "${VENV_DIR}/bin/activate"
@@ -49,9 +54,9 @@ prepare_source \
   "https://github.com/Genesis-Embodied-AI/genesis-world.git" \
   "${GENESIS_SHA}"
 
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install -e "${THIRD_PARTY_DIR}/genesis-world"
-python -m pip install -e "${ROOT_DIR}"
+python -m pip install "${PIP_INDEX_ARGS[@]}" --upgrade pip setuptools wheel
+python -m pip install "${PIP_INDEX_ARGS[@]}" -e "${THIRD_PARTY_DIR}/genesis-world"
+python -m pip install "${PIP_INDEX_ARGS[@]}" -e "${ROOT_DIR}"
 python "${ROOT_DIR}/scripts/smoke_genesis.py" --steps 80
 
 if [[ "${INSTALL_LEROBOT:-0}" == "1" ]]; then
@@ -59,7 +64,9 @@ if [[ "${INSTALL_LEROBOT:-0}" == "1" ]]; then
     "lerobot" \
     "https://github.com/huggingface/lerobot.git" \
     "${LEROBOT_SHA}"
-  python -m pip install -e "${THIRD_PARTY_DIR}/lerobot[training]"
+  # Install every policy used by the documented reproduction path. These are
+  # LeRobot's own pinned extras, not separately floating dependency lists.
+  python -m pip install "${PIP_INDEX_ARGS[@]}" -e "${THIRD_PARTY_DIR}/lerobot[training,diffusion,smolvla]"
 fi
 
 python "${ROOT_DIR}/scripts/smoke_rocm.py"

@@ -45,6 +45,7 @@ class TaskConfig:
     position_tolerance_m: float
     release_settle_steps: int
     grasp_settle_steps: int
+    approach_xy_tolerance_m: float = 0.010
 
     def validate(self) -> None:
         if self.max_grasp_retries < 0:
@@ -73,7 +74,12 @@ class TaskConfig:
             raise ValueError("approach, grasp, and drop heights must be positive")
         if self.approach_clearance_m <= self.grasp_hand_clearance_m:
             raise ValueError("approach clearance must exceed grasp clearance")
-        if self.position_tolerance_m <= 0 or min(self.release_settle_steps, self.grasp_settle_steps) < 0:
+        if (
+            self.position_tolerance_m <= 0
+            or self.approach_xy_tolerance_m <= 0
+            or self.approach_xy_tolerance_m > self.position_tolerance_m
+            or min(self.release_settle_steps, self.grasp_settle_steps) < 0
+        ):
             raise ValueError("position tolerance must be positive and settle steps cannot be negative")
 
 
@@ -155,6 +161,7 @@ class RandomizationConfig:
     parcel_position_y_max: float
     parcel_yaw_rad_min: float
     parcel_yaw_rad_max: float
+    catalog_block_size: int = 20
 
     def validate(self) -> None:
         ranges = (
@@ -174,6 +181,55 @@ class RandomizationConfig:
             raise ValueError("friction must remain positive")
         if self.camera_position_noise_m < 0 or self.action_delay_steps_max < 0:
             raise ValueError("noise and delay cannot be negative")
+        if self.catalog_block_size < 1:
+            raise ValueError("catalog_block_size must be positive")
+
+
+@dataclass(frozen=True)
+class ParcelProfileConfig:
+    profile_id: str
+    shape: str
+    orientation_mode: str
+    handling_class: str
+    material: str
+    selection_weight: float
+    evaluation_only: bool
+    dimensions_min_m: tuple[float, float, float]
+    dimensions_max_m: tuple[float, float, float]
+    mass_kg_min: float
+    mass_kg_max: float
+    friction_min: float
+    friction_max: float
+    provenance: str
+
+    def validate(self) -> None:
+        if not self.profile_id.strip() or not self.material.strip() or not self.provenance.strip():
+            raise ValueError("parcel profile id, material, and provenance are required")
+        if self.shape not in {"box", "cylinder"}:
+            raise ValueError(f"unsupported parcel shape: {self.shape}")
+        if self.orientation_mode not in {"yaw", "upright", "horizontal"}:
+            raise ValueError(f"unsupported parcel orientation: {self.orientation_mode}")
+        if self.shape == "box" and self.orientation_mode != "yaw":
+            raise ValueError("box profiles must use yaw orientation")
+        if self.shape == "cylinder" and self.orientation_mode == "yaw":
+            raise ValueError("cylinder profiles must be upright or horizontal")
+        if self.handling_class not in {"parallel_jaw", "suction_required", "cradle_required"}:
+            raise ValueError(f"unsupported handling class: {self.handling_class}")
+        if self.selection_weight < 0:
+            raise ValueError("parcel profile selection weight cannot be negative")
+        if self.evaluation_only and self.selection_weight != 0:
+            raise ValueError("evaluation-only parcel profiles must have zero training weight")
+        if len(self.dimensions_min_m) != 3 or len(self.dimensions_max_m) != 3:
+            raise ValueError("parcel profile dimensions must contain three values")
+        for lower, upper in zip(self.dimensions_min_m, self.dimensions_max_m, strict=True):
+            if lower <= 0 or lower > upper:
+                raise ValueError("parcel profile dimensions must be positive ordered ranges")
+        for label, lower, upper in (
+            ("mass", self.mass_kg_min, self.mass_kg_max),
+            ("friction", self.friction_min, self.friction_max),
+        ):
+            if lower <= 0 or lower > upper:
+                raise ValueError(f"parcel profile {label} must be a positive ordered range")
 
 
 @dataclass(frozen=True)
@@ -186,6 +242,7 @@ class ExperimentConfig:
     control: ControlConfig
     output: OutputConfig
     randomization: RandomizationConfig
+    parcel_profiles: tuple[ParcelProfileConfig, ...]
 
     def validate(self) -> None:
         if not self.name:
@@ -196,6 +253,24 @@ class ExperimentConfig:
         self.control.validate()
         self.output.validate()
         self.randomization.validate()
+        profile_ids = [profile.profile_id for profile in self.parcel_profiles]
+        if len(profile_ids) != len(set(profile_ids)):
+            raise ValueError("parcel profile ids must be unique")
+        for profile in self.parcel_profiles:
+            profile.validate()
+        training_profiles = [profile for profile in self.parcel_profiles if not profile.evaluation_only]
+        if self.parcel_profiles:
+            if not training_profiles:
+                raise ValueError("a parcel catalog requires at least one training profile")
+            total_weight = sum(profile.selection_weight for profile in training_profiles)
+            if abs(total_weight - 1.0) > 1e-9:
+                raise ValueError("training parcel profile weights must sum to 1")
+            allocated = [
+                profile.selection_weight * self.randomization.catalog_block_size
+                for profile in training_profiles
+            ]
+            if any(abs(value - round(value)) > 1e-9 for value in allocated):
+                raise ValueError("catalog block size must allocate an integer count to every profile")
 
 
 def _tuple_values(raw: dict[str, Any], *keys: str) -> dict[str, Any]:
@@ -209,6 +284,16 @@ def load_config(path: str | Path) -> ExperimentConfig:
     with Path(path).open("rb") as handle:
         raw = tomllib.load(handle)
 
+    parcel_profiles = tuple(
+        ParcelProfileConfig(
+            **_tuple_values(
+                profile,
+                "dimensions_min_m",
+                "dimensions_max_m",
+            )
+        )
+        for profile in raw.get("parcel_profiles", ())
+    )
     config = ExperimentConfig(
         name=str(raw["project"]["name"]),
         seed=int(raw["project"]["seed"]),
@@ -226,6 +311,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
         control=ControlConfig(**_tuple_values(raw["control"], "arm_kp", "arm_kv")),
         output=OutputConfig(**raw["output"]),
         randomization=RandomizationConfig(**raw["randomization"]),
+        parcel_profiles=parcel_profiles,
     )
     config.validate()
     return config

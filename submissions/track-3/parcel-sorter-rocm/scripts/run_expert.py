@@ -57,7 +57,7 @@ def main() -> int:
         )
 
     metrics = MetricsAccumulator()
-    randomizer = DomainRandomizer(config.randomization, config.seed)
+    randomizer = DomainRandomizer(config.randomization, config.seed, config.parcel_profiles)
     reports = []
     try:
         for offset in range(args.episodes):

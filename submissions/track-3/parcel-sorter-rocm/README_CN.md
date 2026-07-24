@@ -7,19 +7,22 @@ RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 英文 [README.md](README.md) 是评审复现的主入口；中文正式报告见
 [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)。优化顺序见
 [优化路线图](docs/OPTIMIZATION_ROADMAP_CN.md)，完整工程决策和代码学习记录见
-[工程决策日志](docs/ENGINEERING_DECISION_LOG_CN.md)。
+[工程决策日志](docs/ENGINEERING_DECISION_LOG_CN.md)，逐次实验见
+[开发日志](docs/DEVELOPMENT_JOURNAL_CN.md)，模型比较见
+[模型选型](docs/MODEL_SELECTION_CN.md)。
 
 ## 系统组成
 
-- Genesis 刚体物理环境、Franka Panda、随机快递和左右分拣格口
+- Genesis 刚体物理环境、Franka Panda、Box/Cylinder 快递和左右分拣格口
+- 7 类带权训练包裹、4 类仅评测行业尺寸和稳定的分层 episode 调度
 - 顶视 RGB-D 相机、关节位置、末端位姿、目标位置和夹爪接触力
 - IK 专家、机械臂 PD 控制、夹爪力斜坡和末端步长限制
 - 检测、接近、抓取、接触验证、抬升、搬运、释放、重试和安全中止闭环
 - JSONL 全量审计轨迹和 LeRobotDataset 成功专家回合
-- 52M 参数 ACT 视觉模仿策略、检查点保存、加载和 Genesis 闭环评估
+- 52M 参数 ACT 基线，以及 Diffusion/SmolVLA 的 Radeon 训练与通用闭环评测入口
 - 单张 Radeon 上的并行仿真和训练吞吐 benchmark
 
-学习模型不会直接输出关节力矩。ACT 输出 8 维末端动作，再经过数值检查、四元数
+学习模型不会直接输出关节力矩。策略输出 8 维末端动作，再经过数值检查、四元数
 归一化、单步位移限制、IK、PD、夹爪控制和接触力安全边界。监督状态机始终位于
 模型外部，因此专家和学习策略共用同一套执行与安全链路。
 
@@ -60,6 +63,8 @@ HIP/ROCm 设备，不代表使用了 NVIDIA CUDA。预检脚本会检查 `torch.
 | 128 并行环境 | 46,582 environment-steps/s |
 | 峰值 GPU 利用率 | 83% |
 | ACT AMP/batch32 训练吞吐 | 80 samples/s |
+| 目录烟雾回归 | 7 类中 4 类单回合完成；仅用于回归，不是成功率 |
+| 当前测试套件 | 48 项通过 |
 
 正式专家 120 回合结果是当前机器人能力主指标。固定 10 种子结果只用于回归基线。
 ACT 已经证明数据、训练、保存、重载、ROCm 推理和 Genesis 闭环全部跑通，但成功率
@@ -72,11 +77,30 @@ ACT 已经证明数据、训练、保存、重载、ROCm 推理和 Genesis 闭�
 0.04 m，独立参数只用于实验复现。下一步应比较距离/接触力联合速度整形、困难样本、
 关闭强图像增强和深度融合，而不是提高安全阈值或假设“越慢一定越安全”。
 
+当前 `catalog_v1.toml` 中的 0.01 m 只用于水平对齐后的锁定下降，并与独立 XY 容差、
+几何自适应预抓取窗口和三段式搬运共同使用；它不等于上面被拒绝的“只改一个固定步长”
+候选。单回合目录烟雾中，`small_carton`、`flat_box`、`long_box` 和
+`near_limit_box` 完成；`micro_box` 与两类圆筒仍是困难样本。
+
+## 包裹目录回归
+
+```bash
+python scripts/evaluate_catalog.py \
+  --backend rocm \
+  --episodes-per-profile 1 \
+  --output outputs/catalog-v1-smoke
+```
+
+可重复使用 `--profile small_carton` 只评测指定类别。加入
+`--include-evaluation-only` 会运行超出当前平行夹爪能力的行业尺寸边界，只用于展示限制，
+不能混入训练成功率。
+
 ## Radeon Cloud 首次运行
 
 ```bash
 cd /workspace/parcel-sorter-rocm
 bash scripts/preflight_radeon.sh
+ROCM_PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
 INSTALL_LEROBOT=1 bash scripts/bootstrap_radeon.sh
 source scripts/activate_radeon_env.sh
 python -m unittest discover -s tests -q
@@ -140,10 +164,10 @@ bash scripts/benchmark_act_training_rocm.sh \
   outputs/benchmarks/act-training
 ```
 
-## 分段评估 ACT 检查点
+## 分段评估学习策略检查点
 
 ```bash
-python scripts/evaluate_act.py \
+python scripts/evaluate_policy.py \
   --backend rocm \
   --checkpoint outputs/train/act-radeon-5000/checkpoints/004000/pretrained_model \
   --episodes 10 \
@@ -164,6 +188,23 @@ python scripts/summarize_act_evaluations.py \
 ```
 
 该工具会拒绝重复 episode，并优先按闭环成功率选择模型。
+
+## Diffusion 与 SmolVLA
+
+```bash
+bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-radeon
+
+SMOLVLA_STEPS=4000 SMOLVLA_BATCH_SIZE=4 \
+SMOLVLA_POLICY_PATH=/workspace/models/smolvla_base \
+bash scripts/train_smolvla_rocm.sh \
+  <lerobot_dataset> outputs/train/smolvla-radeon
+```
+
+Diffusion 和 SmolVLA 是已经准备好的训练入口，不是已经取得的比赛结果。SmolVLA 要求
+显式指定已下载的开源检查点；若云实例可访问 Hugging Face，也可把路径设为
+`lerobot/smolvla_base`。首轮冻结视觉编码器并只训练动作专家相关部分；视觉解冻必须作为
+独立匹配实验。训练后的 ACT、Diffusion 和 SmolVLA 都通过 `evaluate_policy.py` 进入相同
+Genesis 闭环和 35 N 安全边界。
 
 ## Docker
 

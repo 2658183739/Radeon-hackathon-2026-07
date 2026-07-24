@@ -25,28 +25,38 @@ class ScriptedExpertPolicy:
         return self.expert.action(context.decision, context.state)
 
 
-class ACTPolicyAdapter:
-    """LeRobot ACT checkpoint behind the project's safe Cartesian action boundary."""
+class LeRobotPolicyAdapter:
+    """Any supported LeRobot checkpoint behind the safe Cartesian action boundary."""
 
     def __init__(self, checkpoint: str | Path, config: ExperimentConfig) -> None:
         try:
             import torch
+            from lerobot.configs.policies import PreTrainedConfig
             from lerobot.policies import make_pre_post_processors
-            from lerobot.policies.act.modeling_act import ACTPolicy
+            from lerobot.policies.factory import get_policy_class
         except ImportError as exc:
             raise RuntimeError(
-                "ACT evaluation requires LeRobot training dependencies; run the Radeon bootstrap"
+                "policy evaluation requires LeRobot; run the Radeon bootstrap with "
+                "INSTALL_LEROBOT=1"
             ) from exc
 
         self.torch = torch
         self.config = config
         self.checkpoint = Path(checkpoint).resolve()
         if not (self.checkpoint / "config.json").is_file():
-            raise FileNotFoundError(f"ACT checkpoint not found: {self.checkpoint}")
-        self.policy = ACTPolicy.from_pretrained(
+            raise FileNotFoundError(f"LeRobot checkpoint not found: {self.checkpoint}")
+        policy_config = PreTrainedConfig.from_pretrained(
             self.checkpoint,
             local_files_only=True,
-        ).eval().to("cuda")
+        )
+        policy_config.device = "cuda"
+        policy_class = get_policy_class(policy_config.type)
+        self.policy_type = policy_config.type
+        self.policy = policy_class.from_pretrained(
+            self.checkpoint,
+            config=policy_config,
+            local_files_only=True,
+        ).eval()
         self.preprocessor, self.postprocessor = make_pre_post_processors(
             self.policy.config,
             pretrained_path=str(self.checkpoint),
@@ -66,7 +76,7 @@ class ACTPolicyAdapter:
                 self.config.control.max_ee_step_m,
             )
         if context.rgb is None:
-            raise RuntimeError("ACT policy requires an RGB sensor frame")
+            raise RuntimeError("the learned policy requires an RGB sensor frame")
         if context.decision.stage != self._last_stage:
             self.policy.reset()
             self._last_stage = context.decision.stage
@@ -85,6 +95,7 @@ class ACTPolicyAdapter:
             {
                 "observation.state": state,
                 "observation.images.overhead_rgb": rgb,
+                "task": [context.task],
             }
         )
         with self.torch.inference_mode():
@@ -111,7 +122,7 @@ def _safe_cartesian_action(
 
     values = tuple(float(value) for value in values)
     if len(values) != 8 or not all(math.isfinite(value) for value in values):
-        raise ValueError("ACT must return eight finite Cartesian action values")
+        raise ValueError("policy must return eight finite Cartesian action values")
 
     target = _bounded_target(current, values[:3], max_step_m)
     quaternion = values[3:7]
@@ -143,3 +154,7 @@ def _bounded_target(
         current_value + offset * scale
         for current_value, offset in zip(current, delta)
     )  # type: ignore[return-value]
+
+
+# Backwards-compatible name for existing evaluation scripts and external imports.
+ACTPolicyAdapter = LeRobotPolicyAdapter
