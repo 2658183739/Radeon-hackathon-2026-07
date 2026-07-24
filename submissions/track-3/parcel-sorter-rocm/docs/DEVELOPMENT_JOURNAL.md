@@ -412,3 +412,12 @@ hardware must fail clearly instead of being treated as a successful robot
 generalization result. Unit tests cover both the current path and a future
 explicit registry extension. The remote dataset collection remains separate
 from this local change and is not reclassified by it.
+
+### Record 37: repair cross-platform sweep startup and retry isolation
+
+The completed dataset triggered the sweep as designed, but the copied shell
+entrypoint contained a UTF-8 BOM and the failed LeRobot cells then reserved
+their output directories. I stopped only the watcher, preserved its logs, made
+the shebang portable, and added an explicit output-root override for retries.
+This separates infrastructure failure evidence from model evidence and keeps
+the original failed cells available for diagnosis.

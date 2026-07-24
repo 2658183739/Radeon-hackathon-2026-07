@@ -639,3 +639,20 @@ ACT RGB/RGB-D，再按开关加入轻量 Diffusion；每个实验单元都有独
 
 **复盘条件：**只有完成有版本的几何资产、控制适配器、reset/release 行为、工具专用安全指标、均衡拆分和 ROCm
 闭环报告后，才能启用吸盘或 cradle。
+
+### 第 42 步：保留失败模型单元并显式管理重试
+
+**观察：**采集完成后的第一次模型矩阵暴露了部署问题：Windows 到 Radeon 的文件复制把
+`run_model_sweep_rocm.sh` 的 UTF-8 BOM 带到了远端；同时失败的 LeRobot 单元留下输出目录，
+在 `resume=false` 下阻止同名重试。数据集和模型代码本身没有被证明有问题。
+
+**决策：**移除 BOM，并为 watcher 增加 `MODEL_SWEEP_OUTPUT_ROOT`。重试必须使用新的输出根目录，
+原失败目录和 status CSV 原样保留为负证据。
+
+**代码能力：**跨平台 shell 可移植性、保留失败的实验编排，以及显式产物命名空间管理。
+
+**验证：**修正版脚本首字节为普通 `#!` shebang，watcher 可以接受备用输出根目录；只有把修正版
+脚本复制到 Radeon 后才启动重试。
+
+**复盘条件：**若以后加入自动 resume，必须先校验 checkpoint/config 哈希，不能静默混用不同 seed、
+模态或数据清单。

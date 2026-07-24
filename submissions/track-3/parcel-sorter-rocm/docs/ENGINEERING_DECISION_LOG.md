@@ -842,3 +842,25 @@ English and Chinese. Existing parallel-jaw collection paths are unchanged.
 **Revisit trigger.** Enable suction or cradle only after adding versioned
 geometry, a control adapter, reset/release behavior, tool-specific safety
 metrics, balanced splits, and a ROCm closed-loop report.
+
+### 42. Preserve failed model-sweep cells and make retries explicit
+
+**Observation.** The first post-collection sweep exposed a deployment issue:
+the Windows-to-Radeon copy preserved a UTF-8 BOM in `run_model_sweep_rocm.sh`,
+and failed LeRobot cells left output directories that blocked a retry with
+`resume=false`. The dataset and model code were not implicated.
+
+**Decision.** Remove the BOM and add `MODEL_SWEEP_OUTPUT_ROOT` to the watcher.
+Retries must use a new output root, while the failed directory and status CSV
+remain untouched as negative evidence.
+
+**Code capability.** Cross-platform shell portability, failure-preserving
+experiment orchestration, and explicit artifact namespace management.
+
+**Verification.** The corrected script begins with a plain `#!` shebang and
+the watcher accepts an alternate output root. A retry is launched only after
+the corrected script is copied to the Radeon environment.
+
+**Revisit trigger.** If automatic resume is introduced, it must validate the
+checkpoint/config hash before reusing an existing cell; never silently mix
+different seeds, modalities, or dataset manifests.
