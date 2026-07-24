@@ -645,3 +645,75 @@ uses a 0.5B backbone and its code, base, and sampled checkpoints are tagged MIT,
 but its official setup remains CUDA-oriented. **Decision.** Train matched ACT
 and Diffusion first. Use VLA-Adapter only for a separate ROCm and transitive-
 license spike; do not place it on the reproducible path until both pass.
+
+### 34. Add industry-size boundary profiles without contaminating training
+
+**Problem.** The project needed evidence about realistic large cartons, flat-rate
+mailers, and cylindrical parcels, while the current parallel gripper cannot
+honestly claim to manipulate all of them.
+
+**Alternatives.** Put the dimensions into the training distribution, omit them,
+or add explicitly sourced evaluation-only profiles with the required end-effector
+class.
+
+**Decision.** Add five catalog v2 boundary profiles with `evaluation_only=true`
+and `selection_weight=0`. Box profiles are marked `suction_required`; the large
+cylinder is marked `cradle_required`. Official carrier URLs are retained, and
+the profiles are excluded by the expert collector unless an explicit evaluation
+flag is provided.
+
+**Code capability.** Configuration validation, source provenance, handling-class
+contracts, profile filtering, and tests that protect training/evaluation
+separation.
+
+**Verification.** The local suite passes the profile shape, handling class,
+evaluation flag, source URL, and dimension-boundary checks. Suction and cradle
+execution remain unimplemented and are not reported as current abilities.
+
+**Revisit trigger.** Implement and validate the corresponding end effectors,
+then run a new fixed held-out evaluation; do not silently change the existing
+parallel-gripper baseline.
+
+### 35. Report uncertainty for success, recovery, and drop metrics
+
+**Problem.** Point estimates hide uncertainty, especially when a candidate has
+few retries or no retry episodes at all.
+
+**Alternatives.** Keep percentages only, use a normal approximation, or use a
+Wilson score interval with an explicit zero-trial state.
+
+**Decision.** Add Wilson 95% interval fields for success, first-attempt success,
+recovery, and drops. A zero-trial recovery denominator returns `[0, 1]` while the
+displayed recovery point estimate remains `0.0`; this means “not observed,” not
+“stable zero recovery.”
+
+**Code capability.** Numerically stable statistics, input validation, typed
+summary fields, and focused unit tests for bounds and invalid arguments.
+
+**Verification.** The test suite covers bounded intervals, zero trials, invalid
+success counts, and non-positive/non-finite z scores. Reports must include the
+interval fields alongside the numerator and denominator.
+
+**Revisit trigger.** If the competition report requires a different confidence
+level or hierarchical profile model, add it as a versioned analysis rather than
+overwriting existing summaries.
+
+### 36. Keep catalog counts consistent across submission documents
+
+**Problem.** Catalog v2 now contains twelve training profiles and nine
+evaluation-only profiles, but several older documents still stated “four
+boundaries.”
+
+**Decision.** Update the current README, technical report, dataset card, and
+component matrix to state nine evaluation-only profiles, with four inherited
+profiles and five newly sourced boundaries. Historical journal entries retain
+their original wording when they describe an earlier snapshot.
+
+**Code capability.** Configuration-to-document consistency review and explicit
+distinction between a current state and a historical experiment snapshot.
+
+**Verification.** The TOML parser reports 21 profiles: 12 training and 9
+evaluation-only. The changed documents use the same current count.
+
+**Revisit trigger.** Any future catalog addition must update the parser-backed
+count and the current status documents in the same commit.

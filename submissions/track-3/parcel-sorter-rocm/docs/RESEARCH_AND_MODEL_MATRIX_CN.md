@@ -75,3 +75,56 @@ VQ-BeT 和 Consistency Policy。GitHub 使用
 仓库和模型来源详见英文配对文档中的完整 URL 列表。注意：引用数和仓库活跃度会变化；
 GitHub 的 license 字段不覆盖所有模型和依赖。任何方法只有在目标 Radeon 上实际运行并
 留存日志后，才可以写成 ROCm 兼容。
+
+## 本轮可复核检索快照
+
+本轮重新执行了定向请求，没有把二手列表当作证据。arXiv export API 返回每个编号的论文
+标题和发布日期；GitHub API 返回仓库 license 和默认分支。它们只能支持实验取舍，不能
+证明任务性能，也不能代替传递依赖许可证审计。
+
+| 对象 | 检索结果 | 工程影响 |
+| --- | --- | --- |
+| ACT，arXiv `2304.13705` | *Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware*，2023-04-23 | 保留动作分块低数据基线 |
+| Diffusion Policy，arXiv `2303.04137` | *Diffusion Policy: Visuomotor Policy Learning via Action Diffusion*，2023-03-07 | 做匹配的随机动作对照 |
+| DP3，arXiv `2403.03954` | *3D Diffusion Policy: Generalizable Visuomotor Policy Learning via Simple 3D Representations*，2024-03-06 | 深度视图消融为正后才投入点云 |
+| Consistency Policy，arXiv `2405.07503` | *Consistency Policy: Accelerated Visuomotor Policies via Consistency Distillation*，2024-05-13 | 仅在 Diffusion 延迟不达标时尝试 |
+| OpenVLA，arXiv `2406.09246` | *OpenVLA: An Open-Source Vision-Language-Action Model*，2024-06-13 | 研究参考；权重条款和 CUDA 栈需单独审计 |
+| Octo，arXiv `2405.12213` | *Octo: An Open-Source Generalist Robot Policy*，2024-05-20 | 研究参考；JAX/ROCm 是额外风险 |
+| RDT-1B，arXiv `2410.07864` | *RDT-1B: a Diffusion Foundation Model for Bimanual Manipulation*，2024-10-10 | 兼容性备选，不是单臂第一路线 |
+| pi0，arXiv `2410.24164` | *$\\pi_0$: A Vision-Language-Action Flow Model for General Robot Control*，2024-10-31 | 前沿参考；官方 NVIDIA 约束排除出主线 |
+| SmolVLA，arXiv `2506.01844` | *SmolVLA: A Vision-Language-Action Model for Affordable and Efficient Robotics*，2025-06-02 | 检查点许可证明确前暂缓 |
+| `huggingface/lerobot` | GitHub API：Apache-2.0，默认分支 `main` | 使用固定的 LeRobot 数据/策略接口 |
+| `OpenHelix-Team/VLA-Adapter` | GitHub API：MIT，默认分支 `main` | 做独立 ROCm 与递归许可证试验 |
+| `Physical-Intelligence/openpi` | GitHub API：Apache-2.0，默认分支 `main` | 作为参考；README 的 NVIDIA 要求不满足主线 |
+| `Genesis-Embodied-AI/Genesis` | GitHub API：Apache-2.0，默认分支 `main` | 继续 Genesis 物理与渲染路线 |
+
+复核命令如下，学习者可以直接重复：
+
+```text
+GET https://export.arxiv.org/api/query?id_list=2304.13705,2303.04137,2403.03954,2405.07503,2406.09246,2405.12213,2410.07864,2506.01844,2410.24164
+GET https://api.github.com/repos/{owner}/{repo}
+```
+
+## 快递几何证据
+
+目录把有实测来源的承运商产品与硬件可行训练分层分开。USPS 产品页提供了当前评测
+profile 中的精确箱体尺寸；USPS Notice 123 提供了大圆筒压力范围使用的长度/周长规则。
+FedEx 和 UPS 包装页只作为定性包装参考，不把没有来源的数字写成产品尺寸。没有原始尺寸
+来源的 profile 不标记为“承运商标准”。
+
+| 几何类别 | 代表来源或规则 | 目录处理 |
+| --- | --- | --- |
+| 小/中/大型长方体 | USPS Small、Medium、Board Game Flat Rate 产品页 | 精确尺寸只做评测；训练分层覆盖 `small_carton` 到 `large_narrow_carton` |
+| 扁平邮袋/信封 | USPS flat-rate 包装系列 | 当前用刚性 flat-mailer proxy；可变形邮袋留到后续 |
+| 直立圆柱 | Panda 夹爪开口内的消费品罐/筒几何 | 训练 profile 随机化半径和高度 |
+| 横向圆柱 | USPS 非标准圆筒规则和邮筒尺寸 | `mailing_tube` 训练 profile 加 `large_mailing_tube` 边界 profile |
+| 超大箱 | USPS board-game 箱和长度/周长规则 | 吸盘或 cradle 末端执行器接入前只做评测 |
+
+来源：
+
+- https://store.usps.com/store/product/priority-mail-flat-rate-small-box-P_SMALL_FRB
+- https://store.usps.com/store/product/priority-mail-flat-rate-medium-box-1-P_O_FRB1
+- https://store.usps.com/store/product/priority-mail-board-game-large-flat-rate-box-GB_FRB
+- https://pe.usps.com/text/dmm300/Notice123.htm
+- https://www.fedex.com/en-us/shipping/packaging.html
+- https://www.ups.com/us/en/supplychain/resources/glossary-term/ups-packaging-guidelines.page

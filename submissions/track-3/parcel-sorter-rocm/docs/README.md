@@ -6,6 +6,7 @@
 | Technical report | [Technical report](../TECHNICAL_REPORT.md) | [技术报告](../TECHNICAL_REPORT_CN.md) |
 | Architecture | [Architecture](ARCHITECTURE.md) | [架构](ARCHITECTURE_CN.md) |
 | Components | [Components](COMPONENTS.md) | [组件](COMPONENTS_CN.md) |
+| Current status and protocol | [Project status](PROJECT_STATUS.md) | [项目状态](PROJECT_STATUS_CN.md) |
 | Optimization | [Optimization roadmap](OPTIMIZATION_ROADMAP.md) | [优化路线图](OPTIMIZATION_ROADMAP_CN.md) |
 | Engineering learning | [Decision log](ENGINEERING_DECISION_LOG.md) | [工程决策日志](ENGINEERING_DECISION_LOG_CN.md) |
 | Step-by-step work | [Development journal](DEVELOPMENT_JOURNAL.md) | [开发与实验日志](DEVELOPMENT_JOURNAL_CN.md) |

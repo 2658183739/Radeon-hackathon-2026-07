@@ -322,3 +322,35 @@ components, but its official setup is CUDA-oriented and its transitive assets
 still require review. **Decision: keep ACT and Diffusion as the reproducible
 main line; treat VLA-Adapter as an isolated compatibility study only after both
 license and ROCm gates pass. Do not present any VLA as a current capability.**
+
+### Record 29: separate realistic parcel boundaries from trainable hardware scope
+
+Five sourced boundary profiles were added to catalog v2: a USPS large flat-rate
+box, a rigid proxy for a flat-rate envelope, large rectangular and square
+cartons, and a large horizontal cylinder. Every profile has zero training weight
+and is evaluation-only. The handling class records the missing hardware:
+`suction_required` for the oversized/flat boxes and `cradle_required` for the
+large cylinder. Tests protect these flags, URLs, and size boundaries.
+**Decision: retain the catalog evidence, but do not claim suction or cradle
+execution until those end effectors exist and pass fixed held-out trials.**
+
+### Record 30: make small-sample task metrics honest
+
+The result summary now includes numerators, denominators, and Wilson 95%
+intervals for total success, first-attempt success, retry recovery, and drops.
+When no episode retries, the recovery interval is `[0, 1]`: no recovery sample
+exists, so a narrow zero interval would be false precision. The function rejects
+invalid counts and non-positive/non-finite z scores. The local suite increased
+from 71 to 73 tests and passed; Python compilation also passed. Git Bash syntax
+validation and the complete test suite remain scheduled on the target Radeon
+after synchronization. **Decision: retain; all future comparison reports should
+show counts and uncertainty, not percentages alone.**
+
+### Record 31: reconcile catalog counts before release
+
+The current TOML contains 21 profiles: 12 training profiles and 9
+evaluation-only profiles. Several release documents still described the older
+four-boundary snapshot. The current README, technical report, dataset card, and
+component matrix now say “nine,” while historical journal entries retain their
+original snapshot context. **Decision: make every future catalog change update
+the parser-backed count and current documentation in one commit.**

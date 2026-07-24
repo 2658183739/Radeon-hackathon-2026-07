@@ -1,6 +1,7 @@
 import unittest
+import math
 
-from parcel_sorter.metrics import EpisodeResult, MetricsAccumulator
+from parcel_sorter.metrics import EpisodeResult, MetricsAccumulator, wilson_interval
 
 
 class MetricsAccumulatorTests(unittest.TestCase):
@@ -18,6 +19,25 @@ class MetricsAccumulatorTests(unittest.TestCase):
         self.assertAlmostEqual(summary["recovery_success_rate"], 0.5)
         self.assertEqual(summary["p95_inference_latency_ms"], 13.0)
         self.assertEqual(summary["max_contact_force_n"], 20.0)
+        self.assertEqual(summary["successes"], 2)
+        self.assertLess(summary["success_rate_ci95_low"], summary["success_rate"])
+        self.assertGreater(summary["success_rate_ci95_high"], summary["success_rate"])
+
+    def test_wilson_interval_is_bounded_and_zero_trials_are_unknown(self) -> None:
+        low, high = wilson_interval(8, 12)
+
+        self.assertGreaterEqual(low, 0.0)
+        self.assertLess(low, 8 / 12)
+        self.assertGreater(high, 8 / 12)
+        self.assertLessEqual(high, 1.0)
+        self.assertEqual(wilson_interval(0, 0), (0.0, 1.0))
+
+        with self.assertRaisesRegex(ValueError, "0 <= successes <= trials"):
+            wilson_interval(2, 1)
+        with self.assertRaisesRegex(ValueError, "finite positive z score"):
+            wilson_interval(1, 2, z=0)
+        with self.assertRaisesRegex(ValueError, "finite positive z score"):
+            wilson_interval(1, 2, z=math.nan)
 
 
 if __name__ == "__main__":

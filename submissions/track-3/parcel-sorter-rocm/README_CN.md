@@ -15,10 +15,13 @@ RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 [RGB-D 多模态优化记录](docs/MULTIMODAL_OPTIMIZATION_2026-07-25_CN.md)分别说明模型取舍、
 许可证边界和本轮逐步实现/失败/验证过程。
 
+当前能力、未实现边界和推荐复现顺序见[项目状态与复现协议](docs/PROJECT_STATUS_CN.md)，
+英文评审入口为 [PROJECT_STATUS.md](docs/PROJECT_STATUS.md)。
+
 ## 系统组成
 
 - Genesis 刚体物理环境、Franka Panda、Box/Cylinder 快递和左右分拣格口
-- catalog v1 的 7 类带权训练包裹，以及 catalog v2 的 12 类均衡训练分层；另有 4 类仅评测行业尺寸和稳定的分层 episode 调度
+- catalog v1 的 7 类带权训练包裹，以及 catalog v2 的 12 类均衡训练分层；另有 9 类仅评测行业尺寸边界（原有 4 类加本轮新增 5 类）和稳定的分层 episode 调度
 - 顶视 RGB-D 相机、关节位置、末端位姿、目标位置和夹爪接触力
 - IK 专家、机械臂 PD 控制、夹爪力斜坡和末端步长限制
 - 检测、接近、抓取、接触验证、抬升、搬运、释放、重试和安全中止闭环

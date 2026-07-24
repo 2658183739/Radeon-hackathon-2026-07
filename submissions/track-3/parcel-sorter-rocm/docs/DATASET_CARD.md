@@ -26,8 +26,9 @@ latest camera frame is held between camera updates.
 Parcel size, mass, friction, XY position, yaw, destination, camera position, and
 action delay are deterministic functions of seed and episode index. The baseline
 ACT data uses `configs/baseline.toml`; the catalog generator uses
-`configs/catalog_v1.toml` with seven weighted training profiles and four
-evaluation-only industry-size profiles. Genesis creates Box and Cylinder
+`configs/catalog_v1.toml` with seven weighted training profiles; catalog v2
+has twelve balanced training profiles and nine evaluation-only industry-size
+profiles. Genesis creates Box and Cylinder
 geometry explicitly, and the catalog evaluator keeps stable profile episode IDs.
 
 ## Inclusion policy

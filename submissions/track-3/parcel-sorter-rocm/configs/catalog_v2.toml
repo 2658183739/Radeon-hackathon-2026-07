@@ -242,6 +242,97 @@ pregrasp_tolerance_m = 0.01
 grasp_stability_steps = 3
 
 [[parcel_profiles]]
+profile_id = "usps_large_flat_rate"
+shape = "box"
+orientation_mode = "yaw"
+handling_class = "suction_required"
+material = "corrugated_cardboard"
+selection_weight = 0.0
+evaluation_only = true
+dimensions_min_m = [0.311150, 0.311150, 0.152400]
+dimensions_max_m = [0.311150, 0.311150, 0.152400]
+mass_kg_min = 0.30
+mass_kg_max = 5.00
+friction_min = 0.35
+friction_max = 1.00
+provenance = "USPS Priority Mail Large Flat Rate Box outside dimensions; suction boundary profile"
+source_url = "https://store.usps.com/store/product/priority-mail-large-flat-rate-box-LARGE_FRB"
+
+[[parcel_profiles]]
+profile_id = "usps_flat_rate_envelope_proxy"
+shape = "box"
+orientation_mode = "yaw"
+handling_class = "suction_required"
+material = "paperboard_mailer"
+selection_weight = 0.0
+evaluation_only = true
+dimensions_min_m = [0.317500, 0.241300, 0.010000]
+dimensions_max_m = [0.317500, 0.241300, 0.010000]
+mass_kg_min = 0.05
+mass_kg_max = 0.80
+friction_min = 0.30
+friction_max = 0.85
+provenance = "USPS flat-rate envelope outer-size rigid proxy; deformable mailer not yet modeled"
+source_url = "https://store.usps.com/store/product/priority-mail-flat-rate-envelope-P_EP14F"
+
+[[parcel_profiles]]
+profile_id = "large_rectangular_carton_boundary"
+shape = "box"
+orientation_mode = "yaw"
+handling_class = "suction_required"
+material = "corrugated_cardboard"
+selection_weight = 0.0
+evaluation_only = true
+dimensions_min_m = [0.360, 0.240, 0.120]
+dimensions_max_m = [0.550, 0.360, 0.280]
+mass_kg_min = 0.50
+mass_kg_max = 8.00
+friction_min = 0.35
+friction_max = 1.00
+provenance = "large e-commerce carton stress range anchored by USPS large/board-game products"
+source_url = "https://store.usps.com/store/product/priority-mail-board-game-large-flat-rate-box-GB_FRB"
+
+[[parcel_profiles]]
+profile_id = "large_square_carton_boundary"
+shape = "box"
+orientation_mode = "yaw"
+handling_class = "suction_required"
+material = "corrugated_cardboard"
+selection_weight = 0.0
+evaluation_only = true
+dimensions_min_m = [0.300, 0.300, 0.120]
+dimensions_max_m = [0.450, 0.450, 0.300]
+mass_kg_min = 0.50
+mass_kg_max = 8.00
+friction_min = 0.35
+friction_max = 1.00
+provenance = "large square-carton boundary range; exact carrier SKU varies by service"
+source_url = "https://pe.usps.com/text/dmm300/Notice123.htm"
+
+[[parcel_profiles]]
+profile_id = "large_cylinder_boundary"
+shape = "cylinder"
+orientation_mode = "horizontal"
+handling_class = "cradle_required"
+material = "kraft_tube"
+selection_weight = 0.0
+evaluation_only = true
+dimensions_min_m = [0.450, 0.080, 0.080]
+dimensions_max_m = [0.750, 0.160, 0.160]
+mass_kg_min = 0.30
+mass_kg_max = 4.00
+friction_min = 0.25
+friction_max = 0.80
+provenance = "large cylindrical express-parcel boundary range below the USPS length/girth rule"
+source_url = "https://pe.usps.com/text/dmm300/Notice123.htm"
+rolling_friction = 0.005
+final_approach_step_m = 0.005
+lift_step_m = 0.010
+finger_friction = 2.0
+pregrasp_tolerance_m = 0.010
+grasp_stability_steps = 3
+
+[[parcel_profiles]]
 profile_id = "near_limit_box"
 shape = "box"
 orientation_mode = "yaw"

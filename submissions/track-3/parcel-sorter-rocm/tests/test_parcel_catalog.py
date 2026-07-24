@@ -96,6 +96,33 @@ class ParcelCatalogTests(unittest.TestCase):
         self.assertTrue(all(profile.evaluation_only for profile in carrier_profiles))
         self.assertTrue(all(profile.source_url.startswith("https://") for profile in carrier_profiles))
 
+    def test_catalog_v2_covers_large_box_and_cylinder_boundaries(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "catalog_v2.toml")
+        by_id = {profile.profile_id: profile for profile in config.parcel_profiles}
+        training = [profile for profile in config.parcel_profiles if not profile.evaluation_only]
+        evaluation = [profile for profile in config.parcel_profiles if profile.evaluation_only]
+
+        self.assertEqual(len(training), 12)
+        self.assertEqual(len(evaluation), 9)
+        required = {
+            "usps_large_flat_rate": ("box", "suction_required"),
+            "large_rectangular_carton_boundary": ("box", "suction_required"),
+            "large_square_carton_boundary": ("box", "suction_required"),
+            "large_cylinder_boundary": ("cylinder", "cradle_required"),
+        }
+
+        for profile_id, expected in required.items():
+            with self.subTest(profile_id=profile_id):
+                profile = by_id[profile_id]
+                self.assertEqual((profile.shape, profile.handling_class), expected)
+                self.assertTrue(profile.evaluation_only)
+                self.assertEqual(profile.selection_weight, 0.0)
+                self.assertTrue(profile.source_url.startswith("https://"))
+
+        self.assertGreater(by_id["large_rectangular_carton_boundary"].dimensions_max_m[0], 0.5)
+        self.assertGreater(by_id["large_square_carton_boundary"].dimensions_max_m[1], 0.4)
+        self.assertGreater(by_id["large_cylinder_boundary"].dimensions_max_m[0], 0.7)
+
     def test_horizontal_tube_has_explicit_rolling_resistance_candidate(self) -> None:
         config = load_config(PROJECT_ROOT / "configs" / "catalog_v2.toml")
         profile = next(item for item in config.parcel_profiles if item.profile_id == "mailing_tube")

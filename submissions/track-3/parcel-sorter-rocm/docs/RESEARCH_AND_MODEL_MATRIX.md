@@ -97,6 +97,65 @@ Repository and model pages used for compatibility/license facts:
 - https://huggingface.co/Stanford-ILIAD/prism-qwen25-extra-dinosiglip-224px-0_5b
 - https://huggingface.co/VLA-Adapter/LIBERO-Spatial-Pro
 
+## Verified retrieval snapshot
+
+The following targeted requests were repeated for this work session rather than
+copied from a secondary list. The arXiv export API returned the paper title and
+publication date for every identifier; the GitHub API returned repository
+license metadata. These facts select experiments, but they do not prove task
+performance or transitive license compatibility.
+
+| Artifact | Retrieval result | Engineering consequence |
+| --- | --- | --- |
+| ACT, arXiv `2304.13705` | *Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware*, published 2023-04-23 | Keep action chunking as the low-data baseline |
+| Diffusion Policy, arXiv `2303.04137` | *Diffusion Policy: Visuomotor Policy Learning via Action Diffusion*, published 2023-03-07 | Train the matched stochastic-action comparison |
+| DP3, arXiv `2403.03954` | *3D Diffusion Policy: Generalizable Visuomotor Policy Learning via Simple 3D Representations*, published 2024-03-06 | Defer native point clouds until depth-view ablation is positive |
+| Consistency Policy, arXiv `2405.07503` | *Consistency Policy: Accelerated Visuomotor Policies via Consistency Distillation*, published 2024-05-13 | Use only if Diffusion latency fails the gate |
+| OpenVLA, arXiv `2406.09246` | *OpenVLA: An Open-Source Vision-Language-Action Model*, published 2024-06-13 | Research reference; weight terms and CUDA stack need separate audit |
+| Octo, arXiv `2405.12213` | *Octo: An Open-Source Generalist Robot Policy*, published 2024-05-20 | Research reference; JAX/ROCm is a separate risk |
+| RDT-1B, arXiv `2410.07864` | *RDT-1B: a Diffusion Foundation Model for Bimanual Manipulation*, published 2024-10-10 | Compatibility fallback, not the first single-arm route |
+| pi0, arXiv `2410.24164` | *$\\pi_0$: A Vision-Language-Action Flow Model for General Robot Control*, published 2024-10-31 | Frontier reference; official NVIDIA constraint keeps it outside the main path |
+| SmolVLA, arXiv `2506.01844` | *SmolVLA: A Vision-Language-Action Model for Affordable and Efficient Robotics*, published 2025-06-02 | Hold until checkpoint license is explicit |
+| `huggingface/lerobot` | GitHub API: Apache-2.0, default branch `main` | Use pinned LeRobot policy/data interfaces |
+| `OpenHelix-Team/VLA-Adapter` | GitHub API: MIT, default branch `main` | Candidate for isolated ROCm and recursive-license spike |
+| `Physical-Intelligence/openpi` | GitHub API: Apache-2.0, default branch `main` | Keep as reference; README's NVIDIA requirement is disqualifying for the main path |
+| `Genesis-Embodied-AI/Genesis` | GitHub API: Apache-2.0, default branch `main` | Continue Genesis physics/rendering path |
+
+The retrieval commands and exact outputs are summarized here so a learner can
+repeat them without treating search snippets as evidence:
+
+```text
+GET https://export.arxiv.org/api/query?id_list=2304.13705,2303.04137,2403.03954,2405.07503,2406.09246,2405.12213,2410.07864,2506.01844,2410.24164
+GET https://api.github.com/repos/{owner}/{repo}
+```
+
+## Parcel geometry evidence
+
+The catalog separates measured carrier products from hardware-feasible training
+strata. USPS product pages provide exact box dimensions already encoded in the
+evaluation-only profiles; USPS Notice 123 provides the official length/girth
+boundary used for the larger tube stress range. FedEx and UPS packaging pages
+are retained as qualitative packaging references, not as invented exact product
+dimensions. A profile is never described as carrier-standard unless its source
+gives a dimension.
+
+| Geometry class | Representative source or rule | Catalog treatment |
+| --- | --- | --- |
+| Small/medium/large rectangular box | USPS Small, Medium, and Board Game Flat Rate product pages | Exact evaluation-only boxes plus broader `small_carton` to `large_narrow_carton` training strata |
+| Flat mailer | USPS flat-rate packaging family | Rigid flat-mailer proxy; deformable mailer remains future work |
+| Upright cylinder | Consumer canister/tube geometry within the Panda aperture | Training profile with radius/height randomization |
+| Horizontal cylinder | USPS nonstandard cylindrical-mail rule and tube dimensions | `mailing_tube` training profile plus `large_mailing_tube` boundary profile |
+| Oversize box | USPS board-game box and length/girth rules | Evaluation-only until suction or a cradle end-effector is implemented |
+
+Sources:
+
+- https://store.usps.com/store/product/priority-mail-flat-rate-small-box-P_SMALL_FRB
+- https://store.usps.com/store/product/priority-mail-flat-rate-medium-box-1-P_O_FRB1
+- https://store.usps.com/store/product/priority-mail-board-game-large-flat-rate-box-GB_FRB
+- https://pe.usps.com/text/dmm300/Notice123.htm
+- https://www.fedex.com/en-us/shipping/packaging.html
+- https://www.ups.com/us/en/supplychain/resources/glossary-term/ups-packaging-guidelines.page
+
 Warnings: citation counts and repository activity are time-dependent. GitHub
 license metadata describes the repository, not all weights or dependencies.
 No candidate is considered ROCm-compatible until it executes on the target

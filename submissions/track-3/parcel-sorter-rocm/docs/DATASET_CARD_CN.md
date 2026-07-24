@@ -21,8 +21,8 @@
 ## 随机化
 
 包裹尺寸、质量、摩擦、XY、yaw、目标、相机位置和动作延迟由 seed 与 episode 索引确定。
-基础 ACT 数据使用 `configs/baseline.toml`；目录数据使用 `configs/catalog_v1.toml`，其中
-包含 7 类带权训练 profile 和 4 类仅评测行业尺寸 profile。Box 与 Cylinder 按实际几何
+基础 ACT 数据使用 `configs/baseline.toml`；catalog v1 包含 7 类带权训练 profile，catalog v2
+包含 12 类均衡训练 profile 和 9 类仅评测行业尺寸 profile。Box 与 Cylinder 按实际几何
 创建，目录 evaluator 维持稳定的 profile episode 编号。
 
 ## 纳入规则

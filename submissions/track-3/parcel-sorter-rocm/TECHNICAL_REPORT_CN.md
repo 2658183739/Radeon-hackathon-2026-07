@@ -37,8 +37,8 @@ Radeon 上复现。
 Genesis 1.2.3 提供 AMD GPU 物理和离屏渲染。Franka Panda 使用 Genesis 提供的 MJCF
 资产。每个 episode 生成一个刚体包裹，并随机分配左右格口。
 
-catalog v1 定义 7 类带权训练包裹；catalog v2 扩展为 12 个均衡工程分层，并保留 4 类
-只用于能力边界评测的行业尺寸。Genesis 根据 profile 创建真实 Box 或 Cylinder，而不是
+catalog v1 定义 7 类带权训练包裹；catalog v2 扩展为 12 个均衡工程分层，并保留 9 类
+只用于能力边界评测的行业尺寸（原有 4 类加本轮新增 5 类）。Genesis 根据 profile 创建真实 Box 或 Cylinder，而不是
 把圆筒伪装成盒子。每 20 回合精确分配训练权重，profile 定点评测使用稳定 episode 编号。
 
 | 参数 | 数值 |

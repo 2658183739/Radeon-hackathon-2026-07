@@ -51,8 +51,9 @@ rejects a non-HIP PyTorch build.
    and performance benchmarks.
 
 The catalog v1 adds seven weighted training profiles, while catalog v2 expands
-this to twelve balanced training strata and four evaluation-only industry-size
-boundary profiles. Both use Box/Cylinder geometry, stable profile-specific
+this to twelve balanced training strata and nine evaluation-only industry-size
+boundary profiles (four existing profiles plus five newly sourced boundaries).
+Both use Box/Cylinder geometry, stable profile-specific
 episode IDs, and a stratified evaluator. Training ranges are explicitly marked
 as Panda-aperture engineering strata; carrier dimensions carry official source
 URLs and remain evaluation-only when the current gripper cannot grasp them.
@@ -71,6 +72,7 @@ English submission documents:
 - [Model selection](docs/MODEL_SELECTION.md) / [中文](docs/MODEL_SELECTION_CN.md)
 - [Research and open-model matrix](docs/RESEARCH_AND_MODEL_MATRIX.md) / [中文](docs/RESEARCH_AND_MODEL_MATRIX_CN.md)
 - [RGB-D optimization record](docs/MULTIMODAL_OPTIMIZATION_2026-07-25.md) / [中文](docs/MULTIMODAL_OPTIMIZATION_2026-07-25_CN.md)
+- [Project status and reproduction protocol](docs/PROJECT_STATUS.md) / [中文](docs/PROJECT_STATUS_CN.md)
 
 ## Repository layout
 

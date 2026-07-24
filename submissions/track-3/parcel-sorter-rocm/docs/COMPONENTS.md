@@ -5,7 +5,7 @@
 | Physics | Pinned Genesis World 1.2.3 | Radeon physics, contact, and headless rendering verified |
 | Robot | Franka Panda MJCF from Genesis | Pick, lift, transport, and placement executed |
 | Parcel task | Random size, mass, friction, pose, and two bins | 80% over 120 episodes; fixed 10-seed baseline 90% |
-| Catalog v2 | 12 weighted Box/Cylinder training strata plus 4 evaluation boundaries | One-case-per-profile regression complete; 8/12 completed, not a success-rate claim |
+| Catalog v2 | 12 weighted Box/Cylinder training strata plus 9 evaluation boundaries | One-case-per-profile regression complete; 8/12 completed, not a success-rate claim |
 | Tube handling | Correct cylinder geometry, scoped rolling physics, axis grasp, friction pads, centered close | Lifted 35.5 mm in one diagnostic; transfer/placement still unresolved |
 | Sensors | RGB-D, joints, end-effector pose, contact | Corrected depth verified at 0.737-3.535 m on Radeon |
 | Expert | Truth-based geometry, IK, PD, gripper force | 96/120 formal success; phase-aware approach added |

@@ -82,8 +82,9 @@ function of the project seed and episode index, so a failure can be replayed
 exactly with `--start-episode`.
 
 Catalog v1 defines seven weighted training profiles; catalog v2 expands this to
-twelve balanced engineering strata while retaining four evaluation-only
-industry-size boundaries. Genesis creates actual Box or Cylinder geometry. A
+twelve balanced engineering strata while retaining nine evaluation-only
+industry-size boundaries (four existing profiles and five newly sourced
+boundaries). Genesis creates actual Box or Cylinder geometry. A
 20-episode block has an exact profile allocation, and profile-specific
 evaluation uses stable episode IDs even when the evaluator filters profiles.
 
