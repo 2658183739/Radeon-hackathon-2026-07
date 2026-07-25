@@ -35,6 +35,13 @@ the full dataset or checkpoint.
 | `expert/radeon-retry-retreat-ab-v1-baseline-failure-analysis.json` | Baseline trace-derived failure attribution | `b468064bdbd200e5b021cddda98856e9124c01a5033ae8c807850a5d5fcd99e6` |
 | `expert/radeon-retry-retreat-ab-v1-candidate-failure-analysis.json` | Candidate trace-derived retry and force attribution | `36a826c40de6d3743f0fdc4e50eb9302478a9068ac8194d33b0b3ed9b0dcf10f` |
 | `expert/radeon-retry-retreat-ab-v1-SHA256SUMS` | Hash manifest for the recovery-aware retry experiment | N/A |
+| `expert/radeon-approach-step-ab-v1-baseline-summary.json` | Compact baseline summary for the 40 mm approach-step control | `40274f8e6149a8aeb26129933c47aba2e43c84679e30be3f75dafd5c85125d89` |
+| `expert/radeon-approach-step-ab-v1-candidate-summary.json` | Compact rejected 20 mm approach-step summary | `ed7f367eac7e16def48d4198088179836a6e60323b16e2aa30033b63f6a3e489` |
+| `expert/radeon-approach-step-ab-v1-comparison.json` | Matched A/B comparison and acceptance gates | `1e7a66633d4b4b1bb2ebae3eb33753bd634c25b361acb631342ccd29b299e52b` |
+| `expert/radeon-approach-step-ab-v1-baseline-failure-analysis.json` | Trace-derived baseline failure attribution | `d9b237a79e0c3adcb0c799481df6bac9a74b0bef04935f4cde0d7b1b95b3a568` |
+| `expert/radeon-approach-step-ab-v1-candidate-failure-analysis.json` | Trace-derived candidate failure attribution | `2fa7f0a7a4a674855199e152b5f6de2e06e1e16d588a5f4ce4806d7015622c34` |
+| `expert/radeon-approach-step-ab-v1-SHA256SUMS` | Local compact-artifact hash manifest | N/A |
+| `expert/radeon-approach-step-ab-v1-remote-SHA256SUMS` | Remote full-summary and runtime-artifact hash manifest | `9651fd81e8e65609d6e3fc222a6fb94101cf4dd7d407b35f381f6084648c7b39` |
 | `benchmarks/parallel-radeon.json` | 1/16/64/128 environment Genesis sweep | `120e9fc4e972ebf9d4b22d4a00a5f100dba8481d65dba6cc1eca8814bb570398` |
 | `benchmarks/act-training-amp-b32.log` | 200-step AMP, batch 32 throughput run | `36cc6539305a0585fe7d5b4db3fd62155fa2acef75f6fef1c045efca44215cbe` |
 | `benchmarks/act-training-fp32-b8.log` | 200-step FP32, batch 8 throughput run | `009384c98d41b0bcf5876f275044a6d15172183d7b554927b4fcfbcf0a57f92e` |
@@ -52,6 +59,11 @@ randomization values, terminal state, and task metrics. ACT evaluation files
 also contain the deterministic episode range and inference latency samples.
 The rejected candidate is intentionally retained: reproducibility includes
 negative results, and the comparison records why it must not become the default.
+
+The approach-step A/B compact summaries omit per-frame traces but retain the
+source summary path, byte count, SHA-256, full configuration, randomization,
+terminal result, and per-profile metrics. The remote manifest is the digest for
+the full trace-rich files on the Radeon instance.
 
 The 400-attempt failure analysis is derived from the trace-rich remote summary,
 whose path, byte count, and SHA-256 are embedded in the artifact. It contains

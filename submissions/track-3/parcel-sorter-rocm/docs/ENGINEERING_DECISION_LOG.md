@@ -1148,3 +1148,39 @@ comparison contract.
 and throughput gates before a full-catalog regression. Otherwise retain the
 artifacts as evidence and keep the switch disabled. Record the command and
 SHA-256 with the commit.
+
+### 56. Reject the 20 mm approach-step candidate after matched Radeon A/B
+
+**Question.** Would reducing every free-space `MOVE_PREGRASP` step from 40 mm
+to 20 mm prevent the approach-stage failures observed in the
+`large_narrow_carton` diagnostic profile?
+
+**Controlled change.** Add `control.approach_step_m` and change only that value
+for the candidate. The reset pose, physics, random episode IDs (`7000000`-
+`7000019`), profile filter, 35 N contact-force limit, retry policy, and runtime
+environment stayed fixed. The candidate was run on one AMD Radeon GPU through
+ROCm with the same Genesis and PyTorch stack.
+
+**Evidence.** Baseline: 1/20 successes, 12/20 force aborts, 0 drops, 111.28 N
+maximum contact force. Candidate: 0/20 successes, 12/20 force aborts, 0 drops,
+161.28 N maximum contact force. Failure analysis attributes both runs mainly to
+approach timeouts and force safety aborts in `large_narrow_carton`; the
+candidate also regressed episode `7000005`. The comparison returns
+`repeat_or_reject` and records `control.approach_step_m` as the only config
+difference.
+
+**Decision.** Reject the candidate and keep the default at 40 mm. A smaller
+step does not address the limiting failure mode and increases peak force in
+this matched sample. Do not use this result to justify more data collection or
+model ranking.
+
+**Implementation and auditability.** Add the typed config field, CLI override,
+validation, fixed A/B runner, trace-derived failure analysis, compact summary
+writer, logs, and local/remote SHA-256 manifests. The compact artifacts omit
+per-frame traces only; they retain the source summary path, byte count, digest,
+runtime, configuration, randomization, and per-episode outcomes.
+
+**Revisit trigger.** Reconsider approach-step changes only after a controller
+change addresses the approach/retry state machine and passes the predeclared
+absolute success, force-abort, drop, profile, and throughput gates on a larger
+fixed set.

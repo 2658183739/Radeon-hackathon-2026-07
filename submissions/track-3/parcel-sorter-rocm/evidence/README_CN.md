@@ -33,6 +33,13 @@
 | `expert/radeon-retry-retreat-ab-v1-baseline-failure-analysis.json` | 基线轨迹级失败归因 | `b468064bdbd200e5b021cddda98856e9124c01a5033ae8c807850a5d5fcd99e6` |
 | `expert/radeon-retry-retreat-ab-v1-candidate-failure-analysis.json` | 候选重试和力指标轨迹归因 | `36a826c40de6d3743f0fdc4e50eb9302478a9068ac8194d33b0b3ed9b0dcf10f` |
 | `expert/radeon-retry-retreat-ab-v1-SHA256SUMS` | 恢复感知重试实验哈希清单 | N/A |
+| `expert/radeon-approach-step-ab-v1-baseline-summary.json` | 40 mm 接近步长基线的压缩 summary | `40274f8e6149a8aeb26129933c47aba2e43c84679e30be3f75dafd5c85125d89` |
+| `expert/radeon-approach-step-ab-v1-candidate-summary.json` | 被拒绝的 20 mm 接近步长压缩 summary | `ed7f367eac7e16def48d4198088179836a6e60323b16e2aa30033b63f6a3e489` |
+| `expert/radeon-approach-step-ab-v1-comparison.json` | 匹配 A/B 比较和验收门禁 | `1e7a66633d4b4b1bb2ebae3eb33753bd634c25b361acb631342ccd29b299e52b` |
+| `expert/radeon-approach-step-ab-v1-baseline-failure-analysis.json` | 基线轨迹级失败归因 | `d9b237a79e0c3adcb0c799481df6bac9a74b0bef04935f4cde0d7b1b95b3a568` |
+| `expert/radeon-approach-step-ab-v1-candidate-failure-analysis.json` | 候选轨迹级失败归因 | `2fa7f0a7a4a674855199e152b5f6de2e06e1e16d588a5f4ce4806d7015622c34` |
+| `expert/radeon-approach-step-ab-v1-SHA256SUMS` | 本地压缩产物哈希清单 | N/A |
+| `expert/radeon-approach-step-ab-v1-remote-SHA256SUMS` | Radeon 远端完整 summary 与运行产物哈希清单 | `9651fd81e8e65609d6e3fc222a6fb94101cf4dd7d407b35f381f6084648c7b39` |
 | `benchmarks/parallel-radeon.json` | 1/16/64/128 环境仿真扫描 |
 | `benchmarks/act-training-*.log` | FP32/AMP 与 batch 吞吐测试 |
 | `catalog/catalog-v1-submit-smoke.json` | 最终 20 秒、7 类 profile 目录回归烟雾 |

@@ -72,6 +72,12 @@ def main() -> int:
         default=None,
         help="retreat this many metres laterally before a post-failure retry approach",
     )
+    parser.add_argument(
+        "--approach-step",
+        type=float,
+        default=None,
+        help="limit every MOVE_PREGRASP Cartesian step for a controlled diagnostic",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -95,6 +101,7 @@ def main() -> int:
         args.size_aware_approach
         or args.approach_clearance_margin is not None
         or args.retry_retreat_distance is not None
+        or args.approach_step is not None
     ):
         config = replace(
             config,
@@ -114,6 +121,11 @@ def main() -> int:
                     else args.retry_retreat_distance
                 ),
             ),
+        )
+    if args.approach_step is not None:
+        config = replace(
+            config,
+            control=replace(config.control, approach_step_m=args.approach_step),
         )
     try:
         config.validate()

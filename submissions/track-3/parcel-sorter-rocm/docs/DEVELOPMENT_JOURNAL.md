@@ -554,3 +554,25 @@ closed, even though the baseline summary was complete. Both A/B runners now
 redirect each expert leg to a versioned log inside the output root and hash the
 logs with the summaries and comparison. This is an operational reproducibility
 fix, not a task-performance claim.
+
+### Record 52: reject a smaller free-space approach step and preserve compact evidence
+
+The failure analyzer showed that the diagnostic carton profile is dominated by
+approach timeouts and force safety aborts. I tested one hypothesis in isolation:
+reduce `control.approach_step_m` from 0.040 m to 0.020 m on the same 20 Radeon
+episodes. The candidate reached 0/20 successes versus 1/20 for the baseline,
+kept 12/20 force aborts, and raised peak force from 111.28 N to 161.28 N. It
+was rejected and the historical 40 mm default remains active.
+
+The full summaries contain 600 trace frames per episode, so I added
+`scripts/compact_expert_summary.py`. It preserves the source digest and size,
+runtime, complete configuration, episode randomization, terminal results, and
+profile summaries while explicitly marking `trace_omitted`. The remote full
+summaries and their remote hash manifest remain the provenance record; Git
+stores the compact summaries, failure analyses, logs, comparison, and a local
+hash manifest. This keeps review artifacts small without presenting a compact
+file as if it contained raw traces.
+
+Validation: 101 Radeon unit tests, shell syntax validation, the two failure
+analyses, and the machine comparison completed. The next experiment must target
+the approach/retry state machine rather than tuning this step in isolation.

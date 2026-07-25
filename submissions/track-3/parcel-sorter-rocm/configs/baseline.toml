@@ -50,6 +50,7 @@ close_force_ramp_n_per_step = 1.0
 max_ee_step_m = 0.04
 # Experimental knob. A 0.01 m candidate regressed in the matched 120-episode run.
 final_approach_step_m = 0.04
+approach_step_m = 0.04
 
 [output]
 root_dir = "outputs"

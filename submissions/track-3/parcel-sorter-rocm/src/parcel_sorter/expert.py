@@ -88,10 +88,13 @@ class ScriptedPickPlaceExpert:
             self._grasp_origin_xy = (parcel[0], parcel[1])
 
         step_limit = self.config.control.max_ee_step_m
-        if command == Command.MOVE_PREGRASP and self._is_final_approach(current, parcel):
-            step_limit = self.config.control.final_approach_step_m
-            if self.sample.final_approach_step_m is not None:
-                step_limit = min(step_limit, self.sample.final_approach_step_m)
+        if command == Command.MOVE_PREGRASP:
+            if self.config.control.approach_step_m is not None:
+                step_limit = min(step_limit, self.config.control.approach_step_m)
+            if self._is_final_approach(current, parcel):
+                step_limit = min(step_limit, self.config.control.final_approach_step_m)
+                if self.sample.final_approach_step_m is not None:
+                    step_limit = min(step_limit, self.sample.final_approach_step_m)
         elif command == Command.MOVE_LIFT and self.sample.lift_step_m is not None:
             step_limit = min(step_limit, self.sample.lift_step_m)
         target = self._bounded_step(current, desired, step_limit)

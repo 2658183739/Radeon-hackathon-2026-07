@@ -107,6 +107,7 @@ class ControlConfig:
     close_force_ramp_n_per_step: float
     max_ee_step_m: float
     final_approach_step_m: float
+    approach_step_m: float | None = None
     reset_qpos: tuple[float, ...] = DEFAULT_RESET_QPOS
 
     def validate(self) -> None:
@@ -126,6 +127,10 @@ class ControlConfig:
             raise ValueError("Cartesian step limits must be positive")
         if self.final_approach_step_m > self.max_ee_step_m:
             raise ValueError("final_approach_step_m cannot exceed max_ee_step_m")
+        if self.approach_step_m is not None and (
+            self.approach_step_m <= 0 or self.approach_step_m > self.max_ee_step_m
+        ):
+            raise ValueError("approach_step_m must be positive and cannot exceed max_ee_step_m")
         if len(self.reset_qpos) != 9 or any(not math.isfinite(value) for value in self.reset_qpos):
             raise ValueError("reset_qpos must contain nine finite joint positions")
 

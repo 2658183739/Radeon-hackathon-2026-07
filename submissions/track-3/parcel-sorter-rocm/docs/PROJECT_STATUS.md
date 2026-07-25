@@ -139,3 +139,18 @@ are indexed under `evidence/expert/radeon-size-aware-ab-v1-*`.
 The recovery-aware retry diagnostic improved the matched result to 2/20 with
 one recovered episode and no regression, but still had 11/20 force aborts. It
 remains disabled by default pending a larger pre-registered recovery study.
+
+## Latest controlled experiment: approach-step A/B
+
+The next isolated change added `control.approach_step_m` and tested 20 mm
+free-space steps against the 40 mm baseline on the same 20 Radeon episodes.
+The candidate was rejected: 0/20 versus 1/20 successes, 12/20 force aborts in
+both arms, 0 drops in both arms, and 161.28 N versus 111.28 N peak force. The
+failure analyses identify the same `large_narrow_carton` approach/retry
+bottleneck. The default remains 40 mm.
+
+Evidence is indexed under `evidence/expert/radeon-approach-step-ab-v1-*`.
+Compact summaries omit only per-frame traces and include source paths, sizes,
+and SHA-256 values. The next engineering target is the approach/retry state
+machine; no batch collection or model selection should start from this
+negative control.

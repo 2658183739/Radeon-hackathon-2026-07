@@ -149,6 +149,19 @@ class ScriptedExpertTests(unittest.TestCase):
         self.assertAlmostEqual(distance, candidate_config.control.final_approach_step_m)
         self.assertLess(distance, candidate_config.control.max_ee_step_m)
 
+    def test_free_space_approach_can_use_a_separate_step_limit(self) -> None:
+        decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)
+        candidate_config = replace(
+            self.config,
+            control=replace(self.config.control, approach_step_m=0.02),
+        )
+        expert = ScriptedPickPlaceExpert(candidate_config, self.sample)
+        action = expert.action(decision, self.state)
+        distance = math.dist(action.target_position, self.state.end_effector_pose[:3])
+
+        self.assertAlmostEqual(distance, 0.02)
+        self.assertLess(distance, candidate_config.control.max_ee_step_m)
+
     def test_profile_can_reduce_final_approach_step(self) -> None:
         sample = replace(self.sample, final_approach_step_m=0.005)
         expert = ScriptedPickPlaceExpert(self.config, sample)
