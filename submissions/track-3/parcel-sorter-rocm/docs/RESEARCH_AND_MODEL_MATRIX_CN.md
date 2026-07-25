@@ -98,6 +98,26 @@ GitHub 的 license 字段不覆盖所有模型和依赖。任何方法只有在�
 | DROID，RSS 2024 | *DROID: A Large-Scale In-The-Wild Robot Manipulation Dataset* | 支持“数据多样性优先”，但不能直接复用到当前 embodiment |
 | AXIS，arXiv `2607.21588` | *AXIS: A Growable Community-Driven Data Engine for Scalable Robot Manipulation* | 很新的数据引擎信号，不能作为当前任务证据 |
 | 偏差感知采集，arXiv `2607.21582` | *Scale Up Strategically: Learning Compositional Generalization via Bias-Aware Evaluation and Data Collection for Robotic Manipulation* | 支持在冻结基线后按失败分层补采 |
+
+## 2026 分层规划与世界模型审计
+
+本轮审计在冻结几何 campaign 运行期间完成，不改变当前方法，也不占用其 GPU 时间。
+
+| 方法 | 检索证据 | 对项目的价值 | 决策 |
+|---|---|---|---|
+| 3D HAMSTER，arXiv `2606.31329` | RGB-D 与语言生成米制 3D 末端轨迹，再接点云低层策略 | 架构上适合未来放在现有安全控制器上层 | 研究暂缓：仓库根目录没有可验证许可证，审计时也没有论文低层策略代码 |
+| SeededGrasp，arXiv `2607.20207` | VLM 预测语义种子点，轻量几何模型生成抓取；摘要报告 250 万抓取、仿真 72%、真实 78% | 在不替换几何执行的前提下增加语言，概念匹配度最高 | 许可证与代码完整性未过门禁，只作为论文对照 |
+| V2F，arXiv `2607.19804` | 视觉几何加物理残差网络预测安全抓取力包络 | 适合未来易损包裹与损伤感知评分 | 先完成刚性包裹主线；当前缺少柔顺材料标签和损伤指标 |
+| RoboInter1.5，arXiv `2607.18709` | 中间表征连接 VQA、VLA、抓取/接触/轨迹标注和受控世界预测 | 支持模块化 plan-then-execute 与可解释训练目标 | 仅研究：发布时间过新；仓库搜索显示 MIT，但权重、数据和传递条款未审计 |
+
+工程结论保持保守：下一项控制干预不是大型端到端 VLA 或世界模型。若风险门控几何方法通过确认，
+第一个学习扩展应只预测语义/视觉种子，继续保留已审计的 IK、碰撞过滤、35 N 中止和确定性恢复。
+世界模型以后可以评估或排序候选结果，但不能绕过安全 supervisor。
+
+检索来源（2026-07-25）：arXiv export 的 `id_list=2606.31329`；按提交日期排序的
+`cat:cs.RO AND all:"grasp pose" AND (all:collision OR all:feasibility)`；GitHub 的
+`SeededGrasp` 与 `RoboInter` 仓库搜索。随后 GitHub core API 额度耗尽，raw README 也因网络超时，
+因此许可证/完整性缺口被明确记录为阻塞，不能当成已经批准。
 | `huggingface/lerobot` | GitHub API：Apache-2.0，默认分支 `main` | 使用固定的 LeRobot 数据/策略接口 |
 | `OpenHelix-Team/VLA-Adapter` | GitHub API：MIT，默认分支 `main` | 做独立 ROCm 与递归许可证试验 |
 | `Physical-Intelligence/openpi` | GitHub API：Apache-2.0，默认分支 `main` | 作为参考；README 的 NVIDIA 要求不满足主线 |

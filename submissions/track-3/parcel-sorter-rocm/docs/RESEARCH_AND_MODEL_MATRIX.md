@@ -128,6 +128,35 @@ performance or transitive license compatibility.
 | Bias-aware collection, arXiv `2607.21582` | *Scale Up Strategically: Learning Compositional Generalization via Bias-Aware Evaluation and Data Collection for Robotic Manipulation* | Motivates failure-stratified recollection after the frozen baseline |
 | `huggingface/lerobot` | GitHub API: Apache-2.0, default branch `main` | Use pinned LeRobot policy/data interfaces |
 | `OpenHelix-Team/VLA-Adapter` | GitHub API: MIT, default branch `main` | Candidate for isolated ROCm and recursive-license spike |
+
+## 2026 hierarchical planning and world-model audit
+
+This audit was performed while the frozen geometry campaign was running; it
+does not alter the current method or allocate GPU time away from it.
+
+| Method | Retrieved evidence | Project fit | Decision |
+|---|---|---|---|
+| 3D HAMSTER, arXiv `2606.31329` | RGB-D and language to metric 3D end-effector trajectories; the paper integrates them with a point-cloud low-level policy | Architecturally matches a future high-level planner above the existing safety controller | Research hold: repository root had no verifiable license and the released repository did not contain the paper's low-level policy at audit time |
+| SeededGrasp, arXiv `2607.20207` | VLM predicts a semantic seed point and a lightweight geometric model generates grasps; abstract reports 2.5M grasps, 72% simulation success, and 78% real success | Strongest conceptual match for adding language without replacing geometric execution | License/code-completeness gate not passed; use only as a paper baseline until repository and data terms are audited |
+| V2F, arXiv `2607.19804` | Vision-derived geometry plus a physics-informed residual network predicts a safe grasp-force envelope | Relevant future innovation for fragile parcels and damage-aware scoring | Defer until rigid parcel geometry succeeds; requires compliant material labels and a damage metric not present in the current task |
+| RoboInter1.5, arXiv `2607.18709` | Intermediate representations connect VQA, VLA execution, grasp/contact/motion annotations, and conditioned world prediction | Supports a modular plan-then-execute design and interpretable training targets | Research only: too recent for a stable dependency baseline; repository search reported MIT but checkpoints, datasets, and transitive terms remain unaudited |
+
+The engineering consequence is conservative. A large end-to-end VLA or world
+model is not the next control intervention. If the risk-gated geometric method
+passes confirmation, the first learned extension should predict a semantic or
+visual seed while retaining audited IK, collision filtering, 35 N force abort,
+and deterministic recovery. A world model may later rank or simulate candidate
+outcomes, but it must not bypass the safety supervisor.
+
+Retrieval provenance, accessed 2026-07-25:
+
+- arXiv export `GET /api/query?id_list=2606.31329` for 3D HAMSTER;
+- arXiv export topic query `cat:cs.RO AND all:"grasp pose" AND
+  (all:collision OR all:feasibility)`, sorted by submission date, which returned
+  SeededGrasp, V2F, and RoboInter1.5;
+- GitHub repository search for `SeededGrasp` and `RoboInter`; repository-core
+  API quota was then exhausted and raw README retrieval timed out. Those gaps
+  are recorded as license/completeness blockers, not treated as approval.
 | `Physical-Intelligence/openpi` | GitHub API: Apache-2.0, default branch `main` | Keep as reference; README's NVIDIA requirement is disqualifying for the main path |
 | `Genesis-Embodied-AI/Genesis` | GitHub API: Apache-2.0, default branch `main` | Continue Genesis physics/rendering path |
 
