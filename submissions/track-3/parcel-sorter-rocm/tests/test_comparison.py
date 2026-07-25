@@ -63,6 +63,27 @@ class ExpertComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "thresholds differ"):
             compare_expert_runs(baseline, candidate)
 
+    def test_config_difference_contract_requires_exact_paths(self) -> None:
+        baseline = _run((True,), (10.0,))
+        candidate = _run((True,), (10.0,))
+        baseline["config"]["control"] = {"reset_qpos": [0.0, 1.0]}
+        candidate["config"]["control"] = {"reset_qpos": [0.5, 1.0]}
+
+        result = compare_expert_runs(
+            baseline,
+            candidate,
+            allowed_config_differences=("control.reset_qpos",),
+        )
+        self.assertEqual(result["config_difference_paths"], ["control.reset_qpos"])
+
+        candidate["config"]["task"]["episode_seconds"] = 30.0
+        with self.assertRaisesRegex(ValueError, "unexpected=.*task.episode_seconds"):
+            compare_expert_runs(
+                baseline,
+                candidate,
+                allowed_config_differences=("control.reset_qpos",),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

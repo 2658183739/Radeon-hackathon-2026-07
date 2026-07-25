@@ -19,9 +19,23 @@ def main() -> int:
     parser.add_argument("--baseline", required=True)
     parser.add_argument("--candidate", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument(
+        "--allowed-config-difference",
+        action="append",
+        dest="allowed_config_differences",
+        help="require config differences to match exactly; repeat for multiple paths",
+    )
     args = parser.parse_args()
 
-    result = compare_expert_runs(_load(args.baseline), _load(args.candidate))
+    result = compare_expert_runs(
+        _load(args.baseline),
+        _load(args.candidate),
+        allowed_config_differences=(
+            tuple(args.allowed_config_differences)
+            if args.allowed_config_differences is not None
+            else None
+        ),
+    )
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", encoding="utf-8") as handle:

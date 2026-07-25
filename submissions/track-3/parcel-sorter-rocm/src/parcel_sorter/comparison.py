@@ -6,6 +6,8 @@ from typing import Any
 def compare_expert_runs(
     baseline: dict[str, Any],
     candidate: dict[str, Any],
+    *,
+    allowed_config_differences: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     baseline_episodes = _episode_map(baseline, "baseline")
     candidate_episodes = _episode_map(candidate, "candidate")
@@ -22,6 +24,20 @@ def compare_expert_runs(
         raise ValueError(
             "contact-force thresholds differ; comparisons require the same safety boundary"
         )
+    config_difference_paths = _difference_paths(
+        baseline.get("config", {}),
+        candidate.get("config", {}),
+    )
+    if allowed_config_differences is not None:
+        allowed = set(allowed_config_differences)
+        observed = set(config_difference_paths)
+        if observed != allowed:
+            missing = sorted(allowed - observed)
+            unexpected = sorted(observed - allowed)
+            raise ValueError(
+                "config differences do not match the experiment contract; "
+                f"missing={missing}, unexpected={unexpected}"
+            )
     baseline_summary = baseline["summary"]
     candidate_summary = candidate["summary"]
     recovered = []
@@ -63,6 +79,7 @@ def compare_expert_runs(
     return {
         "episode_count": count,
         "contact_force_threshold_n": threshold,
+        "config_difference_paths": config_difference_paths,
         "baseline_summary": baseline_summary,
         "candidate_summary": candidate_summary,
         "success_rate_delta": float(candidate_summary["success_rate"])
@@ -78,6 +95,23 @@ def compare_expert_runs(
         "acceptance": acceptance,
         "recommendation": "keep" if all(acceptance.values()) else "repeat_or_reject",
     }
+
+
+def _difference_paths(
+    baseline: Any,
+    candidate: Any,
+    prefix: str = "",
+) -> list[str]:
+    if isinstance(baseline, dict) and isinstance(candidate, dict):
+        differences = []
+        for key in sorted(set(baseline) | set(candidate)):
+            path = f"{prefix}.{key}" if prefix else str(key)
+            if key not in baseline or key not in candidate:
+                differences.append(path)
+                continue
+            differences.extend(_difference_paths(baseline[key], candidate[key], path))
+        return differences
+    return [] if baseline == candidate else [prefix or "<root>"]
 
 
 def _episode_map(payload: dict[str, Any], label: str) -> dict[int, dict[str, Any]]:

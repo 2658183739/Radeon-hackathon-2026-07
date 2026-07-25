@@ -9,15 +9,21 @@ as a capability claim.
 
 On 2026-07-25, the Radeon collection completed 400 audited expert episodes.
 The strict LeRobot success dataset contains 190 episodes, split deterministically
-into 123 train, 24 validation, and 43 held-out episodes. A five-thousand-step
-ACT RGB/RGB-D smoke matrix has started with this manifest after ROCm preflight;
-the trainer confirms `cfg.steps=5000` for its first RGB seed.
+into 123 train, 24 validation, and 43 held-out episodes. The six-cell,
+five-thousand-step ACT RGB/RGB-D smoke matrix completed with ROCm preflight,
+three seeds, and six loadable checkpoints.
 
 This does **not** clear the formal data gate of at least 300 balanced successful
-RGB-D episodes. The running matrix validates training, checkpoint, and
-orchestration integration only. Formal 30K model comparison and held-out
+RGB-D episodes. The matrix validates training, checkpoint, and orchestration
+integration only, not model quality. Formal 30K model comparison and held-out
 closed-loop ranking remain blocked until additional balanced collection passes
 the same audit and a new split manifest is frozen.
+
+The matched Radeon reset-pose A/B also completed on the same 20
+`large_narrow_carton` episodes. Pose C improved success from 1/20 to 4/20 and
+raised throughput, but still produced 9/20 force aborts and regressed one
+baseline success. The comparison therefore returns `repeat_or_reject`; the
+historical default reset pose remains active.
 
 On the same Radeon, `plan_balanced_collection.py` was run against the completed
 400-episode audit manifest. It creates a stricter fresh-shard target of 360
@@ -46,8 +52,9 @@ result.
 | Sensors | Verified | RGB, metric depth, depth-RGB view, joints, end-effector pose, target, contact force |
 | Expert control | Verified as baseline | IK/PD, gripper ramp, contact verification, retry, release check, 35 N abort |
 | Closed loop | Verified for the expert path | Detection -> approach -> grasp -> lift -> transfer -> release -> recovery |
-| RGB ACT | Integrated and smoke-tested | Training/save/load/evaluation adapter; learned success is not promoted without held-out trials |
-| RGB-D ACT | Integrated and smoke-tested | Corrected metric-depth shard passes audit; one-step closed loop is interface evidence only |
+| RGB ACT | Integrated and smoke-tested | Six-cell 5K matrix produced a loadable RGB checkpoint; learned success is not promoted without held-out trials |
+| RGB-D ACT | Integrated and smoke-tested | Corrected metric-depth shard and three 5K checkpoints pass audit; model quality remains unverified |
+| Reset-pose candidate C | Radeon A/B rejected | 4/20 success, 9/20 force aborts, one regression; keep the historical default |
 | Compact Diffusion | Radeon one-step smoke | Full matched training and closed-loop comparison are pending |
 | Robustness statistics | Implemented | Per-profile metrics and Wilson 95% intervals; zero retry samples are marked unknown |
 | Balanced collection planning | Implemented and Radeon-checked | Fresh 360-success target, configuration/audit fingerprints, profile-specific budgets, and an expert-diagnostic gate |
@@ -71,9 +78,10 @@ result.
 10. package source, lock files, logs, metrics, and reproduction commands
 ```
 
-The running Radeon collection is a data-generation job, not a final model
-claim. Its output must be audited and split into train, validation, and a fixed
-held-out set before training results are reported.
+The completed Radeon collection is a data-generation artifact, not a final
+model claim. Its output is audited and split into train, validation, and a
+fixed held-out set; the completed 5K matrix still requires held-out evaluation
+before any learned result is reported.
 
 `scripts/build_dataset_split.py` is the reproducibility boundary. It maps the
 original audit episode IDs to LeRobot's compact successful-episode indices,

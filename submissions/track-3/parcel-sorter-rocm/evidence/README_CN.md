@@ -13,6 +13,13 @@
 | `act/checkpoint-4000-episodes-10-19.json` | ACT 4000 步闭环评估 |
 | `act/checkpoint-5000-episodes-10-19.json` | ACT 5000 步同种子评估 |
 | `training/act-5000-amp-b32.log` | 正式 5000 步训练日志 |
+| `training/act-model-sweep-smoke-5k-v2.json` | 六单元 ACT RGB/RGB-D 5000 步集成 smoke 清单和 checkpoint 哈希 |
+| `training/act-model-sweep-smoke-5k-v2-status.csv` | 六单元机器可读状态表，所有 status 均为 0 |
+| `expert/radeon-reset-ab-v1-comparison.json` | 匹配 Radeon reset A/B；候选 C 未通过任务/安全门禁 |
+| `expert/radeon-reset-ab-v1-baseline-summary.json` | 20 回合基线 compact summary；原始 trace 保留在云端 |
+| `expert/radeon-reset-ab-v1-candidate-c-summary.json` | 20 回合候选 C compact summary；原始 trace 保留在云端 |
+| `expert/radeon-reset-ab-v1-run.log` | Radeon 预检、Genesis 运行日志和 summary 后退出诊断 |
+| `expert/radeon-reset-ab-v1-SHA256SUMS` | reset A/B 证据哈希清单 |
 | `benchmarks/parallel-radeon.json` | 1/16/64/128 环境仿真扫描 |
 | `benchmarks/act-training-*.log` | FP32/AMP 与 batch 吞吐测试 |
 | `catalog/catalog-v1-submit-smoke.json` | 最终 20 秒、7 类 profile 目录回归烟雾 |

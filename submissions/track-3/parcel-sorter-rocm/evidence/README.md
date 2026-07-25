@@ -15,6 +15,13 @@ the full dataset or checkpoint.
 | `act/checkpoint-4000-episodes-10-19.json` | ACT 4,000-step closed-loop evaluation | `d9e4a88af2e5d0f77c3e74cc9b79f04eb62af794f3bda895132aa97b44953b0d` |
 | `act/checkpoint-5000-episodes-10-19.json` | ACT 5,000-step same-seed evaluation | `73bdbfc5b312adb7606fb1b05691fc2ab859d61cb68f25bf9a980ce8b8b63956` |
 | `training/act-5000-amp-b32.log` | Formal 5,000-step ACT training log | `862896542df367351d4e2143935441ece03d06a8d64b7401f9fefade6f1278f3` |
+| `training/act-model-sweep-smoke-5k-v2.json` | Six-cell ACT RGB/RGB-D 5,000-step integration smoke manifest and checkpoint hashes | `a144d87fe667c4ce1f5f34934747a7aa54e905106d73d97abe8db21d0362820a` |
+| `training/act-model-sweep-smoke-5k-v2-status.csv` | Machine-readable six-cell status table; all statuses are 0 | N/A |
+| `expert/radeon-reset-ab-v1-comparison.json` | Matched Radeon reset-pose A/B; candidate C rejected by safety/task gates | `42ca67ec0566297514ae898c7e1ffd8d6830ae1f26c1c88684306000cece90a6` |
+| `expert/radeon-reset-ab-v1-baseline-summary.json` | Compact 20-episode baseline summary; raw traces remain on the cloud instance | `43aca26198a4a3a51f78d47dd89ee40584fc0c976265b0deb505d3eec2615732` |
+| `expert/radeon-reset-ab-v1-candidate-c-summary.json` | Compact 20-episode pose-C summary; raw traces remain on the cloud instance | `a3aadb9f27e1c5642bac9a913e691d043b8a9ba6c7db8f85616b45651fe6ac81` |
+| `expert/radeon-reset-ab-v1-run.log` | Radeon preflight, Genesis run log, and post-summary exit diagnostic | `aef02638c6546c2d4645fca2143248d760ed88eedd396e2610bfddb807ad9a2e` |
+| `expert/radeon-reset-ab-v1-SHA256SUMS` | Hash manifest for the reset A/B evidence | N/A |
 | `benchmarks/parallel-radeon.json` | 1/16/64/128 environment Genesis sweep | `120e9fc4e972ebf9d4b22d4a00a5f100dba8481d65dba6cc1eca8814bb570398` |
 | `benchmarks/act-training-amp-b32.log` | 200-step AMP, batch 32 throughput run | `36cc6539305a0585fe7d5b4db3fd62155fa2acef75f6fef1c045efca44215cbe` |
 | `benchmarks/act-training-fp32-b8.log` | 200-step FP32, batch 8 throughput run | `009384c98d41b0bcf5876f275044a6d15172183d7b554927b4fcfbcf0a57f92e` |

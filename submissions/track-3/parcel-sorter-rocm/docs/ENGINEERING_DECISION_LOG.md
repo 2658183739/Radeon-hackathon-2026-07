@@ -1013,3 +1013,63 @@ not contend for the GPU.
 
 **Revisit trigger.** A changed sample count, target profile, or pose requires a
 versioned protocol and output root rather than a silent v1 edit.
+
+### 50. Treat the completed six-cell matrix as hashed integration evidence
+
+**Evidence.** All ACT RGB/RGB-D combinations for seeds 11, 22, and 33 finished
+5,000 steps with status 0 and produced `005000/pretrained_model` artifacts.
+
+**Decision and reason.** Add a sweep evidence builder that reads each saved
+`train_config.json` and policy config, verifies steps, seed, ACT, AMP, and the
+exact visual inputs, then hashes the split, status CSV, logs, and every
+checkpoint file. This is more reliable than scraping terminal progress text.
+
+**Boundary.** The JSON explicitly says
+`integration_smoke_only_not_model_selection`. The dataset remains unbalanced
+and below the formal 300-success gate, so the six checkpoints are not ranked.
+
+**Verification.** Six cells and six checkpoints passed; the evidence JSON has
+SHA-256 `a144d87fe667c4ce1f5f34934747a7aa54e905106d73d97abe8db21d0362820a`.
+The generator rejects an incomplete five-cell matrix. The full Radeon test
+suite reached 90 passing tests before the subsequent comparison-contract test.
+
+### 51. Reject reset pose C after matched Radeon A/B
+
+**Evidence.** On identical episodes `7000000` through `7000019` and the same
+35 N limit, the baseline completed 1/20 with 12 force aborts. Pose C completed
+4/20 with 9 force aborts, recovered four baseline failures, and regressed the
+baseline success at `7000005`. Peak force fell from 111.28 N to 85.90 N; both
+runs had zero drops.
+
+**Decision and reason.** Reject pose C and keep the historical default. It
+improves descriptive metrics but fails both predeclared gates: at least 18/20
+successes and at most 1/20 force abort. Its 4.35x throughput ratio is dominated
+by the baseline having only one success and is not a standalone optimization
+claim.
+
+**Next intervention.** Keep reset pose as a controlled variable and test a
+separate size-aware approach-clearance candidate. Do not bulk-collect new
+demonstrations until the expert safety gate passes.
+
+### 52. Require exact config differences and tolerate only verified post-summary cleanup failure
+
+**Observation.** The candidate process wrote all 20 episodes and its complete
+summary, logged normal Genesis shutdown, then exited with segmentation status
+139 during cleanup. The original one-command runner therefore stopped before
+comparison even though its scientific artifact was complete.
+
+**Decision and reason.** The runner now accepts status 139 only when a strict
+postcondition validates the expected count, unique episode IDs, evaluation
+range, and profile. Missing or incomplete summaries still fail. The comparison
+CLI also accepts an exact config-difference allowlist; reset A/B requires the
+sole difference to be `control.reset_qpos`.
+
+**Code capability.** Artifact postconditions, narrow handling of an upstream
+cleanup fault, and machine-enforced single-variable experiment contracts.
+
+**Verification.** The stored comparison reports exactly one config difference,
+`control.reset_qpos`; all 91 tests and Radeon shell syntax validation pass.
+
+**Revisit trigger.** Remove the status-139 exception when the pinned Genesis
+runtime no longer crashes after complete summary emission. Never broaden it to
+accept an incomplete run or a different exit status.

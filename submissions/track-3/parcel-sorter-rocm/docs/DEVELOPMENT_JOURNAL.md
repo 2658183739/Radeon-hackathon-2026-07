@@ -504,3 +504,27 @@ single-device ROCm preflight, and matched-sample comparison. It refuses an
 existing output root and generates a SHA-256 manifest for both summaries and
 the comparison. The script passes Radeon shell syntax validation but has not
 run yet; it waits for ACT smoke to release the only GPU.
+
+### Record 46: complete and audit the ACT 5K smoke matrix
+
+All RGB/RGB-D combinations for seeds 11, 22, and 33 completed 5,000 ACT steps
+and wrote loadable checkpoints. The new evidence builder verifies the saved
+configuration and hashes every checkpoint file, log, status table, and dataset
+split. The resulting JSON remains explicitly smoke-only; it does not rank
+models or clear the balanced-data gate.
+
+### Record 47: reject pose C on Radeon evidence
+
+The matched 20-episode run produced 1/20 baseline successes and 4/20 candidate
+successes. Force aborts decreased from 12 to 9, but pose C still failed the 90%
+success and 5% force-abort gates and regressed episode `7000005`. The default
+pose therefore remains unchanged. The next isolated controller experiment is
+size-aware approach clearance, not immediate data collection.
+
+### Record 48: preserve complete artifacts across a Genesis cleanup crash
+
+Pose C emitted a complete summary and normal Genesis exit message before a
+status-139 cleanup crash. The runner now continues only for that exact status
+when a strict summary postcondition passes. The comparison also enforces that
+`control.reset_qpos` is the sole config difference. All 91 tests pass on the
+Radeon environment.
