@@ -1023,3 +1023,35 @@ safe successful choice, but training and evaluation rows are identical. The
 result validates plumbing, checkpoint portability, and sub-millisecond warm
 batch inference only. The model remains disconnected while 12 train, six
 development, and six holdout episode IDs remain unobserved.
+
+### Record 72: Stop after the frozen development diagnostic
+
+Collection first exposed two execution-contract gaps. An episode where the
+reset-fallback gate was inactive used to stop the whole batch, despite being
+outside the scorer's decision scope. The runner now emits a structured skip
+with no labels, and the dataset layer rejects that file as training data. A
+complete six-candidate output could also be followed by the known Genesis
+interpreter-cleanup segmentation fault. The collector now accepts only
+`SIGSEGV/139` after strict identity, controller-contract, repeat-count, and
+rollout-count postconditions; truncated output remains an error.
+
+The manifest is now the dataset boundary. It selects only complete/reused
+labels, ignores explicit inactive-gate skips, verifies source hashes, and
+rejects partial campaigns. The evaluator also separates full-split metrics
+from a named real-group latency batch, so the 5 ms gate measures exactly six
+candidates instead of an arbitrary dataset size. New tests cover each failure
+path before the Radeon campaign resumes.
+
+The frozen train campaign processed all 12 episodes. Four were applicable and
+produced 24 labels; eight were structurally skipped. Train labels contain three
+successes and 14 safety aborts, with no `shoe_box_proxy` group. A fixed seed-42,
+2,000-step fit took 2.502 s. Training reconstruction kept one success and
+changed selected aborts from static 3/4 to model 0/4, but this remains in-sample.
+
+Only one of six development episodes was applicable. Every one of its six
+candidate rollouts aborted above 35 N and none succeeded. The model and static
+rank therefore both produced an aborted failure; the model did not select the
+minimum observed force candidate. Six-candidate steady P95 was 0.921 ms, but a
+latency pass cannot establish utility. The scorer remains disconnected,
+holdout remains locked and unobserved, and no parameter scan follows this
+single-group diagnostic. The final Radeon tree compiled and passed 247 tests.

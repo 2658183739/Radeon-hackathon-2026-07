@@ -32,7 +32,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--warmup", type=int, default=10)
     parser.add_argument("--benchmark-repeats", type=int, default=100)
+    parser.add_argument(
+        "--latency-group-id",
+        help="benchmark one real candidate group while evaluating the complete split",
+    )
     return parser.parse_args()
+
+
+def latency_rows(
+    rows: list[dict[str, Any]],
+    group_id: str | None,
+) -> list[dict[str, Any]]:
+    if group_id is None:
+        return rows
+    selected = [row for row in rows if str(row["group_id"]) == group_id]
+    if not selected:
+        raise ValueError(
+            f"latency group is absent from the evaluation split: {group_id}"
+        )
+    return selected
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
@@ -40,7 +58,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("warmup must be non-negative and benchmark repeats positive")
     dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
     validate_feature_names(dataset["feature_names"])
-    rows = [row for row in dataset["rows"] if str(row["split"]) == args.split]
+    rows: list[dict[str, Any]] = [
+        row for row in dataset["rows"] if str(row["split"]) == args.split
+    ]
     if not rows:
         raise ValueError(f"dataset contains no rows for split {args.split}")
     scorer = StructuredGraspScorer(args.checkpoint, device=args.device)
@@ -49,15 +69,22 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         {"candidate_id": row["candidate_id"], "static_rank": row["static_rank"]}
         for row in rows
     ]
+    benchmark_rows = latency_rows(rows, args.latency_group_id)
+    benchmark_features = [row["features"] for row in benchmark_rows]
+    benchmark_metadata = [
+        {"candidate_id": row["candidate_id"], "static_rank": row["static_rank"]}
+        for row in benchmark_rows
+    ]
     cold_started = time.perf_counter_ns()
-    predictions = scorer.predict(features, metadata)
+    scorer.predict(benchmark_features, benchmark_metadata)
     cold_ms = (time.perf_counter_ns() - cold_started) / 1_000_000
+    predictions = scorer.predict(features, metadata)
     for _ in range(args.warmup):
-        scorer.predict(features, metadata)
+        scorer.predict(benchmark_features, benchmark_metadata)
     latencies_ms: list[float] = []
     for _ in range(args.benchmark_repeats):
         started = time.perf_counter_ns()
-        predictions = scorer.predict(features, metadata)
+        scorer.predict(benchmark_features, benchmark_metadata)
         latencies_ms.append((time.perf_counter_ns() - started) / 1_000_000)
     ordered = sorted(latencies_ms)
     p50_ms = ordered[math.ceil(0.50 * len(ordered)) - 1]
@@ -73,14 +100,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "row_count": len(rows),
         "device": args.device,
         "latency": {
-            "batch_size": len(rows),
+            "batch_group_id": args.latency_group_id,
+            "batch_size": len(benchmark_rows),
             "warmup": args.warmup,
             "benchmark_repeats": args.benchmark_repeats,
             "cold_batch_ms": cold_ms,
             "steady_batch_p50_ms": p50_ms,
             "steady_batch_p95_ms": p95_ms,
-            "steady_per_candidate_p50_ms": p50_ms / len(rows),
-            "steady_per_candidate_p95_ms": p95_ms / len(rows),
+            "steady_per_candidate_p50_ms": p50_ms / len(benchmark_rows),
+            "steady_per_candidate_p95_ms": p95_ms / len(benchmark_rows),
         },
         "evaluation": evaluate_ranked_grasp_predictions(rows, predictions),
         "predictions": predictions,

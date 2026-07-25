@@ -1,6 +1,6 @@
 # Project Status and Reproduction Protocol
 
-Status date: 2026-07-25. This document is the short operational view of the
+Status date: 2026-07-26. This document is the short operational view of the
 Track 3 submission. It separates verified evidence from planned work so that a
 reviewer can reproduce the current result without treating an experiment plan
 as a capability claim.
@@ -35,6 +35,13 @@ explicitly blocked for expert diagnostics before bulk collection:
 and `electronics_box`. This is a planning artifact, not a new data or model
 result.
 
+The frozen structured grasp-scorer study is also complete through development.
+Four of 12 train episodes produced 24 controller-faithful labels; one of six
+development episodes produced six labels. The fixed 6,276-parameter
+PyTorch/ROCm MLP passed the six-candidate latency gate at 0.921 ms P95, but all
+six development candidates safety-aborted and none succeeded. The scorer is
+therefore disconnected and the six holdout IDs remain locked and unobserved.
+
 ## Hard constraints
 
 - One AMD Radeon GPU, one visible device, and ROCm/PyTorch HIP execution.
@@ -58,6 +65,7 @@ result.
 | Compact Diffusion | Radeon one-step smoke | Full matched training and closed-loop comparison are pending |
 | Robustness statistics | Implemented | Per-profile metrics and Wilson 95% intervals; zero retry samples are marked unknown |
 | Balanced collection planning | Implemented and Radeon-checked | Fresh 360-success target, configuration/audit fingerprints, profile-specific budgets, and an expert-diagnostic gate |
+| Structured grasp scorer | Development rejected | 24 train rows/4 groups; the only development group had 6/6 safety aborts; 0.921 ms six-candidate P95; holdout unopened |
 | Industry-size cartons | Evaluation-only profiles | Current parallel gripper cannot claim suction handling |
 | Cylindrical parcel handling | Partial/unresolved | Scoped rolling physics and contact controls exist; a cradle end-effector is still required |
 | VLA | Not in the result path | VLA-Adapter remains a license and ROCm compatibility spike |

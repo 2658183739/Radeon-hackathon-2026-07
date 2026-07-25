@@ -2,12 +2,12 @@
 
 ## Status
 
-The data contract, frozen split protocol, dataset builder, training entry,
-checkpoint loader, independent evaluator, and latency benchmark are implemented.
-The scorer is not connected to `GenesisParcelEnv`; static ranking remains the
-production behavior. What remains is controller-faithful label collection on
-the frozen train/development IDs, training, one untouched holdout evaluation,
-and only then a gated integration decision.
+The frozen train and development phases are complete. Four of 12 train episodes
+and one of six development episodes activated the formal reset-fallback gate;
+the other episodes were recorded as structured non-label skips. The scorer is
+not connected to `GenesisParcelEnv`, static ranking remains production behavior,
+and holdout remains locked. The single applicable development group did not
+support promotion, so opening holdout would not be justified model selection.
 
 ## Why this model
 
@@ -54,6 +54,33 @@ Each episode runs in a new Python process to isolate Genesis global state.
 The manifest records the exact command, status, and source hash. Holdout is
 locked unless `--unlock-holdout` is explicitly supplied after model selection.
 
+An inactive reset-fallback gate emits `skipped_inactive_reset_gate` with no
+rollout labels. The dataset builder consumes a manifest, ignores only this
+explicit status, and verifies every accepted source hash. A known Genesis
+interpreter-cleanup `SIGSEGV/139` is accepted only after a complete output passes
+identity, controller-contract, repeat-count, and rollout-count postconditions.
+
+## Frozen train and development result
+
+Train collection produced 24 rows from four applicable groups: two
+`large_narrow_carton`, two `medium_carton`, and no `shoe_box_proxy` groups.
+Eight other train episodes did not enter the controller branch being learned.
+The labels contain three successful rollouts and 14 safety aborts. A fixed
+seed-42, 2,000-step Radeon fit took 2.502 s. In-sample reconstruction preserved
+one success and reduced selected safety aborts from 3/4 to 0/4; this is training
+fit, not generalization evidence.
+
+Development produced only one applicable group, `large_narrow_carton:7140001`.
+All six candidates exceeded 35 N and none succeeded. Static rank and the model
+both selected an aborted failure; the model-selected rollout measured 35.896 N,
+while the minimum observed candidate measured 35.521 N and still aborted.
+Consequently the model showed no development utility or safety recovery. It is
+not promoted, no controller integration is enabled, and holdout remains unseen.
+
+The explicitly selected real six-candidate development batch measured 0.901 ms
+P50 and 0.921 ms P95 after ten warmups, passing the 5 ms latency-only gate. A
+latency pass cannot override the failed behavior and coverage gates.
+
 ## Radeon smoke result
 
 Six controller-faithful candidate labels from the observed mechanism episode
@@ -90,10 +117,34 @@ python scripts/evaluate_grasp_scorer.py \
   --output outputs/grasp-scorer-v1/smoke-train/evaluation.json
 ```
 
-The compact machine-readable record is
-`evidence/training/grasp-scorer-smoke-rocm-v1.json`. Full datasets, checkpoint,
-training summary, and predictions remain in Git-ignored `outputs/` and are
-bound by SHA-256.
+Frozen train/development reproduction uses manifests rather than manual globs:
 
-The final synchronized Radeon source tree compiled cleanly and passed all 237
+```bash
+python scripts/build_grasp_candidate_dataset.py \
+  --protocol configs/grasp_candidate_learning_v1.toml \
+  --manifest outputs/grasp-scorer-v1/collection/train/manifest.json \
+  --manifest outputs/grasp-scorer-v1/collection/development/manifest.json \
+  --output outputs/grasp-scorer-v1/train-development-dataset.json
+
+python scripts/train_grasp_scorer_rocm.py \
+  --dataset outputs/grasp-scorer-v1/train-dataset.json \
+  --output-dir outputs/grasp-scorer-v1/train-v1 \
+  --train-split train --steps 2000 --device cuda
+
+python scripts/evaluate_grasp_scorer.py \
+  --dataset outputs/grasp-scorer-v1/train-development-dataset.json \
+  --checkpoint outputs/grasp-scorer-v1/train-v1/grasp_scorer.pt \
+  --split development --device cuda \
+  --latency-group-id large_narrow_carton:7140001 \
+  --warmup 10 --benchmark-repeats 100 \
+  --output outputs/grasp-scorer-v1/train-v1/development-evaluation.json
+```
+
+The compact machine-readable record is
+`evidence/training/grasp-scorer-smoke-rocm-v1.json`. Frozen train/development
+evidence is `evidence/training/grasp-scorer-train-development-rocm-v1.json`.
+Full datasets, checkpoint, manifests, and predictions remain in Git-ignored
+`outputs/` and are bound by SHA-256.
+
+The final synchronized Radeon source tree compiled cleanly and passed all 247
 unit tests.

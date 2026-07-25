@@ -4,9 +4,10 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import signal
 import subprocess
 import sys
-from typing import Any
+from typing import Any, Mapping
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +68,93 @@ def _write_manifest(path: Path, payload: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
+def _validated_output(
+    output: Path,
+    row: Mapping[str, Any],
+    *,
+    backend: str,
+    config: Path,
+    max_candidates: int,
+    repeats: int,
+) -> dict[str, Any]:
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    if (
+        str(payload.get("profile")) != str(row["profile"])
+        or int(payload.get("episode", -1)) != int(row["episode"])
+    ):
+        raise ValueError(f"collection output does not match frozen run: {output}")
+    if str(payload.get("backend")) != backend:
+        raise ValueError(f"collection output backend does not match: {output}")
+    if Path(str(payload.get("config", ""))).resolve() != config.resolve():
+        raise ValueError(f"collection output config does not match: {output}")
+    if int(payload.get("repeat_count", -1)) != repeats:
+        raise ValueError(f"collection output repeat count is invalid: {output}")
+    contract = payload.get("contract")
+    if not isinstance(contract, Mapping):
+        raise ValueError(f"collection output has no controller contract: {output}")
+    if not bool(contract.get("controller_faithful")) or not bool(
+        contract.get("fresh_scene_per_rollout")
+    ):
+        raise ValueError(f"collection output violates controller contract: {output}")
+    if not bool(contract.get("collision_checked_reset_enabled")) or not bool(
+        contract.get("reset_fallback_gate_enabled")
+    ):
+        raise ValueError(f"collection output violates reset contract: {output}")
+
+    source_status = str(payload.get("status", ""))
+    tested = payload.get("tested_candidate_ids")
+    rollouts = payload.get("rollouts")
+    ranked = payload.get("ranked_rollouts")
+    if not all(isinstance(value, list) for value in (tested, rollouts, ranked)):
+        raise ValueError(f"collection output has malformed rollout lists: {output}")
+    if source_status == "complete":
+        if not bool(contract.get("transport_contract_enabled")) or int(
+            contract.get("max_grasp_retries", -1)
+        ) != 0:
+            raise ValueError(f"collection output violates transport contract: {output}")
+        expected_rollouts = len(tested) * repeats
+        tested_ids = [str(candidate_id) for candidate_id in tested]
+        expected_keys = {
+            (candidate_id, repeat)
+            for candidate_id in tested_ids
+            for repeat in range(repeats)
+        }
+        rollout_keys = {
+            (str(rollout.get("candidate_id")), int(rollout.get("repeat", -1)))
+            for rollout in rollouts
+            if isinstance(rollout, Mapping)
+        }
+        ranked_keys = {
+            (str(rollout.get("candidate_id")), int(rollout.get("repeat", -1)))
+            for rollout in ranked
+            if isinstance(rollout, Mapping)
+        }
+        if (
+            not tested
+            or len(tested_ids) > max_candidates
+            or len(set(tested_ids)) != len(tested_ids)
+            or len(rollouts) != expected_rollouts
+            or len(ranked) != expected_rollouts
+            or rollout_keys != expected_keys
+            or ranked_keys != expected_keys
+        ):
+            raise ValueError(f"collection output is incomplete: {output}")
+    elif source_status == "skipped_inactive_reset_gate":
+        if (
+            bool(contract.get("reset_fallback_gate_satisfied"))
+            or bool(contract.get("labels_generated"))
+            or tested
+            or rollouts
+            or ranked
+        ):
+            raise ValueError(f"inactive-gate output contains labels: {output}")
+    else:
+        raise ValueError(
+            f"collection output has unsupported status {source_status!r}: {output}"
+        )
+    return payload
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     if min(args.max_candidates, args.repeats) < 1:
         raise ValueError("candidate and repeat budgets must be positive")
@@ -110,6 +198,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             str(args.max_candidates),
             "--repeats",
             str(args.repeats),
+            "--inactive-gate",
+            "skip",
             "--output",
             str(output),
         ]
@@ -122,30 +212,81 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 raise FileExistsError(
                     f"collection output already exists: {output}; pass --resume to audit and skip"
                 )
-            payload = json.loads(output.read_text(encoding="utf-8"))
-            if (
-                str(payload["profile"]) != str(row["profile"])
-                or int(payload["episode"]) != int(row["episode"])
-            ):
-                raise ValueError(f"existing output does not match frozen run: {output}")
-            record.update({"status": "reused", "sha256": sha256_file(output)})
+            payload = _validated_output(
+                output,
+                row,
+                backend=args.backend,
+                config=args.config,
+                max_candidates=args.max_candidates,
+                repeats=args.repeats,
+            )
+            source_status = str(payload["status"])
+            record.update(
+                {
+                    "status": (
+                        "skipped_inactive_gate"
+                        if source_status == "skipped_inactive_reset_gate"
+                        else "reused"
+                    ),
+                    "source_status": source_status,
+                    "sha256": sha256_file(output),
+                }
+            )
             _write_manifest(manifest_path, manifest)
             continue
         output.parent.mkdir(parents=True, exist_ok=True)
         record["status"] = "running"
         _write_manifest(manifest_path, manifest)
+        completed: subprocess.CompletedProcess[Any] | None = None
+        accepted_cleanup_failure = False
         try:
-            subprocess.run(command, cwd=PROJECT_ROOT, check=True)
+            completed = subprocess.run(command, cwd=PROJECT_ROOT, check=False)
+            payload = _validated_output(
+                output,
+                row,
+                backend=args.backend,
+                config=args.config,
+                max_candidates=args.max_candidates,
+                repeats=args.repeats,
+            )
+            if completed.returncode != 0:
+                accepted_cleanup_failure = completed.returncode in {
+                    128 + signal.SIGSEGV,
+                    -signal.SIGSEGV,
+                }
+                if not accepted_cleanup_failure:
+                    raise subprocess.CalledProcessError(completed.returncode, command)
         except BaseException:
             record["status"] = "failed"
+            if completed is not None:
+                record["child_returncode"] = completed.returncode
             _write_manifest(manifest_path, manifest)
             raise
-        record.update({"status": "complete", "sha256": sha256_file(output)})
+        source_status = str(payload["status"])
+        record.update(
+            {
+                "status": (
+                    "skipped_inactive_gate"
+                    if source_status == "skipped_inactive_reset_gate"
+                    else "complete"
+                ),
+                "source_status": source_status,
+                "child_returncode": completed.returncode,
+                "accepted_cleanup_failure": accepted_cleanup_failure,
+                "sha256": sha256_file(output),
+            }
+        )
         _write_manifest(manifest_path, manifest)
     if args.dry_run:
         return manifest
     manifest["complete_episode_count"] = sum(
         row["status"] in {"complete", "reused"} for row in manifest["runs"]
+    )
+    manifest["skipped_inactive_gate_count"] = sum(
+        row["status"] == "skipped_inactive_gate" for row in manifest["runs"]
+    )
+    manifest["processed_episode_count"] = (
+        manifest["complete_episode_count"] + manifest["skipped_inactive_gate_count"]
     )
     _write_manifest(manifest_path, manifest)
     return manifest

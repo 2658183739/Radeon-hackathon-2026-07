@@ -23,15 +23,54 @@ def parse_args() -> argparse.Namespace:
         description="Build an auditable grasp-candidate label dataset from formal counterfactuals."
     )
     parser.add_argument("--protocol", type=Path, required=True)
-    parser.add_argument("--input", type=Path, action="append", required=True)
+    parser.add_argument("--input", type=Path, action="append", default=[])
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        action="append",
+        default=[],
+        help="consume only validated complete/reused labels from a collection manifest",
+    )
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
 
 
+def manifest_label_paths(path: Path, protocol_sha256: str) -> list[Path]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if str(payload.get("protocol_sha256")) != protocol_sha256:
+        raise ValueError(f"collection manifest protocol does not match: {path}")
+    result: list[Path] = []
+    for row in payload.get("runs", ()):
+        status = str(row.get("status"))
+        if status == "skipped_inactive_gate":
+            continue
+        if status not in {"complete", "reused"}:
+            raise ValueError(
+                f"collection manifest is incomplete at status {status!r}: {path}"
+            )
+        if str(row.get("source_status")) != "complete":
+            raise ValueError(
+                f"collection manifest row has no complete labels: {path}"
+            )
+        source = Path(str(row["output"]))
+        if sha256_file(source) != str(row.get("sha256")):
+            raise ValueError(f"collection label hash does not match manifest: {source}")
+        result.append(source)
+    if not result:
+        raise ValueError(f"collection manifest contains no complete labels: {path}")
+    return result
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     assignments = load_grasp_split_protocol(args.protocol)
+    protocol_sha256 = sha256_file(args.protocol)
+    input_paths = list(args.input)
+    for manifest in args.manifest:
+        input_paths.extend(manifest_label_paths(manifest.resolve(), protocol_sha256))
+    if not input_paths:
+        raise ValueError("provide at least one --input or --manifest")
     sources: list[tuple[str, dict[str, Any], str, str]] = []
-    for path in args.input:
+    for path in input_paths:
         resolved = path.resolve()
         payload = json.loads(resolved.read_text(encoding="utf-8"))
         key = (str(payload["profile"]), int(payload["episode"]))
@@ -48,7 +87,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         sources.append((source, payload, sha256_file(resolved), split))
     dataset = build_grasp_candidate_dataset(sources)
     dataset["protocol"] = str(args.protocol.resolve())
-    dataset["protocol_sha256"] = sha256_file(args.protocol)
+    dataset["protocol_sha256"] = protocol_sha256
     return dataset
 
 

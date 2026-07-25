@@ -1780,3 +1780,29 @@ is explicitly not a model-performance claim.
 **Promotion gate.** Holdout must add no safety abort or per-profile paired
 regression, recover at least one static-ranking failure, and keep warm batch
 P95 below 5 ms. Until then the scorer remains disconnected.
+
+### 76. Do not open holdout after an underpowered failed development check
+
+**Question.** Does the frozen scorer show enough independent safety and task
+evidence to justify the one-time holdout evaluation?
+
+**Data and capability.** The collector distinguishes an inactive formal gate
+from a failed rollout, isolates episodes in child processes, validates complete
+artifacts after the known Genesis cleanup failure, and binds accepted labels to
+manifest hashes. Dataset construction can now consume that manifest directly.
+The evaluator reports full-split outcomes while benchmarking one named real
+six-candidate group.
+
+**Evidence.** Four of 12 train episodes and one of six development episodes
+were applicable. The model reconstructed train with one success and zero
+selected aborts versus static one success and three aborts. On the only
+development group, however, all six candidates aborted and none succeeded.
+Both rankers selected an abort; the model choice measured 35.896 N versus the
+35.521 N group minimum. Six-candidate P95 was 0.921 ms.
+
+**Decision and reason.** Do not promote, integrate, tune on this group, or open
+holdout. The latency gate passes, but task/safety evidence does not, and one
+applicable group cannot support model selection. Keep the checkpoint as a
+reproducible negative result. Revisit after improving the candidate/support
+geometry or preregistering a new development set with sufficient gate-active
+coverage; holdout IDs remain untouched.

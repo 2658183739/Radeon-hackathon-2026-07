@@ -174,6 +174,8 @@ def counterfactual_rows(
     source: str,
     split: str,
 ) -> list[dict[str, Any]]:
+    if str(payload.get("status", "complete")) != "complete":
+        raise ValueError("counterfactual source did not generate labels")
     contract = payload.get("contract")
     if not isinstance(contract, Mapping):
         raise ValueError("counterfactual payload has no contract")

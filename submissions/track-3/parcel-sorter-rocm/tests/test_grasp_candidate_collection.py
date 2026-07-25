@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
+import signal
+import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from scripts.run_grasp_candidate_collection import planned_runs, run
 
@@ -80,7 +84,132 @@ episode_ids = [3]
 
             self.assertEqual(result["planned_episode_count"], 2)
             self.assertEqual(result["planned_max_rollouts"], 12)
+            self.assertIn("--inactive-gate", result["runs"][0]["command"])
             self.assertFalse((output / "train/manifest.json").exists())
+
+    def test_accepts_sigsegv_only_after_complete_output_is_validated(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            protocol = self._protocol(directory)
+            output = Path(directory) / "output"
+            args = argparse.Namespace(
+                protocol=protocol,
+                split="train",
+                output_dir=output,
+                config=Path(directory) / "config.toml",
+                backend="rocm",
+                max_candidates=1,
+                repeats=1,
+                resume=False,
+                dry_run=False,
+                unlock_holdout=False,
+            )
+
+            def write_complete(command, **_kwargs):
+                output_path = Path(command[command.index("--output") + 1])
+                episode = int(command[command.index("--episode") + 1])
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_text(
+                    json.dumps(
+                        {
+                            "status": "complete",
+                            "backend": command[command.index("--backend") + 1],
+                            "config": str(
+                                Path(command[command.index("--config") + 1]).resolve()
+                            ),
+                            "profile": "medium_carton",
+                            "episode": episode,
+                            "repeat_count": 1,
+                            "contract": {
+                                "controller_faithful": True,
+                                "fresh_scene_per_rollout": True,
+                                "collision_checked_reset_enabled": True,
+                                "reset_fallback_gate_enabled": True,
+                                "transport_contract_enabled": True,
+                                "max_grasp_retries": 0,
+                            },
+                            "tested_candidate_ids": ["candidate-0"],
+                            "rollouts": [
+                                {"candidate_id": "candidate-0", "repeat": 0}
+                            ],
+                            "ranked_rollouts": [
+                                {"candidate_id": "candidate-0", "repeat": 0}
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return subprocess.CompletedProcess(command, -signal.SIGSEGV)
+
+            with patch(
+                "scripts.run_grasp_candidate_collection.subprocess.run",
+                side_effect=write_complete,
+            ):
+                result = run(args)
+
+            self.assertEqual(result["complete_episode_count"], 2)
+            self.assertTrue(result["runs"][0]["accepted_cleanup_failure"])
+            self.assertEqual(result["runs"][0]["child_returncode"], -signal.SIGSEGV)
+
+    def test_rejects_sigsegv_when_output_is_incomplete(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            protocol = self._protocol(directory)
+            output = Path(directory) / "output"
+            args = argparse.Namespace(
+                protocol=protocol,
+                split="train",
+                output_dir=output,
+                config=Path(directory) / "config.toml",
+                backend="rocm",
+                max_candidates=1,
+                repeats=1,
+                resume=False,
+                dry_run=False,
+                unlock_holdout=False,
+            )
+
+            def write_incomplete(command, **_kwargs):
+                output_path = Path(command[command.index("--output") + 1])
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_text(
+                    json.dumps(
+                        {
+                            "status": "complete",
+                            "backend": command[command.index("--backend") + 1],
+                            "config": str(
+                                Path(command[command.index("--config") + 1]).resolve()
+                            ),
+                            "profile": "medium_carton",
+                            "episode": int(command[command.index("--episode") + 1]),
+                            "repeat_count": 1,
+                            "contract": {
+                                "controller_faithful": True,
+                                "fresh_scene_per_rollout": True,
+                                "collision_checked_reset_enabled": True,
+                                "reset_fallback_gate_enabled": True,
+                                "transport_contract_enabled": True,
+                                "max_grasp_retries": 0,
+                            },
+                            "tested_candidate_ids": ["candidate-0"],
+                            "rollouts": [],
+                            "ranked_rollouts": [],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return subprocess.CompletedProcess(command, -signal.SIGSEGV)
+
+            with patch(
+                "scripts.run_grasp_candidate_collection.subprocess.run",
+                side_effect=write_incomplete,
+            ):
+                with self.assertRaisesRegex(ValueError, "incomplete"):
+                    run(args)
+
+            manifest = json.loads(
+                (output / "train/manifest.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(manifest["runs"][0]["status"], "failed")
+            self.assertEqual(manifest["runs"][0]["child_returncode"], -signal.SIGSEGV)
 
 
 if __name__ == "__main__":

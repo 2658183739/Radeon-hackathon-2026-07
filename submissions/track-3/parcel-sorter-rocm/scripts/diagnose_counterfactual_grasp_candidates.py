@@ -41,6 +41,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--all-candidates", action="store_true")
     parser.add_argument("--max-candidates", type=int, default=6)
     parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument(
+        "--inactive-gate",
+        choices=("error", "skip"),
+        default="error",
+        help="fail or emit a structured skip when the formal reset gate is inactive",
+    )
     return parser.parse_args()
 
 
@@ -153,7 +159,34 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if missing:
         raise ValueError("requested candidates are not statically feasible: " + ", ".join(missing))
     if not planner_active:
-        raise RuntimeError("reset-fallback gate did not activate geometry planning")
+        if args.inactive_gate == "error":
+            raise RuntimeError("reset-fallback gate did not activate geometry planning")
+        return {
+            "schema_version": 1,
+            "status": "skipped_inactive_reset_gate",
+            "backend": args.backend,
+            "config": str(args.config.resolve()),
+            "episode": args.episode,
+            "profile": args.profile,
+            "sample": asdict(sample),
+            "contract": {
+                "controller_faithful": True,
+                "fresh_scene_per_rollout": True,
+                "collision_checked_reset_enabled": True,
+                "reset_fallback_gate_enabled": True,
+                "reset_fallback_gate_satisfied": False,
+                "labels_generated": False,
+                "reason": "geometry planning is not active in the formal controller",
+            },
+            "static_feasible_candidates": [
+                _compact_static_row(row) for row in feasible
+            ],
+            "tested_candidate_ids": [],
+            "repeat_count": args.repeats,
+            "ranked_rollouts": [],
+            "rollouts": [],
+            "compute_ms": (time.perf_counter_ns() - started) / 1_000_000,
+        }
 
     rollouts: list[dict[str, Any]] = []
     for candidate_id in selected_ids:
@@ -203,6 +236,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     ranked = sorted(rollouts, key=full_episode_grasp_rank_key)
     return {
         "schema_version": 1,
+        "status": "complete",
         "backend": args.backend,
         "config": str(args.config.resolve()),
         "episode": args.episode,
@@ -245,6 +279,7 @@ def main() -> int:
         json.dumps(
             {
                 "output": str(args.output),
+                "status": payload["status"],
                 "episode": payload["episode"],
                 "tested_candidate_ids": payload["tested_candidate_ids"],
                 "ranked_rollouts": payload["ranked_rollouts"],

@@ -1,6 +1,6 @@
 # 项目状态与复现协议
 
-状态日期：2026-07-25。这是赛道三提交项目的短版操作视图。文档把已验证证据与计划中的
+状态日期：2026-07-26。这是赛道三提交项目的短版操作视图。文档把已验证证据与计划中的
 工作分开，避免把实验计划误写成已有能力。
 
 ## 当前 Radeon 运行状态
@@ -24,6 +24,11 @@
 `medium_carton`、`shoe_box_proxy`、`long_carton`、`large_narrow_carton`、`upright_canister`、
 `mailing_tube`、`near_limit_box` 和 `electronics_box`。这是规划产物，不是新的数据或模型结果。
 
+冻结的结构化抓取评分器研究也已完成到 development。12 个 train episode 中 4 个产生 24 条正式
+闭环标签，6 个 development 中 1 个产生 6 条。固定的 6,276 参数 PyTorch/ROCm MLP 以 0.921 ms
+P95 通过六候选延迟门禁，但 development 的六个候选全部安全中止且没有成功。因此评分器保持断开，
+6 个 holdout ID 继续锁定且未查看。
+
 ## 硬性约束
 
 - 只使用一张 AMD Radeon GPU，并确保进程只看到一个设备；PyTorch 必须走 ROCm/HIP。
@@ -45,6 +50,7 @@
 | 轻量 Diffusion | Radeon 单步烟雾 | 完整匹配训练和闭环比较待做 |
 | 鲁棒性统计 | 已实现 | 分 profile 指标和 Wilson 95% 区间；零重试样本标记为未知 |
 | 均衡采集规划 | 已实现并完成 Radeon 检查 | 新数据集 360 个成功目标、配置/审计指纹、不同 profile 预算和专家诊断门禁 |
+| 结构化抓取评分器 | development 拒绝 | train 24 行/4 组；唯一 development 组 6/6 安全中止；六候选 P95 0.921 ms；holdout 未打开 |
 | 行业大箱 | 仅评测 profile | 当前平行夹爪不能宣称具备吸盘处理能力 |
 | 圆柱快递 | 部分/未解决 | 已有作用域滚动物理和接触控制；仍需要 cradle 末端执行器 |
 | VLA | 不在结果主线 | VLA-Adapter 仍是许可证与 ROCm 兼容性试验 |

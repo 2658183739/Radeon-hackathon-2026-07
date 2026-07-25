@@ -104,6 +104,14 @@ class GraspScoringTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "force-abort label mismatch"):
             counterfactual_rows(source, source="source.json", split="smoke")
 
+    def test_rejects_structured_inactive_gate_skip_as_training_data(self) -> None:
+        source = payload()
+        source["status"] = "skipped_inactive_reset_gate"
+        source["rollouts"] = []
+
+        with self.assertRaisesRegex(ValueError, "did not generate labels"):
+            counterfactual_rows(source, source="source.json", split="train")
+
     def test_prediction_ranking_prioritizes_safety(self) -> None:
         safe_failure = {
             "candidate_id": "safe",
