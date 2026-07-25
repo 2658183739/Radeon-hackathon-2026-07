@@ -113,3 +113,31 @@ This fails the primary task gate. The two successful sentinels, parameter scans,
 and new-episode validation are therefore cancelled. Force-only recovery remains
 a disabled negative control. The next valid mechanism must change capture
 geometry or execute a safe set-down/regrasp transition.
+
+## Dynamic screening outcome
+
+The follow-up diagnostic used complete Genesis scene snapshots to isolate six
+unique statically feasible candidates per episode, with two repeats each. The
+maximum measured restore error was `0.0`; repeat metrics were identical. Each
+rollout closed for 24 steps, lifted 30 mm, and transferred 30 mm.
+
+The diagnostic did not pass its predictive gate. The `+40 mm` candidate known
+to fail later in `4120001` was classified stable in both repeats. The
+alternative `+45 mm` candidate improved maximum one-frame relative motion by
+only 0.00849 mm. Short loaded rollouts remain useful for mechanism inspection,
+but are not integrated into grasp ranking.
+
+## State-changing recovery outcome
+
+The next default-off response changed state rather than force. At a slip, it
+kept the gripper closed, lowered vertically by at most 10 mm per control frame,
+released at the original grasp-height envelope or a 20-frame cap, and then
+replanned. On `4120001`, set-down and release completed at frames 160--183 with
+a 21.81 N set-down peak.
+
+The first retry reused `+40 mm` and reached 129.45 N during the second transfer.
+A separate failed-candidate blacklist correctly forced `+45.1 mm`, but that
+retry reached 129.98 N during its second transfer. The failure is therefore not
+unsafe set-down and not merely repeated selection of one height. Both features
+remain disabled. The next test must alter loaded support geometry or evaluate
+stability over a horizon that includes the failure-producing transport.

@@ -232,3 +232,26 @@ that enlarging vertical recovery steps can break successful trajectories. The
 next candidate is a Genesis fingertip-AABB pre-contact filter that logs gap,
 filter count, latency, and GPU synchronization cost. It is an engineering
 filter, not a formal safety proof, and does not replace the 35 N hard abort.
+
+## Loaded-stability and recovery research audit
+
+The snapshot and regrasp probes narrow the next research question: static pose
+feasibility and a 30 mm loaded test do not predict full transport, while
+execution-state recovery needs a materially different support condition. The
+following papers are architecture signals only; no repository, weight, dataset,
+or transitive license from this table is approved for the submission.
+
+| Source | Relevant idea | Project decision |
+| --- | --- | --- |
+| GraspIT, arXiv `2607.05869` | Pair RGB-D observations with physics-validated SE(3) grasp annotations | Candidate data design for future grasp ranking; first audit code/data licenses and prove Radeon execution |
+| Physical Agentic Loop, arXiv `2604.07395` | Surface slips, stalls, and empty grasps as structured execution state for replanning | Closest architectural match to the new recovery states; retain deterministic safety supervision below any language layer |
+| ShapeGrasp, arXiv `2605.02347` | Iteratively combine visual, tactile, and proprioceptive feedback with shape completion | Relevant only after a modeled open-source tactile sensor exists; current force/contact telemetry is not equivalent to tactile input |
+| DeepSimHO, arXiv `2310.07206` | Use physics to validate stable interaction poses instead of proximity alone | Supports simulator-based stability checks, but the project must extend beyond the rejected short horizon |
+| TouchWorld, arXiv `2607.07287` | Predict contact evolution and react to slip, misalignment, and force mismatch | Longer-term tactile-world-model direction; not a current dependency or result claim |
+| Grasp to Act, arXiv `2602.20466` | Optimize grasps for downstream dynamic forces rather than static geometry alone | Strongest objective-level justification for transport-conditioned grasp scoring |
+
+The implementation order is now: define a long-horizon loaded-stability target;
+evaluate it on held-out full transports; only then consider a lightweight
+learned scorer on PyTorch/ROCm. A VLA may select task intent or semantic target
+later, but it must not bypass IK, collision checks, the 35 N abort, or explicit
+recovery states. Metadata was checked through the arXiv API on 2026-07-26.

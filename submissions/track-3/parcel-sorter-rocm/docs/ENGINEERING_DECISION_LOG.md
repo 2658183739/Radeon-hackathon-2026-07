@@ -1676,3 +1676,52 @@ and cancel sentinels and parameter scans under the preregistered stop rule.
 Revisit only with a response that changes state: safe set-down/regrasp, verified
 deeper capture geometry, or a different licensed end effector. Do not infer a
 success-rate effect from this single development episode.
+
+### 72. Reject short-horizon dynamic ranking despite exact state restoration
+
+**Question and contract.** Test whether a cheap close-lift-transfer rollout can
+rank statically feasible grasps before task execution. Use complete Genesis
+scene snapshots between candidates, six unique candidates, two repeats, a
+30 mm lift, a 30 mm transfer, and the unchanged 35 N safety line.
+
+**Code capability.** `grasp_stability.py` separates threshold validation,
+pass/fail classification, and deterministic ranking from the simulator-facing
+diagnostic. `diagnose_dynamic_grasp_stability.py` captures/restores complete
+scene state and emits the static evaluation, loaded trace, restore error, and
+ranking for audit. Unit tests cover boundary behavior and ranking order.
+
+**Evidence.** Every restore had zero measured state-vector error and every
+repeat was identical. The known failed production candidate for `4120001`
+nevertheless passed 2/2 short rollouts. The alternative ranked first by only
+0.00000849 m of maximum one-frame relative motion.
+
+**Decision and reason.** Keep snapshot-isolated rollout as a diagnostic, but do
+not call it online planning and do not change candidate selection. Reproducible
+execution is necessary but not sufficient: the 30 mm horizon does not expose
+the later transport instability. Revisit only with a horizon and disturbance
+contract that predicts held-out full-transport outcomes before integration.
+
+### 73. Retain safe set-down and failed-candidate feedback as negative controls
+
+**Question.** Determine whether a detected slip can be converted into a safe
+set-down, release, and regrasp, and whether excluding the failed grasp family
+prevents recurrence.
+
+**Code capability.** The supervisor adds explicit recovery states; the expert
+generates a vertical, bounded set-down target; observations and traces expose
+slip and set-down completion; configuration validates step and retry contracts.
+A pure helper updates the failed-candidate blacklist while preserving the
+historical empty-on-retry behavior when the new switch is off. Both features
+are default off and require their existing prerequisites.
+
+**Evidence.** Set-down and release completed below the force limit, followed by
+a second planned grasp. Reusing `+40 mm` produced a 129.45 N second-transfer
+abort. Excluding it selected `+45.1 mm`, but produced a 129.98 N abort during
+the next transfer. The dangerous force occurred after regrasp, not during the
+set-down transition.
+
+**Decision and revisit trigger.** Do not promote either feature and do not tune
+set-down step, adjacent height, or close force on the same episode. Retain the
+mechanisms for audit and future composition. Revisit when the regrasp changes
+support geometry, or when a longer-horizon model can reject both unstable
+loaded trajectories before execution.

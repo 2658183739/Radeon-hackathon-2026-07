@@ -89,6 +89,12 @@ def run_policy_episode(
                 env, "geometry_grasp_planning_active", None
             ),
         ),
+        transport_slip_setdown_regrasp_enabled=(
+            config.control.transport_slip_setdown_regrasp_enabled
+        ),
+        recovery_setdown_max_steps=(
+            config.control.transport_slip_setdown_max_steps
+        ),
     )
     trace: list[dict[str, Any]] = []
     latencies_ms: list[float] = []
@@ -151,6 +157,8 @@ def run_policy_episode(
                 "at_pregrasp": observation.at_pregrasp,
                 "grasp_contact": observation.grasp_contact,
                 "parcel_lifted": observation.parcel_lifted,
+                "transport_slip": observation.transport_slip,
+                "at_recovery_setdown": observation.at_recovery_setdown,
                 "excessive_contact_force": observation.excessive_contact_force,
             }
         )

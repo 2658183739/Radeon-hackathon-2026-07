@@ -485,6 +485,24 @@ def select_grasp_pose_evaluation(
     )
 
 
+def rejected_candidates_after_retry(
+    rejected_candidate_ids: set[str],
+    selected_evaluation: Mapping[str, Any] | None,
+    *,
+    retry_changed: bool,
+    blacklist_failed_candidate_enabled: bool,
+) -> set[str]:
+    """Return the next retry blacklist without changing default replanning."""
+    if not retry_changed:
+        return set(rejected_candidate_ids)
+    if not blacklist_failed_candidate_enabled:
+        return set()
+    updated = set(rejected_candidate_ids)
+    if selected_evaluation is not None:
+        updated.add(str(selected_evaluation["candidate_id"]))
+    return updated
+
+
 def _error_bucket(error: float, tolerance: float) -> int:
     if not math.isfinite(error):
         return 2**31 - 1

@@ -311,3 +311,19 @@ still failed after one retry. The preregistered stop rule cancelled sentinels
 and parameter scans. Compact evidence, a trace comparison, bilingual results,
 runtime metadata, source hashes, and full-summary hashes are retained in the
 directory.
+
+## Dynamic-grasp and stateful-recovery probes
+
+`expert/radeon-dynamic-stability-setdown-probes-v1/` archives three complete
+snapshot-isolated dynamic diagnostics and two compact closed-loop summaries.
+The diagnostics used six unique feasible candidates, two repeats, a 30 mm lift,
+and a 30 mm transfer. Restore error was zero and repeats matched, but the known
+failed `4120001` selected grasp passed both short rollouts, so no online dynamic
+ranking was integrated.
+
+The same directory records a default-off safe set-down/release/retry mechanism
+and a separate failed-candidate blacklist. Set-down peaked at 21.81 N and led
+to a second grasp. The plain retry reused `+40 mm` and aborted at 129.45 N;
+the blacklist forced `+45.1 mm` and aborted at 129.98 N. Both aborts occurred
+during the second transfer. Bilingual interpretation, exact commands, source
+hashes, compact artifacts, and remote full-summary hashes preserve provenance.

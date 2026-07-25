@@ -96,6 +96,55 @@ class ClosedLoopSupervisorTests(unittest.TestCase):
         self.assertEqual(supervisor.stage, Stage.DETECT)
         self.assertEqual(decisions[-1].reason, "grasp lost during lift")
 
+    def test_transport_slip_runs_bounded_setdown_release_and_retry(self) -> None:
+        supervisor = ClosedLoopSupervisor(
+            max_grasp_retries=2,
+            transport_slip_setdown_regrasp_enabled=True,
+            recovery_setdown_max_steps=3,
+        )
+        supervisor.stage = Stage.PLACE
+
+        detected = supervisor.step(Observation(transport_slip=True))
+        lowering = supervisor.step(Observation())
+        release = supervisor.step(Observation(at_recovery_setdown=True))
+        confirm = supervisor.step(Observation(grasp_contact=False))
+        retry = supervisor.step(Observation(grasp_contact=False))
+
+        self.assertEqual(detected.command, Command.MOVE_RECOVERY_SETDOWN.value)
+        self.assertEqual(lowering.command, Command.MOVE_RECOVERY_SETDOWN.value)
+        self.assertEqual(release.command, Command.OPEN_GRIPPER.value)
+        self.assertEqual(confirm.command, Command.OPEN_GRIPPER.value)
+        self.assertEqual(retry.command, Command.SEARCH.value)
+        self.assertEqual(supervisor.stage, Stage.DETECT)
+        self.assertEqual(supervisor.retry_count, 1)
+
+    def test_transport_slip_setdown_is_disabled_by_default(self) -> None:
+        supervisor = ClosedLoopSupervisor()
+        supervisor.stage = Stage.PLACE
+
+        decision = supervisor.step(Observation(transport_slip=True))
+
+        self.assertEqual(decision.command, Command.MOVE_DROP.value)
+        self.assertEqual(supervisor.stage, Stage.PLACE)
+
+    def test_transport_slip_releases_before_aborting_exhausted_retry(self) -> None:
+        supervisor = ClosedLoopSupervisor(
+            max_grasp_retries=0,
+            transport_slip_setdown_regrasp_enabled=True,
+            recovery_setdown_max_steps=1,
+        )
+        supervisor.stage = Stage.LIFT
+
+        detected = supervisor.step(Observation(transport_slip=True))
+        release = supervisor.step(Observation())
+        supervisor.step(Observation(grasp_contact=False))
+        terminal = supervisor.step(Observation(grasp_contact=False))
+
+        self.assertEqual(detected.command, Command.MOVE_RECOVERY_SETDOWN.value)
+        self.assertEqual(release.command, Command.OPEN_GRIPPER.value)
+        self.assertEqual(terminal.command, Command.STOP.value)
+        self.assertEqual(supervisor.stage, Stage.ABORT)
+
 
 if __name__ == "__main__":
     unittest.main()

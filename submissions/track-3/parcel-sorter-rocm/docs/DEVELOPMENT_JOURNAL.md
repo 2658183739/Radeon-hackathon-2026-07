@@ -935,3 +935,41 @@ The primary mechanism probe failed, so the two successful sentinels and all
 threshold/force scans were cancelled. The code is retained as a disabled,
 auditable negative control. Reconsideration requires a capture-geometry or
 recovery-state change, not a larger close-force command.
+
+### Record 68: Isolate dynamic grasp candidates with complete scene snapshots
+
+The next diagnostic asked whether a short loaded rollout could distinguish the
+known unstable `4120001` grasp before full transport. Each candidate started
+from the same complete Genesis `SimState`, not from a partial robot/parcel
+reset. Restore checks covered robot and parcel positions and velocities; the
+maximum observed state-vector error was exactly `0.0`. Six unique statically
+feasible candidates per episode were each repeated twice, and every repeated
+metric was identical.
+
+The frozen rollout used 24 close steps, a 30 mm lift, and a 30 mm transfer.
+It labeled 8/12 `medium_carton`, 4/12 `shoe_box_proxy`, and 12/12
+`large_narrow_carton` executions stable. However, the production `+40 mm`
+grasp that is known to fail later in `4120001` passed both short rollouts. The
+`+45 mm` candidate led it by only 0.00849 mm in maximum one-frame relative
+motion. The snapshot method is reproducible, but the short horizon lacks the
+predictive validity required for controller ranking. It remains a standalone
+diagnostic.
+
+### Record 69: Change recovery state, then reject adjacent-pose regrasp
+
+The first response that changed physical state replaced force boosting with a
+default-off `recover_setdown -> recover_release -> retry` path. On the frozen
+slip event at frame 159, the arm kept the gripper closed, descended vertically
+by at most 10 mm per control frame, and released at the original grasp-height
+envelope or after 20 frames. Set-down completed at frames 160--179 with a
+21.81 N peak; release completed at frames 180--183. This verifies that the
+parcel can be returned safely before retry, but not that the task is recovered.
+
+Without a blacklist, retry selected the same `+40 mm` candidate and aborted in
+the second transfer at frame 322 with 129.45 N. A separate default-off option
+blacklisted that candidate, proved it was excluded, and selected `+45.1 mm`;
+the second transfer still aborted at frame 300 with 129.98 N. The set-down
+mechanism worked and the ranking feedback worked, but neither passed the task
+or safety gate. Both remain disabled negative controls. The stop rule cancelled
+sentinels, scans, and new episodes; the next hypothesis must change loaded
+support geometry or use a genuinely longer-horizon stability objective.

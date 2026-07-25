@@ -12,6 +12,8 @@ class Stage(str, Enum):
     VERIFY = "verify"
     LIFT = "lift"
     PLACE = "place"
+    RECOVER_SETDOWN = "recover_setdown"
+    RECOVER_RELEASE = "recover_release"
     RELEASE = "release"
     COMPLETE = "complete"
     ABORT = "abort"
@@ -24,6 +26,7 @@ class Command(str, Enum):
     HOLD = "hold"
     MOVE_LIFT = "move_lift"
     MOVE_DROP = "move_drop"
+    MOVE_RECOVERY_SETDOWN = "move_recovery_setdown"
     OPEN_GRIPPER = "open_gripper"
     STOP = "stop"
 
@@ -37,20 +40,30 @@ class ClosedLoopSupervisor:
         grasp_settle_steps: int = 0,
         release_settle_steps: int = 0,
         grasp_stability_steps: int = 1,
+        transport_slip_setdown_regrasp_enabled: bool = False,
+        recovery_setdown_max_steps: int = 20,
     ) -> None:
         if min(max_grasp_retries, grasp_settle_steps, release_settle_steps) < 0:
             raise ValueError("retry and settle counts cannot be negative")
         if grasp_stability_steps < 1:
             raise ValueError("grasp_stability_steps must be positive")
+        if recovery_setdown_max_steps < 1:
+            raise ValueError("recovery_setdown_max_steps must be positive")
         self.max_grasp_retries = max_grasp_retries
         self.grasp_settle_steps = grasp_settle_steps
         self.release_settle_steps = release_settle_steps
         self.grasp_stability_steps = grasp_stability_steps
+        self.transport_slip_setdown_regrasp_enabled = (
+            transport_slip_setdown_regrasp_enabled
+        )
+        self.recovery_setdown_max_steps = recovery_setdown_max_steps
         self.retry_count = 0
         self._verify_wait_steps = 0
         self._grasp_contact_steps = 0
         self._lift_contact_loss_steps = 0
         self._release_wait_steps = 0
+        self._recovery_setdown_steps = 0
+        self._recovery_release_steps = 0
         self.stage = Stage.DETECT
 
     def reset(self) -> None:
@@ -59,6 +72,8 @@ class ClosedLoopSupervisor:
         self._grasp_contact_steps = 0
         self._lift_contact_loss_steps = 0
         self._release_wait_steps = 0
+        self._recovery_setdown_steps = 0
+        self._recovery_release_steps = 0
         self.stage = Stage.DETECT
 
     def step(self, observation: Observation) -> ControlDecision:
@@ -68,6 +83,64 @@ class ClosedLoopSupervisor:
         if observation.fault or observation.excessive_contact_force:
             self.stage = Stage.ABORT
             return self._decision(Command.STOP, "safety fault")
+
+        if (
+            self.transport_slip_setdown_regrasp_enabled
+            and observation.transport_slip
+            and self.stage in {Stage.LIFT, Stage.PLACE}
+        ):
+            self._recovery_setdown_steps = 1
+            self._recovery_release_steps = 0
+            self.stage = Stage.RECOVER_SETDOWN
+            return self._decision(
+                Command.MOVE_RECOVERY_SETDOWN,
+                "transport slip detected; setting parcel down",
+            )
+
+        if self.stage == Stage.RECOVER_SETDOWN:
+            if (
+                observation.at_recovery_setdown
+                or self._recovery_setdown_steps >= self.recovery_setdown_max_steps
+            ):
+                self._recovery_release_steps = 0
+                self.stage = Stage.RECOVER_RELEASE
+                return self._decision(
+                    Command.OPEN_GRIPPER,
+                    "recovery setdown reached; releasing parcel",
+                )
+            self._recovery_setdown_steps += 1
+            return self._decision(
+                Command.MOVE_RECOVERY_SETDOWN,
+                "lowering slipped parcel",
+            )
+
+        if self.stage == Stage.RECOVER_RELEASE:
+            if observation.grasp_contact:
+                self._recovery_release_steps = 0
+                return self._decision(
+                    Command.OPEN_GRIPPER,
+                    "waiting for recovery release",
+                )
+            self._recovery_release_steps += 1
+            if self._recovery_release_steps < 2:
+                return self._decision(
+                    Command.OPEN_GRIPPER,
+                    "confirming recovery release",
+                )
+            if self.retry_count >= self.max_grasp_retries:
+                self.stage = Stage.ABORT
+                return self._decision(
+                    Command.STOP,
+                    "transport slip recovery exhausted retry budget",
+                )
+            self.retry_count += 1
+            self._recovery_setdown_steps = 0
+            self._recovery_release_steps = 0
+            self.stage = Stage.DETECT
+            return self._decision(
+                Command.SEARCH,
+                "transport slip set down; retrying",
+            )
 
         if self.stage == Stage.DETECT:
             if observation.parcel_visible:
@@ -141,6 +214,8 @@ class ClosedLoopSupervisor:
         self._grasp_contact_steps = 0
         self._lift_contact_loss_steps = 0
         self._release_wait_steps = 0
+        self._recovery_setdown_steps = 0
+        self._recovery_release_steps = 0
         if self.retry_count >= self.max_grasp_retries:
             self.stage = Stage.ABORT
             return self._decision(Command.STOP, reason)

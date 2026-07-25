@@ -90,6 +90,8 @@ class ScriptedPickPlaceExpert:
             )
         elif command == Command.MOVE_DROP:
             desired = self._safe_drop_position(current)
+        elif command == Command.MOVE_RECOVERY_SETDOWN:
+            desired = self.recovery_setdown_position(current)
         else:
             desired = tuple(float(value) for value in current)
         if command == Command.CLOSE_GRIPPER:
@@ -133,6 +135,11 @@ class ScriptedPickPlaceExpert:
                     step_limit = max(step_limit, min(barrier_step, vertical_deficit))
         elif command == Command.MOVE_LIFT and self.sample.lift_step_m is not None:
             step_limit = min(step_limit, self.sample.lift_step_m)
+        elif command == Command.MOVE_RECOVERY_SETDOWN:
+            step_limit = min(
+                step_limit,
+                self.config.control.transport_slip_setdown_step_m,
+            )
         elif command == Command.MOVE_DROP and self._planned_grasp_position is not None:
             if self._drop_descent_committed:
                 step_limit = min(
@@ -186,6 +193,17 @@ class ScriptedPickPlaceExpert:
             parcel_pose[0],
             parcel_pose[1],
             parcel_pose[2] + self.grasp_hand_clearance_m(),
+        )
+
+    def recovery_setdown_position(
+        self,
+        current_position: tuple[float, ...],
+    ) -> tuple[float, float, float]:
+        """Lower vertically to the original table-height grasp envelope."""
+        return (
+            float(current_position[0]),
+            float(current_position[1]),
+            self._initial_parcel_z + self.grasp_hand_clearance_m(),
         )
 
     def set_planned_grasp_pose(

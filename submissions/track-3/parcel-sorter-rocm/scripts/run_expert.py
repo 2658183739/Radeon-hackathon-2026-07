@@ -154,6 +154,11 @@ def main() -> int:
         help="ablation only: retain the original feasible pose across grasp retries",
     )
     parser.add_argument(
+        "--grasp-planning-blacklist-failed-candidate",
+        action="store_true",
+        help="exclude each failed selected pose family from the next retry",
+    )
+    parser.add_argument(
         "--grasp-planning-waypoint-gate",
         action="store_true",
         help="diagnostic: sweep commanded IK waypoints for non-finger collisions",
@@ -214,6 +219,11 @@ def main() -> int:
         action="store_true",
         help="enable frozen mid-transport slip detection and bounded force recovery",
     )
+    parser.add_argument(
+        "--transport-slip-setdown-regrasp",
+        action="store_true",
+        help="set down, release, and replan after the frozen transport-slip signal",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -252,6 +262,7 @@ def main() -> int:
         or args.grasp_planning_disable_manipulability_ranking
         or args.grasp_planning_disable_symmetric_wrist
         or args.grasp_planning_disable_retry_replan
+        or args.grasp_planning_blacklist_failed_candidate
         or args.grasp_planning_waypoint_gate
         or args.grasp_planning_stability_steps is not None
         or args.grasp_planning_final_approach_step is not None
@@ -263,6 +274,7 @@ def main() -> int:
         or args.grasp_planning_transport_step is not None
         or args.grasp_planning_transfer_settle_steps is not None
         or args.transport_slip_recovery
+        or args.transport_slip_setdown_regrasp
     ):
         config = replace(
             config,
@@ -308,6 +320,10 @@ def main() -> int:
                 grasp_planning_retry_replan_enabled=(
                     config.task.grasp_planning_retry_replan_enabled
                     and not args.grasp_planning_disable_retry_replan
+                ),
+                grasp_planning_failed_candidate_blacklist_enabled=(
+                    config.task.grasp_planning_failed_candidate_blacklist_enabled
+                    or args.grasp_planning_blacklist_failed_candidate
                 ),
                 grasp_planning_waypoint_collision_gate_enabled=(
                     config.task.grasp_planning_waypoint_collision_gate_enabled
@@ -400,6 +416,10 @@ def main() -> int:
                     config.control.transport_slip_recovery_enabled
                     or args.transport_slip_recovery
                 ),
+                transport_slip_setdown_regrasp_enabled=(
+                    config.control.transport_slip_setdown_regrasp_enabled
+                    or args.transport_slip_setdown_regrasp
+                ),
             ),
         )
     if args.approach_step is not None:
@@ -413,6 +433,7 @@ def main() -> int:
         or args.grasp_planning_disable_manipulability_ranking
         or args.grasp_planning_disable_symmetric_wrist
         or args.grasp_planning_disable_retry_replan
+        or args.grasp_planning_blacklist_failed_candidate
         or args.grasp_planning_waypoint_gate
         or args.grasp_planning_stability_steps is not None
         or args.grasp_planning_final_approach_step is not None
@@ -424,6 +445,7 @@ def main() -> int:
         or args.grasp_planning_transport_step is not None
         or args.grasp_planning_transfer_settle_steps is not None
         or args.transport_slip_recovery
+        or args.transport_slip_setdown_regrasp
     ) and not config.task.geometry_aware_grasp_planning_enabled:
         parser.error("grasp-planning options require --geometry-aware-grasp-planning")
     try:

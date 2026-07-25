@@ -36,6 +36,24 @@ class ScriptedExpertTests(unittest.TestCase):
         self.assertLessEqual(squared_distance ** 0.5, self.config.control.max_ee_step_m + 1e-9)
         self.assertGreater(action.gripper, 0)
 
+    def test_slip_recovery_setdown_is_vertical_bounded_and_closed(self) -> None:
+        decision = ControlDecision(
+            "recover_setdown",
+            Command.MOVE_RECOVERY_SETDOWN.value,
+            "test",
+            0,
+        )
+
+        action = self.expert.action(decision, self.state)
+
+        self.assertEqual(action.target_position[:2], self.state.end_effector_pose[:2])
+        self.assertLess(action.target_position[2], self.state.end_effector_pose[2])
+        self.assertLessEqual(
+            self.state.end_effector_pose[2] - action.target_position[2],
+            self.config.control.transport_slip_setdown_step_m + 1e-12,
+        )
+        self.assertLess(action.gripper, 0)
+
     def test_pregrasp_rises_vertically_before_crossing_workspace(self) -> None:
         decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)
         state = RobotState(

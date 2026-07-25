@@ -78,6 +78,7 @@ class TaskConfig:
     grasp_planning_manipulability_ranking_enabled: bool = True
     grasp_planning_symmetric_wrist_enabled: bool = True
     grasp_planning_retry_replan_enabled: bool = True
+    grasp_planning_failed_candidate_blacklist_enabled: bool = False
     grasp_planning_waypoint_collision_gate_enabled: bool = False
     grasp_planning_stability_steps: int = 5
     grasp_planning_final_approach_step_m: float = 0.005
@@ -153,6 +154,14 @@ class TaskConfig:
             )
         if self.grasp_planning_stability_steps < 1:
             raise ValueError("grasp_planning_stability_steps must be positive")
+        if (
+            self.grasp_planning_failed_candidate_blacklist_enabled
+            and not self.grasp_planning_retry_replan_enabled
+        ):
+            raise ValueError(
+                "grasp_planning_failed_candidate_blacklist_enabled requires "
+                "grasp_planning_retry_replan_enabled"
+            )
         if (
             not math.isfinite(self.grasp_planning_final_approach_step_m)
             or self.grasp_planning_final_approach_step_m <= 0
@@ -235,6 +244,9 @@ class ControlConfig:
     transport_slip_min_destination_distance_m: float = 0.080
     transport_slip_force_boost_n: float = 2.0
     transport_slip_force_hold_steps: int = 15
+    transport_slip_setdown_regrasp_enabled: bool = False
+    transport_slip_setdown_step_m: float = 0.010
+    transport_slip_setdown_max_steps: int = 20
     collision_checked_reset_enabled: bool = False
     collision_free_reset_qpos: tuple[float, ...] = COLLISION_FREE_RESET_QPOS
     reset_qpos: tuple[float, ...] = DEFAULT_RESET_QPOS
@@ -330,6 +342,16 @@ class ControlConfig:
             )
         if self.transport_slip_force_hold_steps < 1:
             raise ValueError("transport_slip_force_hold_steps must be positive")
+        if (
+            not math.isfinite(self.transport_slip_setdown_step_m)
+            or self.transport_slip_setdown_step_m <= 0
+            or self.transport_slip_setdown_step_m > self.max_ee_step_m
+        ):
+            raise ValueError(
+                "transport_slip_setdown_step_m must be in (0, max_ee_step_m]"
+            )
+        if self.transport_slip_setdown_max_steps < 1:
+            raise ValueError("transport_slip_setdown_max_steps must be positive")
         if len(self.collision_free_reset_qpos) != 9 or any(
             not math.isfinite(value) for value in self.collision_free_reset_qpos
         ):
@@ -504,6 +526,14 @@ class ExperimentConfig:
         ):
             raise ValueError(
                 "transport_slip_recovery_enabled requires "
+                "grasp_planning_transport_contract_enabled"
+            )
+        if (
+            self.control.transport_slip_setdown_regrasp_enabled
+            and not self.task.grasp_planning_transport_contract_enabled
+        ):
+            raise ValueError(
+                "transport_slip_setdown_regrasp_enabled requires "
                 "grasp_planning_transport_contract_enabled"
             )
         if (

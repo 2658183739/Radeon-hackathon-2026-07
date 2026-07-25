@@ -17,6 +17,7 @@ from .grasp_planning import (
     grasp_evaluation_is_feasible,
     interpolate_joint_segment,
     rank_grasp_pose_evaluations,
+    rejected_candidates_after_retry,
     select_grasp_pose_evaluation,
 )
 from .randomization import ParcelSample
@@ -446,6 +447,7 @@ class GenesisParcelEnv:
         self._transport_slip_last_signal: TransportSlipSignal | None = None
         self._transport_slip_last_force_limit_n = config.control.close_force_n
         self._transport_slip_events: list[dict[str, Any]] = []
+        self._transport_slip_setdown_pending = False
 
         physics_dt = 1.0 / config.simulation.physics_hz
         rolling_friction = needs_rolling_friction(sample)
@@ -620,8 +622,14 @@ class GenesisParcelEnv:
             return
 
         retry_changed = decision.retry_count != self._grasp_plan_retry_count
-        if retry_changed:
-            self._grasp_plan_rejected_candidate_ids.clear()
+        self._grasp_plan_rejected_candidate_ids = rejected_candidates_after_retry(
+            self._grasp_plan_rejected_candidate_ids,
+            self._grasp_plan_selected,
+            retry_changed=retry_changed,
+            blacklist_failed_candidate_enabled=(
+                task.grasp_planning_failed_candidate_blacklist_enabled
+            ),
+        )
         should_replan = (
             self._grasp_plan_selected is None
             and self._grasp_plan_pending_replan
@@ -646,7 +654,10 @@ class GenesisParcelEnv:
         control = self.config.control
         phase = self.expert.transport_phase
         active = (
-            control.transport_slip_recovery_enabled
+            (
+                control.transport_slip_recovery_enabled
+                or control.transport_slip_setdown_regrasp_enabled
+            )
             and self._geometry_grasp_planning_active
             and decision.command in {"move_lift", "move_drop"}
             and phase in PAYLOAD_TRANSPORT_PHASES
@@ -654,6 +665,8 @@ class GenesisParcelEnv:
         if not active:
             self._transport_slip_previous_relative_position_m = None
             self._transport_slip_force_remaining_steps = 0
+            if decision.command == "move_recovery_setdown":
+                self._transport_slip_setdown_pending = False
             return
 
         current_relative = tuple(
@@ -689,10 +702,13 @@ class GenesisParcelEnv:
             return
 
         self._transport_slip_trigger_count += 1
-        self._transport_slip_force_remaining_steps = max(
-            self._transport_slip_force_remaining_steps,
-            control.transport_slip_force_hold_steps,
-        )
+        if control.transport_slip_recovery_enabled:
+            self._transport_slip_force_remaining_steps = max(
+                self._transport_slip_force_remaining_steps,
+                control.transport_slip_force_hold_steps,
+            )
+        if control.transport_slip_setdown_regrasp_enabled:
+            self._transport_slip_setdown_pending = True
         self._transport_slip_events.append(
             {
                 "frame": self.control_step,
@@ -968,6 +984,11 @@ class GenesisParcelEnv:
             and abs(parcel_position[1] - destination[1]) <= self.config.task.bin_half_extent_m[1]
         )
         at_drop = self._distance(ee_position, self.expert.drop_position()) <= self.config.task.position_tolerance_m
+        recovery_setdown = self.expert.recovery_setdown_position(ee_position)
+        at_recovery_setdown = (
+            ee_position[2]
+            <= recovery_setdown[2] + self.config.task.position_tolerance_m
+        )
         if in_bin and not has_contact:
             self._release_steps += 1
         else:
@@ -984,6 +1005,8 @@ class GenesisParcelEnv:
             at_drop_pose=at_drop,
             parcel_in_bin=in_bin,
             parcel_released=self._release_steps >= self.config.task.release_settle_steps,
+            transport_slip=self._transport_slip_setdown_pending,
+            at_recovery_setdown=at_recovery_setdown,
             excessive_contact_force=max_force > self.config.task.max_contact_force_n,
             fault=not finite,
         )
@@ -1056,9 +1079,16 @@ class GenesisParcelEnv:
             "grasp_planning_transport_lookahead_enabled": (
                 self.config.task.grasp_planning_transport_lookahead_enabled
             ),
+            "grasp_planning_failed_candidate_blacklist_enabled": (
+                self.config.task.grasp_planning_failed_candidate_blacklist_enabled
+            ),
             "transport_slip_recovery_enabled": (
                 self.config.control.transport_slip_recovery_enabled
             ),
+            "transport_slip_setdown_regrasp_enabled": (
+                self.config.control.transport_slip_setdown_regrasp_enabled
+            ),
+            "transport_slip_setdown_pending": self._transport_slip_setdown_pending,
             "transport_slip_trigger_count": self._transport_slip_trigger_count,
             "transport_slip_force_remaining_steps": (
                 self._transport_slip_force_remaining_steps
@@ -1157,6 +1187,9 @@ class GenesisParcelEnv:
             "grasp_planning_retry_replan_enabled": (
                 self.config.task.grasp_planning_retry_replan_enabled
             ),
+            "grasp_planning_failed_candidate_blacklist_enabled": (
+                self.config.task.grasp_planning_failed_candidate_blacklist_enabled
+            ),
             "grasp_planning_waypoint_collision_gate_enabled": (
                 self.config.task.grasp_planning_waypoint_collision_gate_enabled
             ),
@@ -1199,6 +1232,16 @@ class GenesisParcelEnv:
             "transport_slip_recovery_enabled": (
                 self.config.control.transport_slip_recovery_enabled
             ),
+            "transport_slip_setdown_regrasp_enabled": (
+                self.config.control.transport_slip_setdown_regrasp_enabled
+            ),
+            "transport_slip_setdown_step_m": (
+                self.config.control.transport_slip_setdown_step_m
+            ),
+            "transport_slip_setdown_max_steps": (
+                self.config.control.transport_slip_setdown_max_steps
+            ),
+            "transport_slip_setdown_pending": self._transport_slip_setdown_pending,
             "transport_slip_relative_delta_m": (
                 self.config.control.transport_slip_relative_delta_m
             ),

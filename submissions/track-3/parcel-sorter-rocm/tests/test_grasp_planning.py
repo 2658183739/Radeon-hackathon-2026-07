@@ -14,6 +14,7 @@ from parcel_sorter.grasp_planning import (
     grasp_evaluation_is_feasible,
     interpolate_joint_segment,
     rank_grasp_pose_evaluations,
+    rejected_candidates_after_retry,
     select_grasp_pose_evaluation,
 )
 from parcel_sorter.randomization import DomainRandomizer
@@ -354,6 +355,44 @@ class GraspPoseRankingTests(unittest.TestCase):
 
         self.assertIsNotNone(selected)
         self.assertEqual(selected["candidate_id"], "fallback")
+
+    def test_retry_blacklist_accumulates_failed_candidates_when_enabled(self) -> None:
+        first = self.evaluation("first")
+        second = self.evaluation("second")
+
+        rejected = rejected_candidates_after_retry(
+            set(),
+            first,
+            retry_changed=True,
+            blacklist_failed_candidate_enabled=True,
+        )
+        rejected = rejected_candidates_after_retry(
+            rejected,
+            second,
+            retry_changed=True,
+            blacklist_failed_candidate_enabled=True,
+        )
+
+        self.assertEqual(rejected, {"first", "second"})
+
+    def test_retry_blacklist_preserves_historical_default(self) -> None:
+        selected = self.evaluation("failed")
+
+        unchanged = rejected_candidates_after_retry(
+            {"waypoint-rejected"},
+            selected,
+            retry_changed=False,
+            blacklist_failed_candidate_enabled=True,
+        )
+        default_retry = rejected_candidates_after_retry(
+            {"waypoint-rejected"},
+            selected,
+            retry_changed=True,
+            blacklist_failed_candidate_enabled=False,
+        )
+
+        self.assertEqual(unchanged, {"waypoint-rejected"})
+        self.assertEqual(default_retry, set())
 
     def test_centered_lower_side_contact_outranks_shorter_joint_path(self) -> None:
         off_center = self.evaluation(

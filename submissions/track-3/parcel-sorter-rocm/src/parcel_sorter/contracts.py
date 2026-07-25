@@ -15,6 +15,8 @@ class Observation:
     at_drop_pose: bool = False
     parcel_in_bin: bool = False
     parcel_released: bool = False
+    transport_slip: bool = False
+    at_recovery_setdown: bool = False
     excessive_contact_force: bool = False
     fault: bool = False
 

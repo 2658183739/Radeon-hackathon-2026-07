@@ -320,3 +320,29 @@ default-off 2 N force response passed 200 Radeon tests and stayed below the
 not recover `4120001`. Both methods are retained only as reproducible negative
 controls. See `docs/GRASP_CONTACT_STABILITY_2026-07-26.md` and
 `evidence/expert/radeon-slip-recovery-feedback-probe-v1/`.
+
+## Completed dynamic screening and stateful recovery decision
+
+This iteration added three reusable engineering capabilities without changing
+the default controller:
+
+1. a simulator-independent loaded-grasp threshold/ranking module and a
+   complete-`SimState` diagnostic runner;
+2. explicit set-down and release states with bounded vertical motion and
+   observable completion; and
+3. pure, testable retry-blacklist semantics that preserve historical behavior
+   while the new switch is off.
+
+The implementation followed the project's current optimization discipline.
+First isolate candidates from hidden scene carry-over; then test predictive
+validity against a known full-transport failure; then change one physical
+recovery mechanism; finally test candidate feedback separately. This ordering
+prevents a successful state transition from being mislabeled as a successful
+task and prevents a ranking change from being credited for unrelated physics.
+
+All 216 Radeon tests pass. The short rollout failed predictive validation, and
+both regrasp paths exceeded the unchanged 35 N safety line during their second
+transfer. The code and evidence are retained for diagnosis and future
+composition, but all new runtime switches remain off. The next optimization
+unit must change support geometry or use a longer loaded horizon; further local
+height, force, and step tuning is not justified by the measured results.

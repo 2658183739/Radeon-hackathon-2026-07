@@ -389,3 +389,23 @@ The candidate remains a disabled negative control. Its failed primary probe
 cancels successful sentinels, threshold scans, and confirmation runs. The next
 controller mechanism must add safe set-down/regrasp or a verified open-source
 capture geometry. Learned-policy and VLA claims remain gated.
+
+## Latest mechanism probe: dynamic screening and set-down regrasp rejected
+
+A complete-scene snapshot diagnostic evaluated six unique statically feasible
+grasps, twice each, on three already observed development episodes. Scene
+restore error was `0.0` and repeats were identical, but the short 30 mm loaded
+transfer passed the `+40 mm` grasp that later fails in full transport. The
+diagnostic is reproducible but not predictively valid enough for online ranking.
+
+The stateful recovery candidate safely executed
+`recover_setdown -> recover_release -> retry` after the frozen frame-159 slip.
+Set-down peaked at 21.81 N, and a second grasp was completed. Reusing the same
+candidate caused a 129.45 N second-transfer abort. Blacklisting it selected an
+adjacent `+45.1 mm` candidate, but the next transfer still aborted at 129.98 N.
+
+Both mechanisms remain default off. No success-rate, robustness, or model claim
+is made from these development probes. The next justified direction is a
+licensed support-geometry change or longer-horizon loaded-stability planning;
+adjacent-height, force, and set-down-step scans are stopped. Complete evidence
+is under `evidence/expert/radeon-dynamic-stability-setdown-probes-v1/`.
