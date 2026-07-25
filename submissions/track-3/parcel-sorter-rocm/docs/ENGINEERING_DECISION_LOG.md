@@ -1598,3 +1598,34 @@ future simulator comparison, block and balance method order, and require
 fresh-process repeats for selected discordant sentinels before causal promotion.
 The next controller must redesign recovery state or grasp execution rather than
 add another post-hoc eligibility threshold.
+
+### 69. Reject the universal transport contract and prioritize grasp stability
+
+**Observation and hypothesis.** All three repeatable planner-active episodes
+selected a centered, canonical-wrist grasp 40 mm above nominal. The planner
+proved IK/FK and static-collision feasibility but not loaded raise, transport,
+and placement feasibility. The two regressions produced 159.27 N and 69.00 N
+peaks during post-grasp execution, motivating a default-off staged transport
+contract.
+
+**Capability and ordered corrections.** The implementation adds monotonic
+`raise / raise_settle / transfer / transfer_settle / descend` phases, separate
+raise and transfer increments, delayed-action handoffs, bounded reference
+lookahead, CLI controls, and phase/pose/relative-position telemetry. Early
+versions incorrectly re-evaluated stability every frame: `5120003` spent 201
+frames at the raise handoff and 126 at the transfer handoff. Monotonic latching
+restored that episode to a 10.4 s, 29.69 N success. The full 186-test Radeon
+suite passed.
+
+**Mechanism result.** Feedback-limited transport recovered `7120004` from the
+69.00 N regression to a 13.88 N success and retained the `5120003` recovery,
+but `4120001` lost its grasp during slow transport. Bounded lookahead shortened
+execution but produced 39.95 N; reducing its increment from 10 mm to 5 mm still
+produced 40.95 N. The 35 N limit never changed.
+
+**Decision and revisit trigger.** Reject promotion and do not run repeats,
+ordinary-profile sentinels, or confirmation episodes. More step scans on the
+same development cases would be post-hoc fitting. Keep the code default off as
+a negative control. The next method must change grasp stability itself through
+payload-aware ranking, a side-grasp family, or measured-slip-triggered regrasp,
+then freeze new episodes before making a performance claim.

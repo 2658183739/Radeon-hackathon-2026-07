@@ -82,6 +82,10 @@ class TaskConfig:
     grasp_planning_tall_box_height_m: float = 0.160
     grasp_planning_tall_box_final_approach_step_m: float = 0.0025
     grasp_planning_drop_step_m: float = 0.005
+    grasp_planning_transport_contract_enabled: bool = False
+    grasp_planning_raise_step_m: float = 0.020
+    grasp_planning_transport_step_m: float = 0.010
+    grasp_planning_transfer_settle_steps: int = 2
     grasp_planning_joint_segment_resolution_rad: float = 0.025
 
     def validate(self) -> None:
@@ -177,6 +181,16 @@ class TaskConfig:
             or self.grasp_planning_drop_step_m <= 0
         ):
             raise ValueError("grasp_planning_drop_step_m must be finite and positive")
+        for name, value in (
+            ("grasp_planning_raise_step_m", self.grasp_planning_raise_step_m),
+            ("grasp_planning_transport_step_m", self.grasp_planning_transport_step_m),
+        ):
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be finite and positive")
+        if self.grasp_planning_transfer_settle_steps < 1:
+            raise ValueError(
+                "grasp_planning_transfer_settle_steps must be positive"
+            )
         if (
             not math.isfinite(self.grasp_planning_joint_segment_resolution_rad)
             or self.grasp_planning_joint_segment_resolution_rad <= 0
@@ -458,6 +472,18 @@ class ExperimentConfig:
             raise ValueError(
                 "grasp_planning_final_approach_step_m cannot exceed max_ee_step_m"
             )
+        for name, value in (
+            (
+                "grasp_planning_raise_step_m",
+                self.task.grasp_planning_raise_step_m,
+            ),
+            (
+                "grasp_planning_transport_step_m",
+                self.task.grasp_planning_transport_step_m,
+            ),
+        ):
+            if value > self.control.max_ee_step_m:
+                raise ValueError(f"{name} cannot exceed max_ee_step_m")
         if (
             self.task.grasp_planning_reset_fallback_gate_enabled
             and not self.task.geometry_aware_grasp_planning_enabled

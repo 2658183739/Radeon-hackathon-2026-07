@@ -111,6 +111,15 @@ class ExpertRunnerTests(unittest.TestCase):
         self.assertEqual(report.terminal_stage, "complete")
         self.assertIn(Command.MOVE_LIFT.value, [item["command"] for item in report.trace])
         self.assertEqual(len(report.trace), len(environment.prepared_decisions))
+        self.assertEqual(report.trace[0]["ee_quaternion_wxyz"], [1.0, 0.0, 0.0, 0.0])
+        self.assertEqual(report.trace[0]["parcel_quaternion_wxyz"], [1.0, 0.0, 0.0, 0.0])
+        for actual, expected in zip(
+            report.trace[0]["ee_parcel_relative_position_m"],
+            (-0.1, 0.0, 0.18),
+            strict=True,
+        ):
+            self.assertAlmostEqual(actual, expected)
+        self.assertEqual(len(report.trace[0]["action_target_position_m"]), 3)
 
 
 if __name__ == "__main__":

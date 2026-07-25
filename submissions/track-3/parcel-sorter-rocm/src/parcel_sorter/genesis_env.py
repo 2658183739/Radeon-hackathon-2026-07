@@ -911,6 +911,7 @@ class GenesisParcelEnv:
                 if self._grasp_plan_selected is not None
                 else None
             ),
+            "grasp_planning_transport_phase": self.expert.transport_phase,
             "grasp_waypoint_rejections": self._grasp_waypoint_rejections,
             "grasp_waypoint_last_collision": self._grasp_waypoint_last_collision,
         }
@@ -1020,6 +1021,19 @@ class GenesisParcelEnv:
             "grasp_planning_drop_step_m": (
                 self.config.task.grasp_planning_drop_step_m
             ),
+            "grasp_planning_transport_contract_enabled": (
+                self.config.task.grasp_planning_transport_contract_enabled
+            ),
+            "grasp_planning_raise_step_m": (
+                self.config.task.grasp_planning_raise_step_m
+            ),
+            "grasp_planning_transport_step_m": (
+                self.config.task.grasp_planning_transport_step_m
+            ),
+            "grasp_planning_transfer_settle_steps": (
+                self.config.task.grasp_planning_transfer_settle_steps
+            ),
+            "grasp_planning_transport_final_phase": self.expert.transport_phase,
             "grasp_planning_joint_segment_resolution_rad": (
                 self.config.task.grasp_planning_joint_segment_resolution_rad
             ),

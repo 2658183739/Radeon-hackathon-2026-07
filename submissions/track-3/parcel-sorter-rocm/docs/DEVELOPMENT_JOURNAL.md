@@ -879,3 +879,19 @@ all four successes occurred when the condition was second in its block. This
 is a process-local period/carry-over signal, not an inactive-planner effect.
 The method remains rejected. Radeon validation passed 182 tests, Python
 compilation, shell syntax, and local/remote SHA-256 verification.
+
+### Record 65: Use phase telemetry to reject universal transport limiting
+
+The three planner-active episodes shared the same grasp family but produced one
+recovery and two regressions. The first transport contract reduced `4120001`
+from 159.27 N to 12.82 N but timed out because dwell counters repeatedly reset.
+A 20 mm step restored the 158.81 N impact. Monotonic raise and transfer latches
+then retained the `5120003` success and recovered `7120004` from 69.00 N to a
+13.88 N success.
+
+`4120001` exposed the remaining speed-versus-retention conflict: a 10 mm target
+derived from measured pose required 301 transport frames and slipped, while
+bounded lookahead produced 39.95 N and 40.95 N at 10 mm and 5 mm increments.
+The 35 N gate stopped expansion. Code, CLI, 186 passing tests, compact evidence,
+and full-summary hashes are archived. The next record must address payload-aware
+grasp stability rather than another transport-step scan.

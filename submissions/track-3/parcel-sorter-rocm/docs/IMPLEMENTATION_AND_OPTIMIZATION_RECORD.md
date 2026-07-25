@@ -189,6 +189,34 @@ causal effects.
 ROCm environment. The analysis itself is verified; the proposed controller
 change remains planned until a matched Radeon A/B experiment is complete.
 
+### 8. Make post-grasp execution observable and ablatable
+
+**Starting point.** A feasible grasp pose does not imply a feasible transport.
+The original `MOVE_DROP` mixed raise, horizontal transfer, and descent, and
+limited planned motion only during descent. It could not attribute post-grasp
+impacts to a task subphase.
+
+**Implementation sequence.** Add a default-off typed transport contract, then
+monotonic phases and action-target, end-effector, parcel-quaternion, and
+relative-position telemetry. Two trace audits showed that control oscillation
+repeatedly reset the initial consecutive-stability implementation, so each
+handoff became a fixed dwell after first entry. Finally add bounded reference
+lookahead: the reference advances incrementally while global tracking error
+remains capped.
+
+**Why tuning stopped.** The mechanism recovered one 69.00 N regression and
+retained one existing success, but the third fixed development case either
+slipped under slow feedback motion or aborted at 39.95--40.95 N with
+lookahead. More increment scans would fit an already observed episode rather
+than create generalizable evidence. The capability stays default off, and
+learned-policy or confirmation work does not start from this result.
+
+**Next executable study.** Derive slip labels from post-grasp relative pose and
+rotation, then compare payload-aware candidate ranking with explicit regrasp.
+If static collision filtering leaves only shallow high contacts for the
+top-down parallel jaw, add a side-grasp candidate family instead of changing
+the 35 N limit.
+
 ## Immediate Radeon workflow
 
 Run from the project root. The activation script checks the project `.venv`

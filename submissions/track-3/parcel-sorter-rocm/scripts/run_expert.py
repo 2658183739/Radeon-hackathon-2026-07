@@ -181,6 +181,29 @@ def main() -> int:
         default=None,
         help="cap final planned placement descent in metres per control step",
     )
+    parser.add_argument(
+        "--grasp-planning-transport-contract",
+        action="store_true",
+        help="stage planned payload raise, transfer, and descent with stable handoffs",
+    )
+    parser.add_argument(
+        "--grasp-planning-raise-step",
+        type=float,
+        default=None,
+        help="cap the planned payload raise in metres per control step",
+    )
+    parser.add_argument(
+        "--grasp-planning-transport-step",
+        type=float,
+        default=None,
+        help="cap planned horizontal payload transport in metres per control step",
+    )
+    parser.add_argument(
+        "--grasp-planning-transfer-settle-steps",
+        type=int,
+        default=None,
+        help="hold this many control frames at planned transport phase boundaries",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -224,6 +247,10 @@ def main() -> int:
         or args.grasp_planning_final_approach_step is not None
         or args.grasp_planning_disable_tiered_approach
         or args.grasp_planning_drop_step is not None
+        or args.grasp_planning_transport_contract
+        or args.grasp_planning_raise_step is not None
+        or args.grasp_planning_transport_step is not None
+        or args.grasp_planning_transfer_settle_steps is not None
     ):
         config = replace(
             config,
@@ -298,6 +325,25 @@ def main() -> int:
                     if args.grasp_planning_drop_step is None
                     else args.grasp_planning_drop_step
                 ),
+                grasp_planning_transport_contract_enabled=(
+                    config.task.grasp_planning_transport_contract_enabled
+                    or args.grasp_planning_transport_contract
+                ),
+                grasp_planning_raise_step_m=(
+                    config.task.grasp_planning_raise_step_m
+                    if args.grasp_planning_raise_step is None
+                    else args.grasp_planning_raise_step
+                ),
+                grasp_planning_transport_step_m=(
+                    config.task.grasp_planning_transport_step_m
+                    if args.grasp_planning_transport_step is None
+                    else args.grasp_planning_transport_step
+                ),
+                grasp_planning_transfer_settle_steps=(
+                    config.task.grasp_planning_transfer_settle_steps
+                    if args.grasp_planning_transfer_settle_steps is None
+                    else args.grasp_planning_transfer_settle_steps
+                ),
             ),
             control=replace(
                 config.control,
@@ -352,6 +398,10 @@ def main() -> int:
         or args.grasp_planning_final_approach_step is not None
         or args.grasp_planning_disable_tiered_approach
         or args.grasp_planning_drop_step is not None
+        or args.grasp_planning_transport_contract
+        or args.grasp_planning_raise_step is not None
+        or args.grasp_planning_transport_step is not None
+        or args.grasp_planning_transfer_settle_steps is not None
     ) and not config.task.geometry_aware_grasp_planning_enabled:
         parser.error("grasp-planning options require --geometry-aware-grasp-planning")
     try:

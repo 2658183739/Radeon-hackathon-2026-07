@@ -343,3 +343,31 @@ The project therefore records both a repeatable adverse planner effect and a
 separate process-local scene-order effect. Fresh-process sentinel repeats are
 the remaining reliability check; they are not a reason to reopen the rejected
 gate hypothesis.
+
+## Latest mechanism probe: planned-grasp transport contract rejected
+
+To separate grasp-pose defects from post-grasp execution defects, the project
+added a default-off monotonic transport contract:
+`raise -> raise_settle -> transfer -> transfer_settle -> descend`. Defaults
+are a 20 mm raise increment, 10 mm transfer increment, and two-frame phase
+handoff; bounded lookahead remains constrained by the global 40 mm tracking
+error limit. New telemetry records transport phase, action target, end-effector
+and parcel quaternions, and relative position. The 35 N safety threshold was
+not changed.
+
+Three already observed development episodes were used only for mechanism
+localization. Phase latching changed `7120004` from a 69.00 N failure to a
+13.88 N success and ultimately retained the 29.69 N success on `5120003`.
+`4120001` still slipped during slow transfer. The 10 mm and 5 mm lookahead
+variants shortened transport but reached 39.95 N and 40.95 N, respectively,
+and therefore failed the 35 N gate. The candidate is rejected, remains
+disabled, and will not proceed to repeats, ordinary-profile sentinels, or the
+reserved confirmation set.
+
+The immediate priority moves from common transport-step tuning to grasp
+stability: payload-aware grasp-candidate scoring, a side-grasp family, or
+slip-triggered safe placement and regrasp. Any new performance claim must
+freeze new development episodes. Balanced collection, formal learned-policy
+ranking, VLA, and ROS 2 remain gated on expert task performance and safety.
+Complete evidence is under
+`evidence/expert/radeon-transport-contract-probe-v1/`.

@@ -20,6 +20,7 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(config.randomization.enabled)
         self.assertFalse(config.task.grasp_planning_waypoint_collision_gate_enabled)
         self.assertFalse(config.task.grasp_planning_reset_fallback_gate_enabled)
+        self.assertFalse(config.task.grasp_planning_transport_contract_enabled)
         self.assertEqual(len(config.control.arm_kp), 7)
         self.assertEqual(len(config.control.reset_qpos), 9)
         self.assertLessEqual(config.control.final_approach_step_m, config.control.max_ee_step_m)
@@ -65,6 +66,21 @@ class ConfigTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "tall_box_final_approach_step_m"):
+            invalid.validate()
+
+    def test_planned_transport_step_cannot_exceed_global_limit(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            task=replace(
+                config.task,
+                grasp_planning_transport_step_m=(
+                    config.control.max_ee_step_m + 0.001
+                ),
+            ),
+        )
+
+        with self.assertRaisesRegex(ValueError, "grasp_planning_transport_step_m"):
             invalid.validate()
 
     def test_reset_fallback_gate_requires_planning_and_collision_checked_reset(self) -> None:

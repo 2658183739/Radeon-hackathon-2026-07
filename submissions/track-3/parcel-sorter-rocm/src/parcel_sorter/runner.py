@@ -136,7 +136,18 @@ def run_policy_episode(
                 "retry_count": decision.retry_count,
                 "contact_force_n": state.gripper_contact_force_n,
                 "ee_position_m": list(state.end_effector_pose[:3]),
+                "ee_quaternion_wxyz": list(state.end_effector_pose[3:7]),
                 "parcel_position_m": list(state.parcel_pose[:3]),
+                "parcel_quaternion_wxyz": list(state.parcel_pose[3:7]),
+                "ee_parcel_relative_position_m": [
+                    float(ee - parcel)
+                    for ee, parcel in zip(
+                        state.end_effector_pose[:3],
+                        state.parcel_pose[:3],
+                        strict=True,
+                    )
+                ],
+                "action_target_position_m": list(action.target_position),
                 "at_pregrasp": observation.at_pregrasp,
                 "grasp_contact": observation.grasp_contact,
                 "parcel_lifted": observation.parcel_lifted,

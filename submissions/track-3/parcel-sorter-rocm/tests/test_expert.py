@@ -418,6 +418,128 @@ class ScriptedExpertTests(unittest.TestCase):
             config.control.max_ee_step_m,
         )
 
+    def test_planned_transport_contract_stages_and_limits_payload_motion(self) -> None:
+        config = replace(
+            self.config,
+            task=replace(
+                self.config.task,
+                geometry_aware_grasp_planning_enabled=True,
+                grasp_planning_transport_contract_enabled=True,
+                grasp_planning_raise_step_m=0.020,
+                grasp_planning_transport_step_m=0.010,
+                grasp_planning_transfer_settle_steps=2,
+                grasp_planning_drop_step_m=0.005,
+            ),
+        )
+        expert = ScriptedPickPlaceExpert(config, self.sample)
+        expert.set_planned_grasp_pose(
+            (self.state.parcel_pose[0], self.state.parcel_pose[1], 0.20),
+            (0.0, 1.0, 0.0, 0.0),
+        )
+        decision = ControlDecision("place", Command.MOVE_DROP.value, "test", 0)
+        destination = expert.destination_position
+        transfer_z = max(
+            config.task.drop_hand_height_m + 0.10,
+            expert.lift_position()[2] + 0.05,
+        )
+        below_transfer = replace(
+            self.state,
+            end_effector_pose=(0.35, 0.0, transfer_z - 0.05, 1.0, 0.0, 0.0, 0.0),
+        )
+
+        raising = expert.action(decision, below_transfer)
+
+        self.assertEqual(expert.transport_phase, "raise")
+        self.assertAlmostEqual(
+            math.dist(raising.target_position, below_transfer.end_effector_pose[:3]),
+            0.020,
+        )
+
+        raised = replace(
+            self.state,
+            end_effector_pose=(0.35, 0.0, transfer_z, 1.0, 0.0, 0.0, 0.0),
+        )
+        first_raise_hold = expert.action(decision, raised)
+        drifted_during_hold = replace(
+            raised,
+            end_effector_pose=(
+                raised.end_effector_pose[0],
+                raised.end_effector_pose[1],
+                transfer_z - config.task.position_tolerance_m - 0.001,
+                *raised.end_effector_pose[3:],
+            ),
+        )
+        second_raise_hold = expert.action(decision, drifted_during_hold)
+        transferring = expert.action(decision, drifted_during_hold)
+
+        self.assertEqual(first_raise_hold.target_position, raised.end_effector_pose[:3])
+        self.assertEqual(
+            second_raise_hold.target_position,
+            drifted_during_hold.end_effector_pose[:3],
+        )
+        self.assertEqual(expert.transport_phase, "transfer")
+        self.assertAlmostEqual(
+            math.dist(
+                transferring.target_position,
+                drifted_during_hold.end_effector_pose[:3],
+            ),
+            config.task.grasp_planning_transport_step_m,
+        )
+        next_transfer = expert.action(decision, drifted_during_hold)
+        self.assertGreater(
+            math.dist(
+                next_transfer.target_position,
+                drifted_during_hold.end_effector_pose[:3],
+            ),
+            config.task.grasp_planning_transport_step_m,
+        )
+        self.assertLessEqual(
+            math.dist(
+                next_transfer.target_position,
+                drifted_during_hold.end_effector_pose[:3],
+            ),
+            config.task.grasp_planning_transport_step_m * 2 + 1e-9,
+        )
+
+        at_transfer = replace(
+            self.state,
+            end_effector_pose=(
+                destination[0],
+                destination[1],
+                transfer_z,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+            ),
+        )
+        first_transfer_hold = expert.action(decision, at_transfer)
+        drifted_at_transfer = replace(
+            at_transfer,
+            end_effector_pose=(
+                destination[0],
+                destination[1],
+                transfer_z - config.task.position_tolerance_m - 0.001,
+                *at_transfer.end_effector_pose[3:],
+            ),
+        )
+        second_transfer_hold = expert.action(decision, drifted_at_transfer)
+        descending = expert.action(decision, drifted_at_transfer)
+
+        self.assertEqual(first_transfer_hold.target_position, at_transfer.end_effector_pose[:3])
+        self.assertEqual(
+            second_transfer_hold.target_position,
+            drifted_at_transfer.end_effector_pose[:3],
+        )
+        self.assertEqual(expert.transport_phase, "descend")
+        self.assertAlmostEqual(
+            math.dist(
+                descending.target_position,
+                drifted_at_transfer.end_effector_pose[:3],
+            ),
+            0.005,
+        )
+
     def test_retry_lift_uses_latest_grasp_location(self) -> None:
         close = ControlDecision("grasp", Command.CLOSE_GRIPPER.value, "test", 1)
         self.expert.action(close, self.state)

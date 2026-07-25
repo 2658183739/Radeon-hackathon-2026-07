@@ -45,6 +45,10 @@ class ScriptedPickPlaceExpert:
         self._planned_grasp_position: tuple[float, float, float] | None = None
         self._descent_committed = False
         self._drop_descent_committed = False
+        self._transport_phase = "inactive"
+        self._transport_reference_position: tuple[float, float, float] | None = None
+        self._transfer_raise_stable_steps = 0
+        self._transfer_position_stable_steps = 0
         self._retry_retreat_pending = False
         self._last_retry_count = 0
         half_yaw = profile_grasp_yaw(sample) / 2
@@ -60,6 +64,9 @@ class ScriptedPickPlaceExpert:
         if decision.retry_count != self._last_retry_count:
             self._descent_committed = False
             self._drop_descent_committed = False
+            self._reset_transport_contract(
+                planned=self._planned_grasp_position is not None
+            )
             self._grasp_origin_xyz = None
             self._retry_retreat_pending = (
                 decision.retry_count > 0
@@ -126,16 +133,27 @@ class ScriptedPickPlaceExpert:
                     step_limit = max(step_limit, min(barrier_step, vertical_deficit))
         elif command == Command.MOVE_LIFT and self.sample.lift_step_m is not None:
             step_limit = min(step_limit, self.sample.lift_step_m)
-        elif (
+        elif command == Command.MOVE_DROP and self._planned_grasp_position is not None:
+            if self._drop_descent_committed:
+                step_limit = min(
+                    step_limit,
+                    self.config.task.grasp_planning_drop_step_m,
+                )
+            elif self.config.task.grasp_planning_transport_contract_enabled:
+                planned_step = (
+                    self.config.task.grasp_planning_raise_step_m
+                    if self._transport_phase in {"raise", "raise_settle"}
+                    else self.config.task.grasp_planning_transport_step_m
+                )
+                step_limit = min(step_limit, planned_step)
+        if (
             command == Command.MOVE_DROP
-            and self._planned_grasp_position is not None
-            and self._drop_descent_committed
+            and self._planned_transport_contract_active()
+            and not self._drop_descent_committed
         ):
-            step_limit = min(
-                step_limit,
-                self.config.task.grasp_planning_drop_step_m,
-            )
-        target = self._bounded_step(current, desired, step_limit)
+            target = self._bounded_transport_reference(current, desired, step_limit)
+        else:
+            target = self._bounded_step(current, desired, step_limit)
         target_quaternion = self._grasp_quaternion
         if command == Command.MOVE_PREGRASP:
             pregrasp = self.pregrasp_position(state.parcel_pose)
@@ -182,6 +200,7 @@ class ScriptedPickPlaceExpert:
         self._planned_grasp_position = tuple(float(value) for value in position)
         self._grasp_quaternion = tuple(float(value) for value in quaternion)
         self._descent_committed = False
+        self._reset_transport_contract(planned=True)
 
     def clear_planned_grasp_pose(self) -> None:
         self._planned_grasp_position = None
@@ -193,6 +212,12 @@ class ScriptedPickPlaceExpert:
             0.0,
         )
         self._descent_committed = False
+        self._reset_transport_contract()
+
+    @property
+    def transport_phase(self) -> str:
+        """Expose the planned payload phase for trace attribution."""
+        return self._transport_phase
 
     def grasp_hand_clearance_m(self) -> float:
         clearance = self.config.task.grasp_hand_clearance_m
@@ -449,13 +474,93 @@ class ScriptedPickPlaceExpert:
             current[1] - destination[1],
         )
         if self._drop_descent_committed:
+            if self._planned_transport_contract_active():
+                self._transport_phase = "descend"
             return self.drop_position()
+        if self._planned_transport_contract_active():
+            return self._contract_drop_position(
+                current,
+                destination=destination,
+                transfer_z=transfer_z,
+                horizontal_distance=horizontal_distance,
+                tolerance=tolerance,
+            )
         if current[2] < transfer_z - tolerance:
             return (current[0], current[1], transfer_z)
         if horizontal_distance > tolerance:
             return (destination[0], destination[1], transfer_z)
         self._drop_descent_committed = True
         return self.drop_position()
+
+    def _contract_drop_position(
+        self,
+        current: tuple[float, ...],
+        *,
+        destination: tuple[float, ...],
+        transfer_z: float,
+        horizontal_distance: float,
+        tolerance: float,
+    ) -> tuple[float, float, float]:
+        """Stage payload transport so queued IK targets cannot blend transitions."""
+        settle_steps = self.config.task.grasp_planning_transfer_settle_steps
+        if self._transport_phase == "raise":
+            if current[2] < transfer_z - tolerance:
+                self._transfer_position_stable_steps = 0
+                return (current[0], current[1], transfer_z)
+            self._transport_phase = "raise_settle"
+        if self._transport_phase == "raise_settle":
+            if self._transfer_raise_stable_steps < settle_steps:
+                self._transfer_raise_stable_steps += 1
+                return tuple(float(value) for value in current)
+            self._transport_phase = "transfer"
+
+        transfer_target = (destination[0], destination[1], transfer_z)
+        if self._transport_phase == "transfer":
+            if horizontal_distance > tolerance or abs(current[2] - transfer_z) > tolerance:
+                return transfer_target
+            self._transport_phase = "transfer_settle"
+        if self._transport_phase == "transfer_settle":
+            if self._transfer_position_stable_steps < settle_steps:
+                self._transfer_position_stable_steps += 1
+                return tuple(float(value) for value in current)
+
+        self._drop_descent_committed = True
+        self._transport_phase = "descend"
+        return self.drop_position()
+
+    def _planned_transport_contract_active(self) -> bool:
+        return (
+            self._planned_grasp_position is not None
+            and self.config.task.grasp_planning_transport_contract_enabled
+        )
+
+    def _reset_transport_contract(self, *, planned: bool = False) -> None:
+        self._transport_phase = "raise" if planned else "inactive"
+        self._transport_reference_position = None
+        self._transfer_raise_stable_steps = 0
+        self._transfer_position_stable_steps = 0
+
+    def _bounded_transport_reference(
+        self,
+        current: tuple[float, ...],
+        desired: tuple[float, float, float],
+        reference_step_m: float,
+    ) -> tuple[float, float, float]:
+        """Advance a smooth reference without allowing unbounded tracking error."""
+        if math.dist(current, desired) <= 1e-12:
+            target = tuple(float(value) for value in current)
+            self._transport_reference_position = target
+            return target
+        reference = self._transport_reference_position or tuple(
+            float(value) for value in current
+        )
+        reference = self._bounded_step(reference, desired, reference_step_m)
+        self._transport_reference_position = reference
+        return self._bounded_step(
+            current,
+            reference,
+            self.config.control.max_ee_step_m,
+        )
 
     def _bounded_step(
         self,

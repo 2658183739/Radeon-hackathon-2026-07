@@ -273,3 +273,25 @@ The 40 executions are technical repeats of four experimental units, not 40
 independent task samples. Exact schedules, event records, position summaries,
 source-summary hashes, and bilingual interpretation are retained in the
 directory.
+
+## Planned-grasp transport-contract mechanism probe
+
+`expert/radeon-transport-contract-probe-v1/` contains a sequential mechanism
+probe on three previously observed development episodes. It is not a
+success-rate experiment and did not open the reserved confirmation set. Every
+run used one `gfx1100` Radeon, ROCm 7.2, Genesis 1.2.3, and the unchanged
+35 N abort threshold. The default-off candidate added monotonic
+`raise -> raise_settle -> transfer -> transfer_settle -> descend` phases,
+20 mm raise and 10 mm transfer increments, two-frame handoffs, bounded
+reference lookahead, and pose/relative-position telemetry.
+
+Phase latching repaired `7120004 large_narrow_carton` at 13.88 N and, after
+the transfer latch was completed, retained `5120003 shoe_box_proxy` at
+29.69 N. However, `4120001 medium_carton` lost its grasp at frame 259 during
+slow transfer. The 10 mm and 5 mm lookahead variants raised peak force to
+39.95 N and 40.95 N, respectively, so neither passed the safety gate. The
+candidate is rejected and remains disabled; no further step-size scan will be
+fit to the same development case. The next mechanism should alter grasp
+stability through payload-aware candidate scoring, side grasps, or slip
+detection and regrasp. Bilingual results, runtime metadata, and three SHA-256
+manifests preserve the evidence provenance.
