@@ -92,8 +92,33 @@ def compare_expert_runs(
         "force_improved_episode_indices": force_improved,
         "baseline_force_abort_indices": baseline_force_aborts,
         "candidate_force_abort_indices": candidate_force_aborts,
+        "baseline_precontact_aabb_guard": _aabb_guard_summary(baseline_episodes),
+        "candidate_precontact_aabb_guard": _aabb_guard_summary(candidate_episodes),
         "acceptance": acceptance,
         "recommendation": "keep" if all(acceptance.values()) else "repeat_or_reject",
+    }
+
+
+def _aabb_guard_summary(episodes: dict[int, dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate optional geometry-filter telemetry without requiring it in old evidence."""
+    summaries = [episode.get("safety_summary", {}) for episode in episodes.values()]
+    samples = sum(int(item.get("precontact_aabb_guard_samples", 0)) for item in summaries)
+    compute_ms = sum(
+        float(item.get("precontact_aabb_guard_compute_ms_total", 0.0))
+        for item in summaries
+    )
+    return {
+        "enabled": any(bool(item.get("precontact_aabb_guard_enabled", False)) for item in summaries),
+        "filter_count": sum(
+            int(item.get("precontact_aabb_guard_filter_count", 0)) for item in summaries
+        ),
+        "max_active_steps": max(
+            (int(item.get("precontact_aabb_guard_max_active_steps", 0)) for item in summaries),
+            default=0,
+        ),
+        "samples": samples,
+        "compute_ms_total": compute_ms,
+        "compute_ms_mean": compute_ms / samples if samples else 0.0,
     }
 
 

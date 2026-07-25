@@ -115,3 +115,21 @@ throughput, so it remains disabled. Local hashes include baseline summary
 `172236b9...01e886`. Full digests are in
 `expert/radeon-approach-barrier-ab-v1-SHA256SUMS`; the remote manifest preserves
 the raw-summary provenance hashes.
+
+## Pre-contact AABB guard negative control
+
+`expert/radeon-approach-aabb-ab-v1-*` contains compact summaries, failure
+analyses, both run logs, comparison, and local/remote hash manifests for the
+matched 20-episode Radeon A/B. Only
+`control.precontact_aabb_guard_distance_m=0.040` changed. The candidate invoked
+65 filters over 6,003 measured approach samples at 1.625 ms mean synchronized
+AABB cost, but produced 0/20 successes and 12/20 force aborts versus baseline
+1/20 and 12/20. It regressed `7000005`, added one approach timeout, and had zero
+throughput, so it remains disabled.
+
+Local compact hashes include baseline summary `cc8e2967...d1ef6d`, candidate
+summary `0d5ead5f...654f7c`, and comparison `5554bd40...de136`. Full values are
+in `expert/radeon-approach-aabb-ab-v1-SHA256SUMS`; the remote manifest records
+the trace-rich source summaries, comparison, analyses, and logs. Compact
+episode records preserve the AABB safety aggregate while explicitly omitting
+per-frame traces.

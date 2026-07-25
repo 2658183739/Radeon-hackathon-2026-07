@@ -111,6 +111,7 @@ class ControlConfig:
     approach_contact_brake_force_n: float | None = None
     approach_contact_brake_step_m: float = 0.01
     approach_barrier_recovery_step_m: float | None = None
+    precontact_aabb_guard_distance_m: float | None = None
     reset_qpos: tuple[float, ...] = DEFAULT_RESET_QPOS
 
     def validate(self) -> None:
@@ -152,6 +153,14 @@ class ControlConfig:
         ):
             raise ValueError(
                 "approach_barrier_recovery_step_m must be in (0, 4 * max_ee_step_m] when set"
+            )
+        if self.precontact_aabb_guard_distance_m is not None and (
+            not math.isfinite(self.precontact_aabb_guard_distance_m)
+            or self.precontact_aabb_guard_distance_m <= 0
+            or self.precontact_aabb_guard_distance_m > self.max_ee_step_m * 4
+        ):
+            raise ValueError(
+                "precontact_aabb_guard_distance_m must be in (0, 4 * max_ee_step_m] when set"
             )
         if len(self.reset_qpos) != 9 or any(not math.isfinite(value) for value in self.reset_qpos):
             raise ValueError("reset_qpos must contain nine finite joint positions")

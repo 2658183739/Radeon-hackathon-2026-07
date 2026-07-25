@@ -79,6 +79,19 @@ Catalog v2 同样只记录每类一个确定性回合以及同 episode 的物理
 `expert/radeon-contact-brake-ab-v1-SHA256SUMS`，远端原始 summary 哈希见
 `expert/radeon-contact-brake-ab-v1-remote-SHA256SUMS`。
 
+## 碰撞前 AABB 过滤器负对照
+
+`expert/radeon-approach-aabb-ab-v1-*` 保存匹配 20 回合 Radeon A/B 的 compact summary、
+失败归因、两侧日志、comparison 和本地/远端哈希清单。唯一配置变化是
+`control.precontact_aabb_guard_distance_m=0.040`。候选在 6,003 个接近采样中触发 65 次，
+AABB 同步测量平均 1.625 ms，但结果为 0/20 成功、12/20 力中止；基线为 1/20、12/20。
+候选使 `7000005` 回归、增加 1 次接近超时且吞吐为 0，因此继续关闭。
+
+本地 compact 核心哈希为 baseline summary `cc8e2967...d1ef6d`、candidate summary
+`0d5ead5f...654f7c`、comparison `5554bd40...de136`。完整值见
+`expert/radeon-approach-aabb-ab-v1-SHA256SUMS`；远端清单记录带完整轨迹的源 summary、
+comparison、分析和日志。compact episode 会保留 AABB 安全聚合，并明确标注省略逐帧轨迹。
+
 ## 竖直屏障恢复负对照
 
 `expert/radeon-approach-barrier-ab-v1-*` 保存 20 回合匹配 Radeon A/B 的压缩 summary、失败归因、日志、comparison 和两级哈希清单。候选只设置 `control.approach_barrier_recovery_step_m=0.120`；它为 0/20 成功、12/20 力中止，基线为 1/20、12/20，候选吞吐为 0，因此默认关闭。核心本地哈希为 baseline summary `5154a5d2...841b3a`、candidate summary `98196889...593c49`、comparison `172236b9...01e886`。完整值见 `expert/radeon-approach-barrier-ab-v1-SHA256SUMS`，远端原始 summary 哈希见 `expert/radeon-approach-barrier-ab-v1-remote-SHA256SUMS`。

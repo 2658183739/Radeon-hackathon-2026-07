@@ -4,6 +4,7 @@ from collections import deque
 from dataclasses import dataclass
 import math
 from pathlib import Path
+import time
 from typing import Any
 
 from .config import ExperimentConfig
@@ -14,6 +15,26 @@ from .randomization import ParcelSample
 
 
 _INITIALIZED_BACKEND: str | None = None
+
+
+def aabb_gap_m(first_aabb: Any, second_aabb: Any) -> float:
+    """Return Euclidean separation between two world-space AABBs in metres."""
+    first = first_aabb
+    second = second_aabb
+    if len(first) != 2 or len(second) != 2:
+        raise ValueError("AABBs must contain min and max corners")
+    if any(len(corner) != 3 for corner in (*first, *second)):
+        raise ValueError("AABB corners must contain three coordinates")
+    gap = []
+    for axis in range(3):
+        gap.append(
+            max(
+                0.0,
+                float(first[0][axis]) - float(second[1][axis]),
+                float(second[0][axis]) - float(first[1][axis]),
+            )
+        )
+    return math.sqrt(sum(value * value for value in gap))
 
 
 @dataclass(frozen=True)
@@ -150,6 +171,17 @@ class GenesisParcelEnv:
         self._action_queue: deque[CartesianAction | None] = deque(
             [None] * sample.action_delay_steps
         )
+        self._aabb_guard_filter_count = 0
+        self._aabb_guard_active_steps = 0
+        self._aabb_guard_max_active_steps = 0
+        self._aabb_guard_samples = 0
+        self._aabb_guard_compute_ms_total = 0.0
+        self._aabb_guard_last_gap_m: float | None = None
+        self._aabb_guard_last_compute_ms = 0.0
+        self._aabb_guard_last_triggered = False
+        self._aabb_guard_last_reason: str | None = None
+        self._aabb_guard_last_nominal_target_m: tuple[float, float, float] | None = None
+        self._aabb_guard_last_filtered_target_m: tuple[float, float, float] | None = None
 
         physics_dt = 1.0 / config.simulation.physics_hz
         rolling_friction = needs_rolling_friction(sample)
@@ -354,6 +386,42 @@ class GenesisParcelEnv:
         position = self._flat_tuple(self.parcel.get_pos())
         return position[2] < -0.02 or abs(position[0]) > 1.2 or abs(position[1]) > 1.2
 
+    def safety_snapshot(self) -> dict[str, Any]:
+        """Return the last action-filter event without changing the policy action schema."""
+        return {
+            "precontact_aabb_guard_enabled": (
+                self.config.control.precontact_aabb_guard_distance_m is not None
+            ),
+            "precontact_aabb_gap_m": self._aabb_guard_last_gap_m,
+            "precontact_aabb_guard_triggered": self._aabb_guard_last_triggered,
+            "precontact_aabb_guard_reason": self._aabb_guard_last_reason,
+            "precontact_aabb_nominal_target_m": self._aabb_guard_last_nominal_target_m,
+            "precontact_aabb_filtered_target_m": self._aabb_guard_last_filtered_target_m,
+            "precontact_aabb_guard_compute_ms": self._aabb_guard_last_compute_ms,
+            "precontact_aabb_guard_filter_count": self._aabb_guard_filter_count,
+            "precontact_aabb_guard_active_steps": self._aabb_guard_active_steps,
+        }
+
+    def safety_summary(self) -> dict[str, Any]:
+        mean_compute_ms = (
+            self._aabb_guard_compute_ms_total / self._aabb_guard_samples
+            if self._aabb_guard_samples
+            else 0.0
+        )
+        return {
+            "precontact_aabb_guard_enabled": (
+                self.config.control.precontact_aabb_guard_distance_m is not None
+            ),
+            "precontact_aabb_guard_distance_m": (
+                self.config.control.precontact_aabb_guard_distance_m
+            ),
+            "precontact_aabb_guard_filter_count": self._aabb_guard_filter_count,
+            "precontact_aabb_guard_max_active_steps": self._aabb_guard_max_active_steps,
+            "precontact_aabb_guard_samples": self._aabb_guard_samples,
+            "precontact_aabb_guard_compute_ms_total": self._aabb_guard_compute_ms_total,
+            "precontact_aabb_guard_compute_ms_mean": mean_compute_ms,
+        }
+
     def close(self) -> None:
         if self._closed:
             return
@@ -368,6 +436,7 @@ class GenesisParcelEnv:
             self._closed = True
 
     def _apply_action(self, action: CartesianAction) -> None:
+        action = self._filter_precontact_action(action)
         qpos = self.robot.inverse_kinematics(
             link=self.end_effector,
             pos=self.np.asarray(action.target_position),
@@ -388,6 +457,101 @@ class GenesisParcelEnv:
             )
             force = self._gripper_force_n
             self.robot.control_dofs_force(self.np.asarray((-force, -force)), self.finger_dofs)
+
+    def _filter_precontact_action(self, action: CartesianAction) -> CartesianAction:
+        """Apply a geometry guard before IK while preserving the 8-D action contract."""
+        self._aabb_guard_last_gap_m = None
+        self._aabb_guard_last_compute_ms = 0.0
+        self._aabb_guard_last_triggered = False
+        self._aabb_guard_last_reason = None
+        self._aabb_guard_last_nominal_target_m = None
+        self._aabb_guard_last_filtered_target_m = None
+        threshold = self.config.control.precontact_aabb_guard_distance_m
+        if threshold is None or action.command != "move_pregrasp":
+            self._aabb_guard_active_steps = 0
+            return action
+
+        started = time.perf_counter_ns()
+        gap_m = self._finger_parcel_aabb_gap_m()
+        compute_ms = (time.perf_counter_ns() - started) / 1_000_000
+        self._aabb_guard_last_gap_m = gap_m
+        self._aabb_guard_last_compute_ms = compute_ms
+        self._aabb_guard_compute_ms_total += compute_ms
+        self._aabb_guard_samples += 1
+
+        current = self._flat_tuple(self.end_effector.get_pos())
+        parcel = self._flat_tuple(self.parcel.get_pos())
+        horizontal_distance = math.hypot(current[0] - parcel[0], current[1] - parcel[1])
+        target_horizontal_distance = math.hypot(
+            action.target_position[0] - parcel[0],
+            action.target_position[1] - parcel[1],
+        )
+        nominal_step_m = self._distance(current, action.target_position)
+        outside_descent_window = horizontal_distance > self.config.task.position_tolerance_m
+        moving_toward_parcel = target_horizontal_distance < horizontal_distance - 1e-9
+        if not (
+            gap_m <= threshold
+            and outside_descent_window
+            and moving_toward_parcel
+            and nominal_step_m > 1e-9
+        ):
+            self._aabb_guard_active_steps = 0
+            return action
+
+        transit_z = parcel[2] + self.expert.approach_clearance_m()
+        if current[2] < transit_z - self.config.task.position_tolerance_m:
+            guard_target = (
+                current[0],
+                current[1],
+                min(transit_z, current[2] + nominal_step_m),
+            )
+            reason = "raise_to_transit"
+        else:
+            dx = current[0] - parcel[0]
+            dy = current[1] - parcel[1]
+            if horizontal_distance <= 1e-9:
+                guard_target = (current[0], current[1], current[2] + nominal_step_m)
+                reason = "raise_from_centerline"
+            else:
+                guard_target = (
+                    current[0] + nominal_step_m * dx / horizontal_distance,
+                    current[1] + nominal_step_m * dy / horizontal_distance,
+                    current[2],
+                )
+                reason = "retreat_from_parcel"
+
+        self._aabb_guard_filter_count += 1
+        self._aabb_guard_active_steps += 1
+        self._aabb_guard_max_active_steps = max(
+            self._aabb_guard_max_active_steps,
+            self._aabb_guard_active_steps,
+        )
+        self._aabb_guard_last_triggered = True
+        self._aabb_guard_last_reason = reason
+        self._aabb_guard_last_nominal_target_m = action.target_position
+        self._aabb_guard_last_filtered_target_m = guard_target
+        return CartesianAction(
+            target_position=guard_target,
+            target_quaternion=action.target_quaternion,
+            gripper=action.gripper,
+            command=action.command,
+        )
+
+    def _finger_parcel_aabb_gap_m(self) -> float:
+        """Compute the closest finger-to-parcel AABB gap on the ROCm device."""
+        parcel_aabb = self.parcel.get_AABB()
+        finger_gaps = []
+        for finger in (self.left_finger, self.right_finger):
+            finger_aabb = finger.get_AABB()
+            axis_gap = self.torch.clamp(
+                self.torch.maximum(
+                    finger_aabb[0] - parcel_aabb[1],
+                    parcel_aabb[0] - finger_aabb[1],
+                ),
+                min=0.0,
+            )
+            finger_gaps.append(self.torch.linalg.vector_norm(axis_gap))
+        return float(self.torch.stack(finger_gaps).min().item())
 
     def _finger_contact(self) -> tuple[bool, float]:
         contacts = self.robot.get_contacts(with_entity=self.parcel)

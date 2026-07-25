@@ -27,6 +27,7 @@ def compact_payload(payload: dict[str, Any], source: Path) -> dict[str, Any]:
                 "result": episode.get("result"),
                 "terminal_stage": episode.get("terminal_stage"),
                 "sample": episode.get("sample"),
+                "safety_summary": episode.get("safety_summary", {}),
             }
         )
     return {

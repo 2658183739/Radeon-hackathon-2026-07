@@ -606,3 +606,33 @@ therefore needs geometric clearance and low-level tracking constraints together;
 enlarging one step is not sufficient. The candidate stays disabled, with full
 summaries, failure analyses, logs, and SHA-256 archived. Radeon validation now
 passes 107 tests.
+
+### Entry 55: AABB API validation, guarded implementation, and rejection
+
+I first verified the real Genesis 1.2.3 API on the Radeon host instead of
+assuming its return type. `left_finger.get_AABB()`, `right_finger.get_AABB()`,
+and `parcel.get_AABB()` each returned a `(2, 3)` `torch.Tensor` on ROCm device
+`cuda:0`. This allowed axis-gap calculation to stay on the GPU, with one scalar
+synchronization for the audit value.
+
+The implementation kept the candidate disabled unless a positive distance was
+provided by CLI/config. It filtered only a pre-descent approach that was moving
+horizontally toward the parcel, kept the 8-D policy action schema unchanged,
+and wrote a separate safety trace containing AABB gap, nominal and filtered
+targets, trigger reason, cumulative count, active duration, and measured cost.
+The matched runner froze one Radeon, one profile, 20 episode IDs, one allowed
+config difference, postconditions, failure analyses, logs, and hashes.
+
+A 20 mm smoke never triggered because the smallest pre-descent gap was about
+30.2 mm. The 40 mm smoke triggered six times, so 40 mm became the single
+pre-registered candidate rather than an arbitrary sweep. The formal A/B then
+triggered 65 times but reduced success from 1/20 to 0/20, retained 12/20 force
+aborts, added one approach timeout, and regressed `7000005`. It was rejected.
+The comparison now aggregates guard activity and compute cost, and compact
+summaries preserve safety telemetry while omitting frame traces.
+
+Validation: 121 local tests, 116 Radeon tests, shell syntax, fixed comparison,
+failure attribution, and local/remote SHA-256 verification. The lesson is that
+a conservative implementation and a functioning trigger do not imply an
+effective safety controller; AABB is too coarse to replace signed distance,
+contact-aware low-level control, or a correct recovery state machine.

@@ -183,3 +183,24 @@ throughput was zero, so it is rejected and disabled.
 Evidence is indexed under `evidence/expert/radeon-approach-barrier-ab-v1-*`.
 The next engineering step is a pre-contact geometric filter using Genesis
 finger `get_AABB()`; balanced collection and model ranking remain blocked.
+
+## Latest controlled experiment: pre-contact AABB guard
+
+The candidate enabled `control.precontact_aabb_guard_distance_m=0.040` and
+filtered only pre-descent `MOVE_PREGRASP` actions whose nominal target moved
+toward the parcel. It triggered 65 times over 6,003 AABB samples, with 1.625 ms
+mean synchronized AABB measurement cost and a 16-step maximum active span.
+
+Matched Radeon results: baseline 1/20 successes, 12/20 force aborts, 0 drops,
+111.28 N peak force; candidate 0/20, 12/20, 0 drops, 111.28 N. Approach
+timeouts increased from 7 to 8, `7000005` regressed, and candidate throughput
+was zero. The machine comparison rejected the candidate; the default remains
+disabled. Evidence is indexed under
+`evidence/expert/radeon-approach-aabb-ab-v1-*`, with compact summaries retaining
+the safety aggregate and source hashes.
+
+The next engineering target is not threshold tuning. It is a higher-rate,
+geometry-aware compliant/impedance layer or a redesigned recovery state machine,
+followed by a new pre-registered Radeon A/B. Balanced 360-success collection,
+formal ACT/Diffusion ranking, VLA integration, and ROS 2 packaging remain
+blocked by the expert safety gate.

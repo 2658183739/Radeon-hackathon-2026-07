@@ -1248,3 +1248,40 @@ Cartesian impedance), and arXiv:2211.11391 (RL-enhanced CBF parameterization).
 OSCBF depends on URDF/JAX and a hand-authored collision model, so it is not
 directly imported into this Genesis/ROCm stack; only the auditable principle of
 filtering a nominal controller through a safety constraint is retained.
+
+### 59. Reject the pre-contact AABB guard after matched Radeon A/B
+
+The candidate added a disabled-by-default `control.precontact_aabb_guard_distance_m`
+and evaluated the closest GPU AABB gap between each Panda finger and the parcel.
+It only filtered `MOVE_PREGRASP` actions when the end effector was outside the
+position-tolerance descent window and the nominal target reduced horizontal
+distance to the parcel. A low end effector was redirected vertically toward the
+transit height; otherwise the action retreated away from the parcel. The 8-D
+action contract, 35 N hard limit, final descent, grasp, lift, release, and retry
+logic were unchanged.
+
+The fixed single-Radeon protocol used `large_narrow_carton`, episodes
+`7000000`--`7000019`, and identical seed, reset pose, physics, runtime, and
+comparison rules. The 40 mm threshold triggered 65 filters across 6,003
+pregrasp samples. AABB measurement and scalar synchronization averaged
+1.625 ms per sample (9,755.57 ms total); the maximum consecutive filter span
+was 16 control steps.
+
+Baseline results were 1/20 successes, 12/20 force-safety aborts, 0 drops,
+111.28 N peak force, and 17.81 successful parcels/hour. The candidate produced
+0/20 successes, 12/20 force aborts, 0 drops, the same 111.28 N peak, and zero
+throughput. Approach timeouts increased from 7 to 8; no failed episode was
+recovered, and baseline success `7000005` regressed. Peak force improved in
+three individual episodes, but no absolute task, safety, or throughput gate
+passed except unchanged drop rate.
+
+**Decision.** Reject and keep disabled. Retain the filter as an auditable
+diagnostic because it runs on Radeon and records nominal/filtered targets, gap,
+trigger reason, count, active duration, and synchronization cost. AABB overlap
+is not a sufficient final-grasp safety signal. This result does not justify a
+threshold sweep, balanced collection, or ACT/Diffusion/VLA ranking.
+
+Evidence is indexed under `evidence/expert/radeon-approach-aabb-ab-v1-*`.
+Complete remote summaries remain the provenance source; compact summaries
+preserve the safety aggregate and source SHA-256. Validation reached 121 local
+tests and 116 tests on Radeon, plus shell syntax checks.

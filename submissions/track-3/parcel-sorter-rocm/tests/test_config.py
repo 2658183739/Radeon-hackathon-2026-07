@@ -66,6 +66,19 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "approach_barrier_recovery_step_m"):
             invalid.validate()
 
+    def test_precontact_aabb_guard_distance_is_bounded(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            control=replace(
+                config.control,
+                precontact_aabb_guard_distance_m=config.control.max_ee_step_m * 4.01,
+            ),
+        )
+
+        with self.assertRaisesRegex(ValueError, "precontact_aabb_guard_distance_m"):
+            invalid.validate()
+
     def test_parcel_profile_rejects_negative_rolling_friction(self) -> None:
         config = load_config(PROJECT_ROOT / "configs" / "catalog_v2.toml")
         invalid_profile = replace(config.parcel_profiles[0], rolling_friction=-0.001)

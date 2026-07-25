@@ -84,6 +84,30 @@ class ExpertComparisonTests(unittest.TestCase):
                 allowed_config_differences=("control.reset_qpos",),
             )
 
+    def test_aggregates_optional_precontact_aabb_telemetry(self) -> None:
+        baseline = _run((True, True), (10.0, 10.0))
+        candidate = _run((True, True), (10.0, 10.0))
+        for index, episode in enumerate(candidate["episodes"]):
+            episode["safety_summary"] = {
+                "precontact_aabb_guard_enabled": True,
+                "precontact_aabb_guard_filter_count": index + 1,
+                "precontact_aabb_guard_max_active_steps": 2 + index,
+                "precontact_aabb_guard_samples": 10,
+                "precontact_aabb_guard_compute_ms_total": 15.0,
+            }
+
+        result = compare_expert_runs(baseline, candidate)
+
+        self.assertFalse(result["baseline_precontact_aabb_guard"]["enabled"])
+        self.assertTrue(result["candidate_precontact_aabb_guard"]["enabled"])
+        self.assertEqual(result["candidate_precontact_aabb_guard"]["filter_count"], 3)
+        self.assertEqual(result["candidate_precontact_aabb_guard"]["max_active_steps"], 3)
+        self.assertEqual(result["candidate_precontact_aabb_guard"]["samples"], 20)
+        self.assertAlmostEqual(
+            result["candidate_precontact_aabb_guard"]["compute_ms_mean"],
+            1.5,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

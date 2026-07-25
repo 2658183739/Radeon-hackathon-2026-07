@@ -35,6 +35,7 @@ class EpisodeReport:
     terminal_stage: str
     sample: ParcelSample
     trace: tuple[dict[str, Any], ...]
+    safety_summary: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -43,6 +44,7 @@ class EpisodeReport:
             "terminal_stage": self.terminal_stage,
             "sample": self.sample.to_dict(),
             "trace": list(self.trace),
+            "safety_summary": self.safety_summary,
         }
 
 
@@ -114,6 +116,9 @@ def run_policy_episode(
         if supervisor.stage in {Stage.COMPLETE, Stage.ABORT}:
             break
         env.step(action)
+        safety_snapshot = getattr(env, "safety_snapshot", None)
+        if callable(safety_snapshot):
+            trace[-1]["safety"] = safety_snapshot()
 
     elapsed_sim = max((len(trace) - 1) / config.simulation.control_hz, 1 / config.simulation.control_hz)
     result = EpisodeResult(
@@ -130,6 +135,11 @@ def run_policy_episode(
         terminal_stage=supervisor.stage.value,
         sample=sample,
         trace=tuple(trace),
+        safety_summary=(
+            env.safety_summary()
+            if callable(getattr(env, "safety_summary", None))
+            else {}
+        ),
     )
 
 
