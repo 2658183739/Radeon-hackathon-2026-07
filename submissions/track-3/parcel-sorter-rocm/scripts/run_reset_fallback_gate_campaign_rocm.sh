@@ -111,6 +111,10 @@ python scripts/analyze_campaign_results.py \
   --run "reset-risk-gated-planner=${OUTPUT_ROOT}/reset-risk-gated-planner/expert/summary.json" \
   --reference collision-checked-reset \
   --output "${OUTPUT_ROOT}/paper-evaluation.json"
+python scripts/audit_reset_fallback_gate.py \
+  --baseline "${OUTPUT_ROOT}/collision-checked-reset/expert/summary.json" \
+  --candidate "${OUTPUT_ROOT}/reset-risk-gated-planner/expert/summary.json" \
+  --output "${OUTPUT_ROOT}/gate-attribution-audit.json"
 
 for run_id in collision-checked-reset reset-risk-gated-planner; do
   python scripts/analyze_expert_failures.py \
@@ -127,6 +131,7 @@ sha256sum \
   "${OUTPUT_ROOT}"/*.log \
   "${OUTPUT_ROOT}"/reset-vs-gated-planner.json \
   "${OUTPUT_ROOT}"/paper-evaluation.json \
+  "${OUTPUT_ROOT}"/gate-attribution-audit.json \
   "${OUTPUT_ROOT}"/campaign.toml > "${OUTPUT_ROOT}/COMPACT-SHA256SUMS"
 
 echo "Reset-fallback gate campaign completed: ${OUTPUT_ROOT}"

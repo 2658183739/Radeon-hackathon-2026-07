@@ -242,3 +242,19 @@ and 5% force-abort gates.
 ordered preservation, swept-gate, step-size, and cross-sentinel decisions. Full
 trace summaries remain in the Radeon workspace; their hashes are in the remote
 manifest.
+
+## Reset-fallback risk-gate validation
+
+`expert/radeon-reset-fallback-gate-validation-v1/` archives a frozen 60+60
+matched, multi-profile Radeon validation. Collision-checked reset achieved
+35/60 successes and 17/60 force aborts; the gated planner achieved 33/60 and
+19/60, with zero drops in both groups. Mean episode peak force increased by
+6.67 N (paired bootstrap 95% interval -0.53 to +16.85 N), and successful
+throughput fell to 0.910x.
+
+The attribution audit found five planner-active episodes, one recovery, two
+regressions, and zero episodes in which the new gate avoided planning beyond
+the existing geometry rule. One further regression occurred with zero planner
+attempts and state divergence preceding decision divergence. The candidate is
+rejected and remains disabled. See `RESULTS.md` in the evidence directory for
+the complete interpretation and artifact map.
