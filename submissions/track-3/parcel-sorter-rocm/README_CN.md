@@ -319,6 +319,24 @@ Diffusion 是已经准备好的训练入口，不是已经取得的比赛结果�
 SmolVLA 当前检查点 metadata 没有声明许可证，因此暂缓并排除在严格开源主线之外。
 通用评测器会把支持的 LeRobot 检查点放入相同的 Genesis 闭环和 35 N 安全边界。
 
+## 冻结实验协议与类别汇总
+
+任何远端实验前先校验版本化协议：
+
+```bash
+python scripts/validate_campaign.py configs/campaign_v1.toml
+```
+
+该协议固定 ROCm、单张 GPU、35 N 安全上限、目录哈希、评测回合、随机种子、
+训练预算、开源声明和验收门槛。均衡 RGB-D 数据与拆分完成前，相关哈希明确
+保持为 `PENDING`。
+
+对已有专家或策略 summary 按箱体、圆柱和末端执行器处理类别汇总：
+
+```bash
+python scripts/summarize_categories.py outputs/.../summary.json
+```
+
 ## Docker
 
 Dockerfile 已固定到 ROCm 7.2.1、Ubuntu 24.04、Python 3.12 和 PyTorch 2.9.1，
