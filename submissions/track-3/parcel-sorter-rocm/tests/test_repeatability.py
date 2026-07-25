@@ -71,6 +71,17 @@ class RepeatabilityAnalysisTests(unittest.TestCase):
             result["instability"]["baseline"]["success_unstable_episode_ids"],
             [10],
         )
+        positions = result["episodes"]["10"]["conditions"]["baseline"][
+            "by_condition_position"
+        ]
+        self.assertEqual(
+            positions["1"],
+            {"trials": 1, "success_count": 1, "force_abort_count": 0},
+        )
+        self.assertEqual(
+            positions["2"],
+            {"trials": 1, "success_count": 0, "force_abort_count": 1},
+        )
         self.assertIn("not_independent", result["inference_boundary"])
 
     def test_rejects_a_changed_sample_within_an_episode(self) -> None:

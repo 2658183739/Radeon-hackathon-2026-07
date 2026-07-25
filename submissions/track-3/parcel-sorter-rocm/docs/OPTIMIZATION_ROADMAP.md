@@ -424,3 +424,29 @@ Proceed in this order:
    adjacent seeds for confirmation rather than fitting another height split.
 5. Require at least 18/20 success, at most 1/20 force abort, zero added drops,
    and at least 85% throughput retention before expanded catalog evaluation.
+
+## 19. Reject the reset-risk gate and measure execution repeatability
+
+The new 60+60 validation produced 33/60 candidate successes versus 35/60 for
+collision-checked reset and increased force aborts from 17/60 to 19/60. The
+gate avoided no planning work beyond static geometry eligibility, so further
+threshold tuning is not justified.
+
+Proceed in this order:
+
+1. Repeat the four discordant validation episodes five times per condition in
+   a seeded blocked order; analyze repeats as nested measurements.
+2. Quantify success, force-abort, planner-activation, and peak-force variation
+   within each episode and condition before assigning causal labels.
+3. Keep the 35 N boundary and confirmation IDs fixed; reject any intervention
+   that depends on threshold relaxation or post-hoc access to the reserve.
+4. Convert the accumulated negative controls into a failure benchmark and
+   emphasize measured AMD/ROCm simulation, safety, and profiling evidence.
+5. Select the next controller only after repeatability is known. Prefer a
+   verified recovery-state redesign over another scalar geometry threshold.
+
+The nested-repeat result completed items 1--2: both active regressions and the
+active recovery repeated 5/5, while the inactive sentinel exposed a strong
+second-position benefit under both methods. Record process boundaries as an
+experimental factor and use fresh-process sentinel repeats before the next
+causal claim. The rejected gate does not return to development.

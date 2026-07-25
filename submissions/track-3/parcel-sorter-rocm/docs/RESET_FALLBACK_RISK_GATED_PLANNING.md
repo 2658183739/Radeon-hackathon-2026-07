@@ -94,3 +94,35 @@ These probes validate mechanism and preserve one known recovery; they are not a
 performance claim. The matched validation campaign and execution repeats are
 required because the earlier trace audit found Genesis/GPU state divergence in
 episodes where the planner never activated.
+
+## Matched validation outcome
+
+The frozen 60+60 Radeon validation rejected the method. Collision-checked reset
+achieved 35/60 successes and 17/60 force aborts; the risk-gated planner achieved
+33/60 and 19/60, with zero drops in both groups. Mean episode peak force rose by
+6.67 N (paired bootstrap 95% interval -0.53 to +16.85 N), and successful
+throughput fell to 0.910x. Exact McNemar p-values for success and force abort
+were both 0.625.
+
+Seventeen episodes used the fallback reset, but only five were geometry
+eligible. All five eligible episodes also satisfied the fallback gate, so the
+new gate avoided zero planning episodes beyond the existing geometry rule.
+Within those five active episodes the candidate recovered one success,
+regressed two, and increased mean peak force by 42.55 N. One additional
+regression occurred with zero planner attempts; state diverged at frame 104 and
+the high-level decision at frame 121.
+
+The candidate remains disabled and will not enter the reserved confirmation
+set. Same-condition repeats are nested execution measurements, not new task
+samples, and are used only to quantify Genesis/GPU repeatability. Full evidence
+is in `evidence/expert/radeon-reset-fallback-gate-validation-v1/`.
+
+## Execution-repeat result
+
+Five nested repeats per condition confirmed the three planner-active changes:
+`4120001` and `7120004` regressed 5/5 times, while `5120003` recovered 5/5.
+The inactive `5120000` succeeded 2/5 under each condition; all four successes
+occurred when the condition ran second within its block. This separates the
+repeatable active-planner effects from a process-local scene-order effect. See
+`evidence/expert/radeon-reset-gate-repeatability-v1/` for the frozen schedule,
+position summaries, and source hashes.

@@ -1568,3 +1568,33 @@ regression, measurable avoidance of unnecessary planning, and at least one
 repeatable hard-profile recovery before confirmatory evaluation. Because the
 earlier trace audit found execution-level divergence, later confirmation must
 also include 3--5 repeated executions per selected condition.
+
+### 68. Reject the gate and make process position an experimental factor
+
+**Observed evidence.** The frozen validation failed every advancement reason:
+success fell from 35/60 to 33/60, force aborts increased from 17/60 to 19/60,
+mean episode peak force increased by 6.67 N, and throughput fell to 0.910x.
+All five geometry-eligible episodes also satisfied the reset gate, so the gate
+avoided no planner work. The active subset contained one recovery and two
+regressions.
+
+**Attribution evidence.** Five nested repeats per condition reproduced both
+active regressions and the active recovery 5/5. The inactive discordant episode
+succeeded 2/5 under each method. All four successes occurred when that method
+ran second in its block, revealing a process-local period/carry-over effect.
+The repeat is descriptive: four unique episodes are the experimental units,
+not the 40 executions.
+
+**Alternatives.** Raising the 35 N threshold, fitting another geometry scalar,
+or opening the reserved confirmation IDs would convert failure into post-hoc
+selection and is rejected. Treating the 40 runs as independent would be
+pseudoreplication. Repeating every observation in a fresh process would isolate
+process initialization but adds substantial kernel-compilation cost; it is
+retained only as a targeted sentinel reliability check.
+
+**Decision and reason.** Keep reset-risk-gated planning disabled and seal the
+confirmation set. Record process identity and within-process position in every
+future simulator comparison, block and balance method order, and require
+fresh-process repeats for selected discordant sentinels before causal promotion.
+The next controller must redesign recovery state or grasp execution rather than
+add another post-hoc eligibility threshold.

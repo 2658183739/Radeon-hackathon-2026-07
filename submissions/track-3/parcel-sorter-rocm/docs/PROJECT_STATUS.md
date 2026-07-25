@@ -313,3 +313,33 @@ include repeated executions in addition to matched episode IDs. The next
 development candidate gates planning on an observed initial robot/parcel
 collision that actually triggered the verified fallback reset. Reserved local
 episodes `200000`--`200039` remain untouched for confirmatory evaluation.
+
+## Latest controlled experiment: reset-fallback risk gate rejected
+
+The frozen single-Radeon development validation compared collision-checked
+reset with reset-fallback-risk-gated planning across 12 supported profiles and
+60 matched episodes per group. Baseline achieved 35/60 successes, 17/60 force
+aborts, and zero drops. The candidate achieved 33/60, 19/60, and zero drops.
+Mean episode peak force increased from 22.87 N to 29.54 N, while successful
+throughput fell to 0.910x.
+
+Only five candidate episodes activated planning. They contained one recovery
+and two regressions; the other changed outcome occurred with zero planning
+attempts and state divergence before decision divergence. The new gate also
+avoided zero planning episodes beyond the existing geometry rule. The
+candidate is rejected, remains disabled, and will not be evaluated on reserved
+confirmation IDs `200000`--`200039`.
+
+The immediate reliability task is a blocked same-episode repeatability study
+on the four discordant validation episodes. Its five executions per condition
+are nested measurements, not independent parcel samples. Learned-policy
+ranking, VLA, and ROS 2 remain secondary to closing the expert safety and
+repeatability gaps.
+
+The repeatability study is now complete. Both planner regressions and the one
+planner recovery repeated 5/5 times. The inactive episode succeeded 2/5 under
+both methods, with every success occurring in the second condition position.
+The project therefore records both a repeatable adverse planner effect and a
+separate process-local scene-order effect. Fresh-process sentinel repeats are
+the remaining reliability check; they are not a reason to reopen the rejected
+gate hypothesis.

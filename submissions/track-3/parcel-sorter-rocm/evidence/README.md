@@ -258,3 +258,18 @@ the existing geometry rule. One further regression occurred with zero planner
 attempts and state divergence preceding decision divergence. The candidate is
 rejected and remains disabled. See `RESULTS.md` in the evidence directory for
 the complete interpretation and artifact map.
+
+## Reset-gate execution repeatability
+
+`expert/radeon-reset-gate-repeatability-v1/` contains a seeded blocked study of
+the four validation-discordant episodes, with five nested executions per
+episode and condition. The three planner-active discordances repeated exactly:
+one recovery and two regressions. The planner-inactive episode succeeded 2/5
+under both conditions, and all four successes occurred when the condition ran
+second in its block. This identifies a process-local order/carry-over effect
+rather than an inactive-planner effect.
+
+The 40 executions are technical repeats of four experimental units, not 40
+independent task samples. Exact schedules, event records, position summaries,
+source-summary hashes, and bilingual interpretation are retained in the
+directory.

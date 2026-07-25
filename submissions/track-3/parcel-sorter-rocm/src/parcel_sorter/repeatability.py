@@ -142,10 +142,11 @@ def _condition_summary(
         for item in safety
     ]
     attempts = [int(item.get("grasp_plan_attempts", 0)) for item in safety]
+    positions = [int(item["condition_position"]) for item in observations]
     return {
         "repeats": len(observations),
         "run_indices": [item["run_index"] for item in observations],
-        "condition_positions": [item["condition_position"] for item in observations],
+        "condition_positions": positions,
         "success_count": sum(successes),
         "success_sequence": successes,
         "force_abort_count": sum(force_aborts),
@@ -156,10 +157,32 @@ def _condition_summary(
         "planner_active_count": sum(active),
         "planner_active_sequence": active,
         "grasp_plan_attempts_total": sum(attempts),
+        "by_condition_position": {
+            str(position): _position_summary(
+                positions, successes, force_aborts, position
+            )
+            for position in sorted(set(positions))
+        },
         "terminal_stage_sequence": [
             str(item["episode"].get("terminal_stage", "unknown"))
             for item in observations
         ],
+    }
+
+
+def _position_summary(
+    positions: Sequence[int],
+    successes: Sequence[bool],
+    force_aborts: Sequence[bool],
+    selected_position: int,
+) -> dict[str, int]:
+    selected = [
+        index for index, position in enumerate(positions) if position == selected_position
+    ]
+    return {
+        "trials": len(selected),
+        "success_count": sum(successes[index] for index in selected),
+        "force_abort_count": sum(force_aborts[index] for index in selected),
     }
 
 

@@ -846,3 +846,36 @@ Three single-Radeon probes then passed their mechanism contracts. Non-risk
 used fallback reset, planned once, and succeeded at 9.23 N. Low-box sentinel
 `1100000` skipped planning and succeeded at 7.18 N. These outcomes permit the
 new validation campaign to run but do not establish an effect size.
+
+### Record 64: Reject the gate and isolate execution-order effects
+
+The frozen 60+60 development validation completed on one Radeon GPU. Reset
+baseline produced 35/60 successes, 17/60 force aborts, and zero drops; the
+gated candidate produced 33/60, 19/60, and zero drops. Mean episode peak force
+changed by +6.67 N with a paired bootstrap 95% interval of -0.53 to +16.85 N.
+Five planner-active episodes contained one recovery and two regressions. The
+new gate avoided zero planning episodes beyond static geometry eligibility,
+so both its safety and work-saving hypotheses failed.
+
+Before reading the complete result, a causal-attribution audit was added and
+tested. It partitions planner-active from planner-inactive episodes, validates
+gate telemetry, and compares trace state and high-level decision divergence.
+It identified `5120000` as inactive-planner drift: state changed at frame 104
+and the decision at frame 121. The validation and all derived artifacts were
+hashed and archived before selecting the follow-up.
+
+The follow-up froze four discordant episodes, five repeats per condition, and
+a seeded blocked order with 10 baseline-first and 10 candidate-first blocks.
+An initial process-per-observation executor was stopped before result review
+because every process recompiled Genesis kernels for about 80 seconds. Its
+incomplete output was isolated remotely. A replacement kept the exact schedule
+but executed new scenes in one process, cutting repeat runtime without changing
+samples, controls, or the 35 N boundary. The code explicitly labels 40 runs as
+nested measurements of four experimental units.
+
+All three planner-active changes repeated exactly five times: two regressions
+and one recovery. The inactive `5120000` succeeded 2/5 under both conditions;
+all four successes occurred when the condition was second in its block. This
+is a process-local period/carry-over signal, not an inactive-planner effect.
+The method remains rejected. Radeon validation passed 182 tests, Python
+compilation, shell syntax, and local/remote SHA-256 verification.
