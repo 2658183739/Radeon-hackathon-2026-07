@@ -129,6 +129,11 @@ def main() -> int:
         help="select a collision-free box grasp pose with Radeon IK and Jacobian scoring",
     )
     parser.add_argument(
+        "--grasp-planning-reset-fallback-gate",
+        action="store_true",
+        help="plan only when collision checking actually selected the fallback reset pose",
+    )
+    parser.add_argument(
         "--grasp-planning-disable-collision-filter",
         action="store_true",
         help="ablation only: rank candidates without rejecting non-finger collisions",
@@ -209,6 +214,7 @@ def main() -> int:
         or args.collision_checked_reset
         or args.surface_aware_pregrasp
         or args.geometry_aware_grasp_planning
+        or args.grasp_planning_reset_fallback_gate
         or args.grasp_planning_disable_collision_filter
         or args.grasp_planning_disable_manipulability_ranking
         or args.grasp_planning_disable_symmetric_wrist
@@ -243,6 +249,10 @@ def main() -> int:
                 geometry_aware_grasp_planning_enabled=(
                     config.task.geometry_aware_grasp_planning_enabled
                     or args.geometry_aware_grasp_planning
+                ),
+                grasp_planning_reset_fallback_gate_enabled=(
+                    config.task.grasp_planning_reset_fallback_gate_enabled
+                    or args.grasp_planning_reset_fallback_gate
                 ),
                 grasp_planning_collision_filter_enabled=(
                     config.task.grasp_planning_collision_filter_enabled
@@ -333,6 +343,7 @@ def main() -> int:
         )
     if (
         args.grasp_planning_disable_collision_filter
+        or args.grasp_planning_reset_fallback_gate
         or args.grasp_planning_disable_manipulability_ranking
         or args.grasp_planning_disable_symmetric_wrist
         or args.grasp_planning_disable_retry_replan

@@ -70,6 +70,37 @@ class ExpertRunnerTests(unittest.TestCase):
 
         self.assertEqual(resolve_grasp_stability_steps(config, sample), 10)
 
+    def test_reset_gate_uses_planned_dwell_only_when_environment_activates_planner(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        config = replace(
+            config,
+            task=replace(
+                config.task,
+                geometry_aware_grasp_planning_enabled=True,
+                grasp_planning_reset_fallback_gate_enabled=True,
+                grasp_planning_stability_steps=10,
+            ),
+            control=replace(config.control, collision_checked_reset_enabled=True),
+        )
+        sample = replace(
+            DomainRandomizer(config.randomization, config.seed).sample(0),
+            shape="box",
+            dimensions_m=(0.30, 0.07, 0.16),
+        )
+
+        self.assertEqual(
+            resolve_grasp_stability_steps(
+                config, sample, geometry_grasp_planning_active=False
+            ),
+            config.task.grasp_stability_steps,
+        )
+        self.assertEqual(
+            resolve_grasp_stability_steps(
+                config, sample, geometry_grasp_planning_active=True
+            ),
+            10,
+        )
+
     def test_runs_complete_closed_loop(self) -> None:
         config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
         sample = DomainRandomizer(config.randomization, config.seed).sample(0)

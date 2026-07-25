@@ -246,6 +246,32 @@ class RunExpertCliTests(unittest.TestCase):
         self.assertIn("grasp-planning options require", stderr.getvalue())
         environment.assert_not_called()
 
+    def test_reset_fallback_gate_requires_collision_checked_reset(self) -> None:
+        argv = [
+            "run_expert.py",
+            "--config",
+            str(PROJECT_ROOT / "configs" / "catalog_v2.toml"),
+            "--backend",
+            "cpu",
+            "--episodes",
+            "1",
+            "--geometry-aware-grasp-planning",
+            "--grasp-planning-reset-fallback-gate",
+        ]
+
+        stderr = StringIO()
+        with (
+            patch.object(sys, "argv", argv),
+            patch.object(run_expert, "GenesisParcelEnv") as environment,
+            redirect_stderr(stderr),
+            self.assertRaises(SystemExit) as raised,
+        ):
+            run_expert.main()
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("collision_checked_reset_enabled", stderr.getvalue())
+        environment.assert_not_called()
+
     def test_planned_approach_step_is_validated_before_environment_creation(self) -> None:
         argv = [
             "run_expert.py",

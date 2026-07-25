@@ -72,6 +72,21 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual(len(evaluation["episode_ids"]), 60)
         self.assertEqual(len(payload["experiments"]), 3)
 
+    def test_reset_fallback_validation_uses_new_namespace_and_two_groups(self) -> None:
+        payload = load_campaign(
+            ROOT / "configs" / "campaign_reset_fallback_gate_validation_v1.toml"
+        )
+        evaluation = payload["evaluation"]
+        self.assertEqual(evaluation["split"], "validation")
+        self.assertEqual(evaluation["local_episode_ids"], list(range(120000, 120005)))
+        self.assertEqual(len(evaluation["episode_ids"]), 60)
+        self.assertTrue(set(evaluation["episode_ids"]).isdisjoint(range(200000, 200040)))
+        self.assertEqual(len(payload["experiments"]), 2)
+        self.assertIn(
+            "--grasp-planning-reset-fallback-gate",
+            payload["experiments"][1]["cli_args"],
+        )
+
     def test_structured_campaign_rejects_incomplete_cartesian_product(self) -> None:
         payload = load_campaign(ROOT / "configs" / "campaign_geometry_screen_v1.toml")
         payload["evaluation"]["episode_ids"].pop()

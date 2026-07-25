@@ -14,6 +14,7 @@ from parcel_sorter.genesis_env import (
     cross_entity_collision_pairs,
     damped_least_squares_velocity,
     genesis_depth_to_meters,
+    resolve_geometry_grasp_planning_active,
     scaled_robot_gains,
 )
 
@@ -208,6 +209,31 @@ class CollisionCheckedResetTests(unittest.TestCase):
         result = cross_entity_collision_pairs(pairs, (10, 20), (20, 30))
 
         self.assertEqual(result, ((12, 21), (11, 22)))
+
+    def test_reset_fallback_gate_activates_planner_only_for_observed_risk(self) -> None:
+        cases = (
+            (False, True, True, True, False),
+            (True, False, True, True, False),
+            (True, True, False, False, True),
+            (True, True, True, False, False),
+            (True, True, True, True, True),
+        )
+        for enabled, eligible, gate, fallback_used, expected in cases:
+            with self.subTest(
+                enabled=enabled,
+                eligible=eligible,
+                gate=gate,
+                fallback_used=fallback_used,
+            ):
+                self.assertEqual(
+                    resolve_geometry_grasp_planning_active(
+                        planning_enabled=enabled,
+                        geometry_eligible=eligible,
+                        reset_fallback_gate_enabled=gate,
+                        reset_fallback_used=fallback_used,
+                    ),
+                    expected,
+                )
 
 
 if __name__ == "__main__":

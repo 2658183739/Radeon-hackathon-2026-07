@@ -106,6 +106,8 @@ def compare_expert_runs(
         "candidate_collision_checked_reset": _collision_checked_reset_summary(
             candidate_episodes
         ),
+        "baseline_grasp_planning": _grasp_planning_summary(baseline_episodes),
+        "candidate_grasp_planning": _grasp_planning_summary(candidate_episodes),
         "acceptance": acceptance,
         "recommendation": "keep" if all(acceptance.values()) else "repeat_or_reject",
     }
@@ -193,6 +195,49 @@ def _collision_checked_reset_summary(
         ),
         "compute_ms_total": compute_ms,
         "compute_ms_mean": compute_ms / len(enabled) if enabled else 0.0,
+    }
+
+
+def _grasp_planning_summary(
+    episodes: dict[int, dict[str, Any]],
+) -> dict[str, Any]:
+    summaries = [episode.get("safety_summary", {}) for episode in episodes.values()]
+    attempts = sum(int(item.get("grasp_plan_attempts", 0)) for item in summaries)
+    compute_ms = sum(
+        float(item.get("grasp_plan_compute_ms_total", 0.0)) for item in summaries
+    )
+    return {
+        "configured": any(
+            bool(item.get("geometry_aware_grasp_planning_enabled", False))
+            for item in summaries
+        ),
+        "reset_fallback_gate_enabled": any(
+            bool(item.get("grasp_planning_reset_fallback_gate_enabled", False))
+            for item in summaries
+        ),
+        "geometry_eligible_episodes": sum(
+            bool(item.get("geometry_aware_grasp_planning_geometry_eligible", False))
+            for item in summaries
+        ),
+        "gate_satisfied_episodes": sum(
+            item.get("grasp_planning_reset_fallback_gate_satisfied") is True
+            for item in summaries
+        ),
+        "active_episodes": sum(
+            bool(item.get("geometry_aware_grasp_planning_active", False))
+            for item in summaries
+        ),
+        "gate_avoided_episodes": sum(
+            bool(item.get("grasp_planning_reset_fallback_gate_enabled", False))
+            and bool(
+                item.get("geometry_aware_grasp_planning_geometry_eligible", False)
+            )
+            and not bool(item.get("geometry_aware_grasp_planning_active", False))
+            for item in summaries
+        ),
+        "attempts": attempts,
+        "compute_ms_total": compute_ms,
+        "compute_ms_per_attempt": compute_ms / attempts if attempts else 0.0,
     }
 
 

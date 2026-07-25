@@ -153,6 +153,41 @@ class ExpertComparisonTests(unittest.TestCase):
         self.assertEqual(summary["fallback_collision_pairs"], 0)
         self.assertAlmostEqual(summary["compute_ms_mean"], 2.5)
 
+    def test_aggregates_reset_gated_grasp_planning_telemetry(self) -> None:
+        baseline = _run((True, True), (10.0, 10.0))
+        candidate = _run((True, True), (10.0, 10.0))
+        candidate["episodes"][0]["safety_summary"] = {
+            "geometry_aware_grasp_planning_enabled": True,
+            "geometry_aware_grasp_planning_geometry_eligible": True,
+            "grasp_planning_reset_fallback_gate_enabled": True,
+            "grasp_planning_reset_fallback_gate_satisfied": True,
+            "geometry_aware_grasp_planning_active": True,
+            "grasp_plan_attempts": 2,
+            "grasp_plan_compute_ms_total": 12.0,
+        }
+        candidate["episodes"][1]["safety_summary"] = {
+            "geometry_aware_grasp_planning_enabled": True,
+            "geometry_aware_grasp_planning_geometry_eligible": True,
+            "grasp_planning_reset_fallback_gate_enabled": True,
+            "grasp_planning_reset_fallback_gate_satisfied": False,
+            "geometry_aware_grasp_planning_active": False,
+            "grasp_plan_attempts": 0,
+            "grasp_plan_compute_ms_total": 0.0,
+        }
+
+        result = compare_expert_runs(baseline, candidate)
+
+        self.assertFalse(result["baseline_grasp_planning"]["configured"])
+        summary = result["candidate_grasp_planning"]
+        self.assertTrue(summary["configured"])
+        self.assertTrue(summary["reset_fallback_gate_enabled"])
+        self.assertEqual(summary["geometry_eligible_episodes"], 2)
+        self.assertEqual(summary["gate_satisfied_episodes"], 1)
+        self.assertEqual(summary["active_episodes"], 1)
+        self.assertEqual(summary["gate_avoided_episodes"], 1)
+        self.assertEqual(summary["attempts"], 2)
+        self.assertAlmostEqual(summary["compute_ms_per_attempt"], 6.0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -71,6 +71,7 @@ class TaskConfig:
     surface_aware_pregrasp_max_vertical_error_m: float = 0.055
     surface_aware_pregrasp_min_side_overlap_m: float = 0.020
     geometry_aware_grasp_planning_enabled: bool = False
+    grasp_planning_reset_fallback_gate_enabled: bool = False
     grasp_planning_collision_filter_enabled: bool = True
     grasp_planning_manipulability_ranking_enabled: bool = True
     grasp_planning_symmetric_wrist_enabled: bool = True
@@ -456,6 +457,22 @@ class ExperimentConfig:
         ):
             raise ValueError(
                 "grasp_planning_final_approach_step_m cannot exceed max_ee_step_m"
+            )
+        if (
+            self.task.grasp_planning_reset_fallback_gate_enabled
+            and not self.task.geometry_aware_grasp_planning_enabled
+        ):
+            raise ValueError(
+                "grasp_planning_reset_fallback_gate_enabled requires "
+                "geometry_aware_grasp_planning_enabled"
+            )
+        if (
+            self.task.grasp_planning_reset_fallback_gate_enabled
+            and not self.control.collision_checked_reset_enabled
+        ):
+            raise ValueError(
+                "grasp_planning_reset_fallback_gate_enabled requires "
+                "collision_checked_reset_enabled"
             )
         self.output.validate()
         self.randomization.validate()

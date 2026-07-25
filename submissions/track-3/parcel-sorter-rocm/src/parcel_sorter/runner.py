@@ -52,15 +52,20 @@ class EpisodeReport:
 def resolve_grasp_stability_steps(
     config: ExperimentConfig,
     sample: ParcelSample,
+    *,
+    geometry_grasp_planning_active: bool | None = None,
 ) -> int:
     steps = sample.grasp_stability_steps or config.task.grasp_stability_steps
-    if (
-        config.task.geometry_aware_grasp_planning_enabled
-        and box_requires_geometry_aware_grasp_planning(
-            sample,
-            hand_clearance_m=config.task.grasp_hand_clearance_m,
+    if geometry_grasp_planning_active is None:
+        geometry_grasp_planning_active = (
+            config.task.geometry_aware_grasp_planning_enabled
+            and not config.task.grasp_planning_reset_fallback_gate_enabled
+            and box_requires_geometry_aware_grasp_planning(
+                sample,
+                hand_clearance_m=config.task.grasp_hand_clearance_m,
+            )
         )
-    ):
+    if geometry_grasp_planning_active:
         steps = max(steps, config.task.grasp_planning_stability_steps)
     return steps
 
@@ -77,7 +82,13 @@ def run_policy_episode(
         config.task.max_grasp_retries,
         grasp_settle_steps=config.task.grasp_settle_steps,
         release_settle_steps=config.task.release_settle_steps,
-        grasp_stability_steps=resolve_grasp_stability_steps(config, sample),
+        grasp_stability_steps=resolve_grasp_stability_steps(
+            config,
+            sample,
+            geometry_grasp_planning_active=getattr(
+                env, "geometry_grasp_planning_active", None
+            ),
+        ),
     )
     trace: list[dict[str, Any]] = []
     latencies_ms: list[float] = []

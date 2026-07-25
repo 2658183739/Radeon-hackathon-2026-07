@@ -68,6 +68,21 @@ def cross_entity_collision_pairs(
     return tuple(matches)
 
 
+def resolve_geometry_grasp_planning_active(
+    *,
+    planning_enabled: bool,
+    geometry_eligible: bool,
+    reset_fallback_gate_enabled: bool,
+    reset_fallback_used: bool,
+) -> bool:
+    """Resolve planner activation from static scope and measured reset risk."""
+    return (
+        planning_enabled
+        and geometry_eligible
+        and (not reset_fallback_gate_enabled or reset_fallback_used)
+    )
+
+
 def scaled_robot_gains(
     arm_kp: tuple[float, ...],
     arm_kv: tuple[float, ...],
@@ -295,12 +310,18 @@ class GenesisParcelEnv:
         self.gs, self.torch, self.np = initialize_genesis(backend)
         self.gs.set_random_seed(config.seed + sample.episode_index)
         self.expert = ScriptedPickPlaceExpert(config, sample)
-        self._geometry_grasp_planning_active = (
-            config.task.geometry_aware_grasp_planning_enabled
-            and box_requires_geometry_aware_grasp_planning(
-                sample,
-                hand_clearance_m=self.expert.grasp_hand_clearance_m(),
+        self._geometry_grasp_planning_eligible = (
+            box_requires_geometry_aware_grasp_planning(
+                sample, hand_clearance_m=self.expert.grasp_hand_clearance_m()
             )
+        )
+        self._geometry_grasp_planning_active = resolve_geometry_grasp_planning_active(
+            planning_enabled=config.task.geometry_aware_grasp_planning_enabled,
+            geometry_eligible=self._geometry_grasp_planning_eligible,
+            reset_fallback_gate_enabled=(
+                config.task.grasp_planning_reset_fallback_gate_enabled
+            ),
+            reset_fallback_used=False,
         )
         self.control_step = 0
         self._release_steps = 0
@@ -432,6 +453,7 @@ class GenesisParcelEnv:
         self.arm_dofs = self.np.arange(7)
         self.finger_dofs = self.np.arange(7, 9)
         self._configure_collision_checked_reset()
+        self._refresh_geometry_grasp_planning_active()
 
         if self.camera is not None and self._video_path is not None:
             self._video_path.parent.mkdir(parents=True, exist_ok=True)
@@ -446,6 +468,10 @@ class GenesisParcelEnv:
     @property
     def initialization_settle_steps(self) -> int:
         return max(2, self.config.simulation.physics_hz // 30)
+
+    @property
+    def geometry_grasp_planning_active(self) -> bool:
+        return self._geometry_grasp_planning_active
 
     def _add_sorting_targets(self) -> None:
         for center, color in (
@@ -868,6 +894,17 @@ class GenesisParcelEnv:
             "geometry_aware_grasp_planning_active": (
                 self._geometry_grasp_planning_active
             ),
+            "geometry_aware_grasp_planning_geometry_eligible": (
+                self._geometry_grasp_planning_eligible
+            ),
+            "grasp_planning_reset_fallback_gate_enabled": (
+                self.config.task.grasp_planning_reset_fallback_gate_enabled
+            ),
+            "grasp_planning_reset_fallback_gate_satisfied": (
+                self._collision_checked_reset_used
+                if self.config.task.grasp_planning_reset_fallback_gate_enabled
+                else None
+            ),
             "grasp_plan_retry_count": self._grasp_plan_retry_count,
             "grasp_plan_selected_candidate_id": (
                 self._grasp_plan_selected["candidate_id"]
@@ -936,6 +973,17 @@ class GenesisParcelEnv:
             ),
             "geometry_aware_grasp_planning_active": (
                 self._geometry_grasp_planning_active
+            ),
+            "geometry_aware_grasp_planning_geometry_eligible": (
+                self._geometry_grasp_planning_eligible
+            ),
+            "grasp_planning_reset_fallback_gate_enabled": (
+                self.config.task.grasp_planning_reset_fallback_gate_enabled
+            ),
+            "grasp_planning_reset_fallback_gate_satisfied": (
+                self._collision_checked_reset_used
+                if self.config.task.grasp_planning_reset_fallback_gate_enabled
+                else None
             ),
             "grasp_planning_collision_filter_enabled": (
                 self.config.task.grasp_planning_collision_filter_enabled
@@ -1250,6 +1298,16 @@ class GenesisParcelEnv:
         self._collision_checked_reset_compute_ms = (
             time.perf_counter_ns() - started
         ) / 1_000_000
+
+    def _refresh_geometry_grasp_planning_active(self) -> None:
+        self._geometry_grasp_planning_active = resolve_geometry_grasp_planning_active(
+            planning_enabled=self.config.task.geometry_aware_grasp_planning_enabled,
+            geometry_eligible=self._geometry_grasp_planning_eligible,
+            reset_fallback_gate_enabled=(
+                self.config.task.grasp_planning_reset_fallback_gate_enabled
+            ),
+            reset_fallback_used=self._collision_checked_reset_used,
+        )
 
     def _robot_parcel_collision_pairs(self) -> tuple[tuple[int, int], ...]:
         return cross_entity_collision_pairs(
