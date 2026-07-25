@@ -1833,3 +1833,37 @@ decision, not a claim that CPU is generally preferable.
 or open holdout. Keep it as explanatory telemetry. Revisit only after a
 licensed support-geometry change creates a new candidate family, or after
 batched contact scoring makes GPU execution technically justified.
+
+### 78. Retain and freeze the 30 mm adapter, but keep it default off
+
+**Question.** Can an explicitly modeled, open-source fingertip extension fix
+the loaded-support failure without changing force policy, ranking, or control?
+
+**Alternatives.** More force already failed to retain the parcel. Adjacent
+height selection overfits one episode. Side and oblique stock-Panda grasps were
+statically infeasible. A new robot or opaque mesh would expand scope and weaken
+the license/reproduction contract.
+
+**Code capability.** Parse the locked Genesis Panda MJCF with a structured XML
+API, bind its mesh directory explicitly, and generate one collision plus one
+visual box per finger. Validate a 5--60 mm configuration range, expose explicit
+CLI switches, preserve generated-asset provenance in telemetry, and provide a
+Radeon scene probe that checks collision-geom counts, AABBs, XML elements, and
+asset hashes. No third-party mesh is committed.
+
+**Evidence.** The 30 mm geometry increased the finger AABB long span from about
+56 to 85 mm. On observed `4120001`, the known failed `+40 mm` grasp completed
+at 24.07 N and the successful `+45 mm` sentinel remained successful at
+12.55 N. On frozen train group `7130001`, completed candidates changed from
+3/6 to 5/6 and safety aborts from 2/6 to 1/6. Across both groups, four stock
+successes were preserved and three failures recovered. The remaining candidate
+was stopped at 36.95 N by the unchanged 35 N gate.
+
+**Decision and reason.** Retain the adapter as a development-positive physical
+candidate, freeze 30 mm, and stop length tuning. Keep it default off because
+the eight paired candidate runs are nested within only two deterministic
+episodes and no holdout was opened. Do not treat 7/8 as a success rate.
+
+**Revisit trigger.** Model material, fasteners, added mass/inertia, and
+compliance, then preregister a separate paired evaluation. Hardware deployment
+also requires CAD clearance review and force calibration.

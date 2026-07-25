@@ -91,6 +91,8 @@ class TaskConfig:
     grasp_planning_transport_step_m: float = 0.010
     grasp_planning_transfer_settle_steps: int = 2
     grasp_planning_joint_segment_resolution_rad: float = 0.025
+    parcel_gripper_adapter_enabled: bool = False
+    parcel_gripper_adapter_extension_m: float = 0.030
 
     def validate(self) -> None:
         if self.max_grasp_retries < 0:
@@ -209,6 +211,13 @@ class TaskConfig:
         ):
             raise ValueError(
                 "grasp_planning_joint_segment_resolution_rad must be finite and positive"
+            )
+        if (
+            not math.isfinite(self.parcel_gripper_adapter_extension_m)
+            or not 0.005 <= self.parcel_gripper_adapter_extension_m <= 0.060
+        ):
+            raise ValueError(
+                "parcel_gripper_adapter_extension_m must be in [0.005, 0.060]"
             )
 
 

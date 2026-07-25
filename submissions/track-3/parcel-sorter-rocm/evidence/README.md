@@ -367,3 +367,18 @@ negative and one later 100.70 N false positive, so the metric remains
 default-off telemetry and does not open holdout. The tiny per-step ROCm path
 was also slower than the reference. Final telemetry samples at 30 Hz while
 Genesis physics and contact solving remain on Radeon.
+
+## Open-source parcel gripper adapter
+
+`expert/radeon-parcel-gripper-adapter-development-v1.json` binds the stock
+contact-wrench sources, Radeon geometry probe, two adapter mechanism runs, and
+one six-candidate frozen-train run by SHA-256. The runtime-generated 30 mm
+adapter adds one collision and one visual box per finger to the licensed
+Genesis Panda MJCF without copying third-party meshes into this repository.
+
+Across eight paired candidate executions nested in two already observed
+episodes, stock completed 4/8 and the adapter completed 7/8. All four stock
+successes were preserved; the unchanged 35 N gate stopped the one remaining
+unsafe adapter candidate at 36.95 N. This is development mechanism evidence,
+not a success-rate or holdout result. The 30 mm value is frozen, the adapter
+remains default off, and printed mass/compliance are not yet modeled.

@@ -1082,3 +1082,35 @@ only the last physics substep preserved metric direction, reduced raw output
 from 14.3 to 6.0 MB, and reduced the matched run to 86.66 s. The final default
 uses the faster CPU diagnostic scorer while Genesis physics/contact solving
 remain on Radeon. All 254 tests pass on the synchronized ROCm tree.
+
+### Record 74: Change loaded support geometry and stop after positive development evidence
+
+The contact-wrench stop decision pointed to support geometry rather than
+another threshold. A structured generator now derives a Panda MJCF from the
+locked Genesis 1.2.3 asset and adds a 30 mm collision/visual extension to each
+finger. The source meshes remain upstream. Configuration bounds the extension,
+both production and counterfactual CLIs expose it explicitly, and telemetry
+records the generated asset path and source contract. The switch is default
+off and the 35 N supervisor is unchanged.
+
+The first live probe failed only because `RigidGeom` has no public `name`
+attribute. The reproducible probe was corrected to use link geom counts and
+`ElementTree.iter("geom")`. It then built both Radeon scenes successfully:
+each link gained one physical collision geom, the XML contained the expected
+four collision/visual elements, and the world AABB extended by approximately
+29 mm. The distinction matters because `RigidLink.geoms` excludes the
+`contype=0` visual geometry.
+
+The observed `4120001 +40 mm` mechanism run changed from a missed bin at
+21.81 N to completion at 24.07 N. The known-success `+45 mm` sentinel remained
+successful at 12.55 N. A frozen six-candidate `7130001` train comparison then
+changed completion from 3/6 to 5/6 and safety aborts from 2/6 to 1/6. The only
+remaining failure crossed 35 N and aborted at 36.95 N; successful adapter runs
+peaked at 32.69 N or less. No holdout ID was opened.
+
+The positive result triggers a stop, not a length scan. Thirty millimetres is
+frozen and the capability remains default off. Eight paired executions from
+two deterministic episodes are mechanism evidence rather than independent
+samples. Documentation also records that the current generated geometry keeps
+stock explicit finger inertials; real adapter mass, fasteners, compliance,
+CAD clearance, and force calibration remain future requirements.

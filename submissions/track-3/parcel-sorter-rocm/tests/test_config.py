@@ -25,6 +25,8 @@ class ConfigTests(unittest.TestCase):
         self.assertFalse(config.task.grasp_planning_reset_fallback_gate_enabled)
         self.assertFalse(config.task.grasp_planning_transport_contract_enabled)
         self.assertTrue(config.task.grasp_planning_transport_lookahead_enabled)
+        self.assertFalse(config.task.parcel_gripper_adapter_enabled)
+        self.assertEqual(config.task.parcel_gripper_adapter_extension_m, 0.030)
         self.assertFalse(config.control.transport_slip_recovery_enabled)
         self.assertFalse(config.control.transport_slip_setdown_regrasp_enabled)
         self.assertEqual(config.control.transport_slip_setdown_step_m, 0.010)
@@ -44,6 +46,23 @@ class ConfigTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "final_approach_step_m"):
             invalid.validate()
+
+    def test_parcel_gripper_extension_is_bounded(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        for extension_m in (0.0049, 0.0601):
+            invalid = replace(
+                config,
+                task=replace(
+                    config.task,
+                    parcel_gripper_adapter_extension_m=extension_m,
+                ),
+            )
+            with self.subTest(extension_m=extension_m):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "parcel_gripper_adapter_extension_m",
+                ):
+                    invalid.validate()
 
     def test_planned_final_approach_limit_cannot_exceed_global_limit(self) -> None:
         config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")

@@ -455,4 +455,24 @@ the six holdout episodes once, and apply the preregistered safety/utility gate.
 RGB-D embedding and VLA integration remain later work, after this structured
 physical scorer proves held-out value.
 
-The current Radeon compile and complete unit suite pass 237 tests.
+The current Radeon compile and complete unit suite pass 257 tests.
+
+## Latest physical milestone: open-source support adapter retained
+
+A default-off runtime MJCF generator now adds a frozen 30 mm parcel-support
+extension to each Panda finger while reusing the locked Genesis 1.2.3 meshes.
+The repository commits no third-party mesh. A Radeon scene probe verifies the
+generated XML, source hash, per-link collision geometry, and approximately
+29 mm AABB extension.
+
+On two already observed deterministic episodes, eight paired candidate
+executions changed from 4/8 stock completions to 7/8 adapter completions. All
+four stock successes were preserved. The only remaining adapter failure was
+stopped by the unchanged 35 N gate at 36.95 N; the highest successful peak was
+32.69 N. No holdout was opened and 7/8 is not reported as a success rate.
+
+The 30 mm value is frozen and the adapter remains default off. Before a final
+evaluation or hardware claim, the project must model printed mass/inertia and
+compliance, preregister a separate paired set, and retain the independent
+force gate. See `docs/PARCEL_GRIPPER_ADAPTER.md` and
+`evidence/expert/radeon-parcel-gripper-adapter-development-v1.json`.

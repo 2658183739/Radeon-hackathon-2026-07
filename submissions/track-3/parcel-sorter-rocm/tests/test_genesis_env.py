@@ -1,7 +1,9 @@
 import unittest
 from dataclasses import replace
 from pathlib import Path
+import tempfile
 from types import SimpleNamespace
+import xml.etree.ElementTree as ET
 
 import numpy as np
 
@@ -10,6 +12,7 @@ from parcel_sorter.contracts import CartesianAction, RobotState
 from parcel_sorter.genesis_env import (
     GenesisParcelEnv,
     aabb_gap_m,
+    build_parcel_gripper_mjcf,
     cartesian_velocity_twist,
     cross_entity_collision_pairs,
     damped_least_squares_velocity,
@@ -21,6 +24,45 @@ from parcel_sorter.genesis_env import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+class ParcelGripperAssetTests(unittest.TestCase):
+    def test_generates_symmetric_collision_and_visual_adapters(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "assets").mkdir()
+            source = root / "panda.xml"
+            source.write_text(
+                """<mujoco><compiler meshdir="assets"/><worldbody><body name="hand">
+<body name="left_finger"/><body name="right_finger"/>
+</body></worldbody></mujoco>""",
+                encoding="utf-8",
+            )
+            output = root / "generated" / "panda_adapter.xml"
+
+            result = build_parcel_gripper_mjcf(source, output, 0.030)
+
+            self.assertEqual(result, output.resolve())
+            generated = ET.parse(output).getroot()
+            compiler = generated.find("compiler")
+            self.assertEqual(compiler.attrib["meshdir"], str((root / "assets").resolve()))
+            for finger_name in ("left_finger", "right_finger"):
+                finger = generated.find(f".//body[@name='{finger_name}']")
+                collision = finger.find(
+                    f"geom[@name='{finger_name}_parcel_adapter_collision']"
+                )
+                visual = finger.find(
+                    f"geom[@name='{finger_name}_parcel_adapter_visual']"
+                )
+                self.assertEqual(collision.attrib["type"], "box")
+                self.assertEqual(collision.attrib["size"], "0.010 0.004 0.015000000")
+                self.assertEqual(collision.attrib["pos"], "0 0.0055 0.068000000")
+                self.assertEqual(visual.attrib["contype"], "0")
+                self.assertEqual(visual.attrib["conaffinity"], "0")
+
+    def test_rejects_unbounded_extension_before_reading_source(self) -> None:
+        with self.assertRaisesRegex(ValueError, "extension"):
+            build_parcel_gripper_mjcf("missing.xml", "output.xml", 0.061)
 
 
 class DiagnosticGraspAllowlistTests(unittest.TestCase):

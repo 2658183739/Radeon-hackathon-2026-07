@@ -56,6 +56,17 @@ def parse_args() -> argparse.Namespace:
         help="diagnostic scorer backend; Genesis physics remains on --backend",
     )
     parser.add_argument(
+        "--parcel-gripper-adapter",
+        action="store_true",
+        help="use the generated open-source parcel finger adapter",
+    )
+    parser.add_argument(
+        "--parcel-gripper-extension-m",
+        type=float,
+        default=None,
+        help="override the adapter extension length in metres",
+    )
+    parser.add_argument(
         "--inactive-gate",
         choices=("error", "skip"),
         default="error",
@@ -148,6 +159,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             grasp_planning_reset_fallback_gate_enabled=True,
             grasp_planning_transport_contract_enabled=True,
             grasp_planning_transport_lookahead_enabled=False,
+            parcel_gripper_adapter_enabled=args.parcel_gripper_adapter,
+            parcel_gripper_adapter_extension_m=(
+                config.task.parcel_gripper_adapter_extension_m
+                if args.parcel_gripper_extension_m is None
+                else args.parcel_gripper_extension_m
+            ),
         ),
         control=replace(
             config.control,
@@ -286,6 +303,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "contact_wrench_telemetry_enabled": args.contact_wrench_telemetry,
             "contact_wrench_telemetry_backend": args.contact_wrench_backend,
             "contact_wrench_sample_hz": config.simulation.control_hz,
+            "parcel_gripper_adapter_enabled": (
+                config.task.parcel_gripper_adapter_enabled
+            ),
+            "parcel_gripper_adapter_extension_m": (
+                config.task.parcel_gripper_adapter_extension_m
+            ),
             "contact_wrench_changes_controller": False,
             "contact_wrench_changes_ranking": False,
             "only_intervention": "reject every generated candidate ID except the target",

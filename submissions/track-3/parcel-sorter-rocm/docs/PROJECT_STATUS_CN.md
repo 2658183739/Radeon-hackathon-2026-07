@@ -321,4 +321,18 @@ PyTorch/ROCm MLP 训练器、检查点加载器、离线评估器和冷/预热�
 的前提下只选择一个模型，再一次性执行 6 个 holdout，并应用预注册安全/效用门禁。RGB-D 嵌入和
 VLA 接入继续放在后面，必须先让结构化物理评分器证明留出价值。
 
-当前 Radeon 编译通过，全量 237 项单元测试通过。
+当前 Radeon 编译通过，全量 257 项单元测试通过。
+
+## 最新物理里程碑：保留开源承托适配器
+
+新的默认关闭 MJCF 运行时生成器复用锁定 Genesis 1.2.3 mesh，为每根 Panda 手指增加冻结的
+30 mm 包裹承托延长件；仓库不提交第三方 mesh。Radeon 场景探针会验证生成 XML、来源哈希、逐 link
+碰撞几何和约 29 mm AABB 延伸。
+
+两个已观察确定性 episode 的 8 次配对候选执行，从 stock 的 4/8 完成变为适配器 7/8 完成；stock
+的 4 次成功全部保留。唯一剩余适配器失败被未修改的 35 N 门禁在 36.95 N 中止，成功回合最高峰值
+为 32.69 N。没有打开 holdout，7/8 不能作为成功率。
+
+30 mm 数值已冻结，适配器继续默认关闭。进入最终评估或硬件声明前，项目必须建模打印件质量/惯性
+与柔顺性，预注册独立配对集合，并保留独立力门禁。详见 `docs/PARCEL_GRIPPER_ADAPTER_CN.md` 和
+`evidence/expert/radeon-parcel-gripper-adapter-development-v1.json`。

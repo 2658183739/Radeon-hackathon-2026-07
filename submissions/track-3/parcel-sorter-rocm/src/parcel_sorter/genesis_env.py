@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 import time
 from typing import Any, Mapping
+import xml.etree.ElementTree as ET
 
 from .config import ExperimentConfig
 from .contact_wrench import (
@@ -32,6 +33,69 @@ from .randomization import ParcelSample
 
 
 _INITIALIZED_BACKEND: str | None = None
+
+
+def build_parcel_gripper_mjcf(
+    source_path: str | Path,
+    output_path: str | Path,
+    extension_m: float,
+) -> Path:
+    """Generate a Panda MJCF with explicit, versioned parcel finger adapters."""
+    if not math.isfinite(extension_m) or not 0.005 <= extension_m <= 0.060:
+        raise ValueError("parcel gripper extension must be in [0.005, 0.060] m")
+    source = Path(source_path).resolve()
+    output = Path(output_path).resolve()
+    if not source.is_file():
+        raise FileNotFoundError(f"Panda MJCF source does not exist: {source}")
+    mesh_directory = source.parent / "assets"
+    if not mesh_directory.is_dir():
+        raise FileNotFoundError(f"Panda MJCF mesh directory does not exist: {mesh_directory}")
+
+    tree = ET.parse(source)
+    root = tree.getroot()
+    compiler = root.find("compiler")
+    if compiler is None:
+        raise ValueError("Panda MJCF is missing its compiler element")
+    compiler.set("meshdir", str(mesh_directory))
+
+    half_extension = extension_m / 2.0
+    stock_tip_end_m = 0.053
+    center_z_m = stock_tip_end_m + half_extension
+    size = f"0.010 0.004 {half_extension:.9f}"
+    position = f"0 0.0055 {center_z_m:.9f}"
+    for finger_name in ("left_finger", "right_finger"):
+        finger = root.find(f".//body[@name='{finger_name}']")
+        if finger is None:
+            raise ValueError(f"Panda MJCF is missing {finger_name}")
+        ET.SubElement(
+            finger,
+            "geom",
+            {
+                "name": f"{finger_name}_parcel_adapter_collision",
+                "type": "box",
+                "size": size,
+                "pos": position,
+                "group": "3",
+            },
+        )
+        ET.SubElement(
+            finger,
+            "geom",
+            {
+                "name": f"{finger_name}_parcel_adapter_visual",
+                "type": "box",
+                "size": size,
+                "pos": position,
+                "group": "2",
+                "contype": "0",
+                "conaffinity": "0",
+                "rgba": "0.05 0.60 0.72 1",
+            },
+        )
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    tree.write(output, encoding="utf-8", xml_declaration=True)
+    return output
 
 
 def aabb_gap_m(first_aabb: Any, second_aabb: Any) -> float:
@@ -384,6 +448,32 @@ class GenesisParcelEnv:
         self.backend = backend
         self.gs, self.torch, self.np = initialize_genesis(backend)
         self.gs.set_random_seed(config.seed + sample.episode_index)
+        self._robot_asset_source = "Genesis 1.2.3 Apache-2.0 Panda MJCF"
+        self._robot_mjcf_path = "xml/franka_emika_panda/panda.xml"
+        if config.task.parcel_gripper_adapter_enabled:
+            source_mjcf = (
+                Path(self.gs.__file__).resolve().parent
+                / "assets"
+                / "xml"
+                / "franka_emika_panda"
+                / "panda.xml"
+            )
+            extension_tag = (
+                f"{config.task.parcel_gripper_adapter_extension_m * 1000.0:.1f}"
+                .replace(".", "p")
+            )
+            generated_mjcf = (
+                Path(config.output.root_dir)
+                / "generated_assets"
+                / f"panda_parcel_adapter_{extension_tag}mm.xml"
+            )
+            self._robot_mjcf_path = str(
+                build_parcel_gripper_mjcf(
+                    source_mjcf,
+                    generated_mjcf,
+                    config.task.parcel_gripper_adapter_extension_m,
+                )
+            )
         self.expert = ScriptedPickPlaceExpert(config, sample)
         self._geometry_grasp_planning_eligible = (
             box_requires_geometry_aware_grasp_planning(
@@ -493,7 +583,7 @@ class GenesisParcelEnv:
         self.scene.add_entity(self.gs.morphs.Plane())
         self._add_sorting_targets()
         self.robot = self.scene.add_entity(
-            self.gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml"),
+            self.gs.morphs.MJCF(file=self._robot_mjcf_path),
             visualize_contact=show_viewer,
         )
 
@@ -1350,6 +1440,14 @@ class GenesisParcelEnv:
             "grasp_planning_joint_segment_resolution_rad": (
                 self.config.task.grasp_planning_joint_segment_resolution_rad
             ),
+            "parcel_gripper_adapter_enabled": (
+                self.config.task.parcel_gripper_adapter_enabled
+            ),
+            "parcel_gripper_adapter_extension_m": (
+                self.config.task.parcel_gripper_adapter_extension_m
+            ),
+            "robot_mjcf_path": self._robot_mjcf_path,
+            "robot_asset_source": self._robot_asset_source,
             "grasp_plan_attempts": self._grasp_plan_attempts,
             "grasp_plan_compute_ms_total": self._grasp_plan_compute_ms_total,
             "grasp_plan_events": tuple(self._grasp_plan_events),

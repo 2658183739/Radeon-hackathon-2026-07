@@ -129,6 +129,17 @@ def main() -> int:
         help="select a collision-free box grasp pose with Radeon IK and Jacobian scoring",
     )
     parser.add_argument(
+        "--parcel-gripper-adapter",
+        action="store_true",
+        help="use the generated open-source parcel finger adapter",
+    )
+    parser.add_argument(
+        "--parcel-gripper-extension-m",
+        type=float,
+        default=None,
+        help="override the parcel finger extension length in metres",
+    )
+    parser.add_argument(
         "--grasp-planning-reset-fallback-gate",
         action="store_true",
         help="plan only when collision checking actually selected the fallback reset pose",
@@ -257,6 +268,8 @@ def main() -> int:
         or args.collision_checked_reset
         or args.surface_aware_pregrasp
         or args.geometry_aware_grasp_planning
+        or args.parcel_gripper_adapter
+        or args.parcel_gripper_extension_m is not None
         or args.grasp_planning_reset_fallback_gate
         or args.grasp_planning_disable_collision_filter
         or args.grasp_planning_disable_manipulability_ranking
@@ -300,6 +313,15 @@ def main() -> int:
                 geometry_aware_grasp_planning_enabled=(
                     config.task.geometry_aware_grasp_planning_enabled
                     or args.geometry_aware_grasp_planning
+                ),
+                parcel_gripper_adapter_enabled=(
+                    config.task.parcel_gripper_adapter_enabled
+                    or args.parcel_gripper_adapter
+                ),
+                parcel_gripper_adapter_extension_m=(
+                    config.task.parcel_gripper_adapter_extension_m
+                    if args.parcel_gripper_extension_m is None
+                    else args.parcel_gripper_extension_m
                 ),
                 grasp_planning_reset_fallback_gate_enabled=(
                     config.task.grasp_planning_reset_fallback_gate_enabled

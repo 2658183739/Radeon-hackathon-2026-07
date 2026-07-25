@@ -29,6 +29,9 @@ RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 最新 Radeon 几何规划方法、顺序探针、正式 20+20 结果和剩余边界见
 [几何感知抓取规划](docs/GEOMETRY_AWARE_GRASP_PLANNING_CN.md)；英文版见
 [Geometry-Aware Grasp Planning](docs/GEOMETRY_AWARE_GRASP_PLANNING.md)。
+开源指尖承托几何、Radeon 配对证据与实体迁移边界见
+[包裹夹爪适配器](docs/PARCEL_GRIPPER_ADAPTER_CN.md)；英文版见
+[Open-Source Parcel Gripper Adapter](docs/PARCEL_GRIPPER_ADAPTER.md)。
 
 ## 系统组成
 
