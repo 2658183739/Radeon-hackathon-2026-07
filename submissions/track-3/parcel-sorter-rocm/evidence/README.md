@@ -199,3 +199,27 @@ classified as a useful diagnostic/negative control, not a deployable
 optimization. Local hashes are in
 `expert/radeon-collision-checked-reset-ab-v1-SHA256SUMS`; the two remote
 manifests preserve full and compact provenance.
+
+## Surface-aware pregrasp elimination probes
+
+`expert/radeon-surface-aware-pregrasp-probes-v1-*` records a sequential Radeon
+elimination study, not a formal success-rate experiment. Prior trajectories
+showed seven high-carton timeouts ending only 40--50 mm above the nominal grasp
+centre with XY already aligned. The candidate replaced the spherical capture
+window with an opt-in band that required 15 mm XY alignment, at least 20 mm of
+vertical side overlap, and at most 55 mm positive vertical error.
+
+Version 1 applied the band to every non-flat box. Its first preservation probe
+regressed successful episode `7000005` from 17.12 N and completion to a 56.50 N
+force abort after moving the transition by about one control frame. Version 2
+restricted the band to cartons at least 150 mm high. It restored `7000005`
+exactly, but converted target timeout `7000000` from a low-force failure into a
+66.22 N force abort after two retries. The third probe and formal 20+20 A/B were
+therefore cancelled by the preregistered safety rule.
+
+The implementation and unused fixed runner remain disabled as a reproducible
+negative control. These probes show that an expanded completion predicate
+cannot substitute for an IK- and collision-feasible grasp pose. Local hashes
+are in `expert/radeon-surface-aware-pregrasp-probes-v1-SHA256SUMS`; remote
+manifests preserve the three complete source summaries and derived compact
+artifacts.

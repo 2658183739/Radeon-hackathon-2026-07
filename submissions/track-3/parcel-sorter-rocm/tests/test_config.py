@@ -115,6 +115,29 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "collision_free_reset_qpos"):
             invalid.validate()
 
+    def test_surface_aware_pregrasp_parameters_must_be_positive(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            task=replace(
+                config.task,
+                surface_aware_pregrasp_min_side_overlap_m=0.0,
+            ),
+        )
+
+        with self.assertRaisesRegex(ValueError, "min_side_overlap"):
+            invalid.validate()
+
+        invalid_height = replace(
+            config,
+            task=replace(
+                config.task,
+                surface_aware_pregrasp_min_height_m=0.0,
+            ),
+        )
+        with self.assertRaisesRegex(ValueError, "min_height"):
+            invalid_height.validate()
+
     def test_parcel_profile_rejects_negative_rolling_friction(self) -> None:
         config = load_config(PROJECT_ROOT / "configs" / "catalog_v2.toml")
         invalid_profile = replace(config.parcel_profiles[0], rolling_friction=-0.001)

@@ -711,3 +711,26 @@ cause intervention, not a release candidate. I retained the code and evidence
 for reproducibility while keeping the default disabled. Validation is 134
 Radeon tests plus 6 subtests, the two substep diagnostics, exact-config A/B,
 failure analyses, logs, compact summaries, and local/remote hashes.
+
+### Entry 59: Use sequential probes to reject a tempting tolerance fix
+
+Trajectory inspection showed a clean pattern: all seven high-carton timeouts
+were nearly centred in XY and stalled 40--50 mm above the nominal hand pose.
+Instead of immediately running 40 episodes, I implemented an opt-in geometric
+capture predicate and ordered three probes so the cheapest falsification came
+first. The predicate split horizontal and vertical feasibility and derived the
+upper band from carton height, a minimum side overlap, and a hard cap.
+
+The first version demonstrated how sensitive a hybrid controller is to event
+timing. Expanding the low-carton window by only about 2 mm moved closure by one
+control frame and turned a known success into a force abort. I then isolated the
+rule to the already identified high-carton stratum. That preserved the known
+success but changed the target timeout into a more dangerous grasp/retry abort.
+The predeclared stopping rule ended the experiment before the third probe.
+
+The code remains disabled because a negative experiment is still useful for
+teaching and reproducibility. The important lesson is that a state predicate
+cannot repair kinematic infeasibility: the pose generator, collision check, and
+recovery transition must agree on the same physically stable grasp. Validation
+covered 140 Radeon tests plus 6 subtests and verified compact/full provenance
+hashes for every executed probe.

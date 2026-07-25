@@ -386,3 +386,22 @@ Proceed in this order:
    require at least 18/20 successes and at most 1/20 force aborts.
 5. Expand only a passing candidate across all profile strata. Reopen balanced
    RGB-D collection and model ranking only after that expanded expert gate.
+
+## 17. Close the tolerance branch and require pose feasibility
+
+Surface-aware capture was rejected before formal A/B: it either regressed a
+known success or converted a timeout into a 66.22 N force abort. Do not scan
+height thresholds, overlap margins, or completion tolerances further.
+
+The next implementation must:
+
+1. Generate multiple grasp-pose candidates from parcel dimensions, yaw, and
+   the parallel-jaw closing axis.
+2. Solve IK for each candidate without mutating the live scene, reject joint-
+   limit failures, and rank remaining poses by joint distance/manipulability.
+3. Query robot/parcel collision at the candidate qpos and require palm, wrist,
+   and non-finger links to remain clear before integration.
+4. Bind retry to a newly validated pose instead of reusing a moved parcel and
+   stale grasp state.
+5. Probe preservation, timeout recovery, and force challenge in that order;
+   only then register the fixed 20+20 Radeon A/B.

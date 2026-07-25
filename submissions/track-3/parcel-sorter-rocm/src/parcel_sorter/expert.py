@@ -207,6 +207,53 @@ class ScriptedPickPlaceExpert:
             return max(self.config.task.position_tolerance_m, 0.035)
         return self.config.task.position_tolerance_m
 
+    def at_pregrasp(
+        self,
+        end_effector_position: tuple[float, ...],
+        parcel_pose: tuple[float, ...],
+    ) -> bool:
+        """Test grasp capture while preserving the historical spherical default."""
+        target = self.pregrasp_position(parcel_pose)
+        tolerance = self.pregrasp_tolerance_m()
+        if not self.config.task.surface_aware_pregrasp_enabled:
+            return math.dist(end_effector_position, target) <= tolerance
+
+        dimensions = self.sample.dimensions_m or tuple(
+            base * scale
+            for base, scale in zip(
+                self.config.task.parcel_base_size_m,
+                self.sample.size_scale_xyz,
+                strict=True,
+            )
+        )
+        is_nonflat_box = (
+            self.sample.shape == "box"
+            and max(dimensions[:2]) > 0.12
+            and dimensions[2]
+            >= self.config.task.surface_aware_pregrasp_min_height_m
+            and self.sample.pregrasp_tolerance_m is None
+        )
+        if not is_nonflat_box:
+            return math.dist(end_effector_position, target) <= tolerance
+
+        horizontal_error = math.hypot(
+            end_effector_position[0] - target[0],
+            end_effector_position[1] - target[1],
+        )
+        vertical_error = end_effector_position[2] - target[2]
+        usable_upper_band = max(
+            tolerance,
+            min(
+                self.config.task.surface_aware_pregrasp_max_vertical_error_m,
+                dimensions[2] / 2
+                - self.config.task.surface_aware_pregrasp_min_side_overlap_m,
+            ),
+        )
+        return (
+            horizontal_error <= self.config.task.approach_xy_tolerance_m
+            and -tolerance <= vertical_error <= usable_upper_band
+        )
+
     def _safe_approach_position(
         self,
         current: tuple[float, ...],

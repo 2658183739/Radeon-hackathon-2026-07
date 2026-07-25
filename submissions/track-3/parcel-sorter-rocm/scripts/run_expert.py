@@ -118,6 +118,11 @@ def main() -> int:
         action="store_true",
         help="use the fallback reset pose only when the historical pose intersects the parcel",
     )
+    parser.add_argument(
+        "--surface-aware-pregrasp",
+        action="store_true",
+        help="enable a parcel-height-aware side-contact band for non-flat box grasp capture",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -149,6 +154,7 @@ def main() -> int:
         or args.approach_stiffness_scale is not None
         or args.approach_velocity_control
         or args.collision_checked_reset
+        or args.surface_aware_pregrasp
     ):
         config = replace(
             config,
@@ -166,6 +172,10 @@ def main() -> int:
                     config.task.retry_retreat_distance_m
                     if args.retry_retreat_distance is None
                     else args.retry_retreat_distance
+                ),
+                surface_aware_pregrasp_enabled=(
+                    config.task.surface_aware_pregrasp_enabled
+                    or args.surface_aware_pregrasp
                 ),
             ),
             control=replace(

@@ -1404,3 +1404,38 @@ Evidence is indexed under
 `evidence/expert/radeon-collision-checked-reset-ab-v1-*`. The formal Radeon
 checkout passed 134 tests plus 6 subtests; local/remote SHA-256 manifests retain
 the complete provenance chain.
+
+### 63. Reject surface-aware pregrasp capture before formal A/B
+
+**Observation and hypothesis.** Seven remaining high-carton timeouts reached
+within 40--50 mm above the nominal grasp centre with 0--5 mm XY error. A
+height-bounded capture band might turn these stalled but aligned poses into
+grasp attempts without admitting arbitrary early closure.
+
+**Sequential design.** The treatment unit was one deterministic episode. Both
+arms retained collision-checked reset; the only candidate flag was
+`task.surface_aware_pregrasp_enabled`. The capture band required 15 mm XY
+alignment, 20 mm minimum side overlap, and a 55 mm upper vertical cap. Probes
+were ordered as preservation (`7000005`), target timeout (`7000000`), then
+force-abort challenge (`7000001`). Any success regression or new force abort
+stopped the sequence before the expensive matched A/B.
+
+**Evidence and adaptation.** V1 applied to every non-flat box and immediately
+regressed `7000005`: the historical 17.12 N success became a 56.50 N force
+abort. V2 preregistered a 150 mm minimum carton height from the already observed
+failure stratum, thereby preserving `7000005` and its 17.12 N peak. The next
+probe still failed: `7000000` changed from a low-force approach timeout to a
+66.22 N force abort after two retries. The challenge probe and 20+20 A/B were
+cancelled, avoiding pseudoreplication and post-hoc threshold scanning.
+
+**Decision.** Reject and keep disabled. Reclassifying a physically stalled pose
+as “at pregrasp” changes state-machine timing but does not create a stable grasp
+or collision-free retry. Keep the typed parameters, tests, and runner as an
+auditable negative control. The next intervention must generate and validate a
+reachable grasp pose, including palm/wrist/link clearance, before the supervisor
+is allowed to close the gripper.
+
+Evidence is under `evidence/expert/radeon-surface-aware-pregrasp-probes-v1-*`.
+Radeon validation passed 140 tests plus 6 subtests; source and derived hashes
+were verified. No formal success-rate claim is made from three single-episode
+probes.

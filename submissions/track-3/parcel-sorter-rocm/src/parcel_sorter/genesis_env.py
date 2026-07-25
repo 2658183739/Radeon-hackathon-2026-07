@@ -499,9 +499,7 @@ class GenesisParcelEnv:
         finite = all(math.isfinite(value) for value in values)
         return Observation(
             parcel_visible=finite and parcel_position[2] > -0.02,
-            at_pregrasp=self._distance(
-                ee_position, self.expert.pregrasp_position(state.parcel_pose)
-            ) <= self.expert.pregrasp_tolerance_m(),
+            at_pregrasp=self.expert.at_pregrasp(ee_position, state.parcel_pose),
             grasp_contact=has_contact,
             parcel_lifted=parcel_position[2]
             >= self._initial_parcel_z + self.config.task.lift_height_m * 0.65,

@@ -66,6 +66,10 @@ class TaskConfig:
     size_aware_approach_enabled: bool = False
     approach_clearance_margin_m: float = 0.0
     retry_retreat_distance_m: float = 0.0
+    surface_aware_pregrasp_enabled: bool = False
+    surface_aware_pregrasp_min_height_m: float = 0.150
+    surface_aware_pregrasp_max_vertical_error_m: float = 0.055
+    surface_aware_pregrasp_min_side_overlap_m: float = 0.020
 
     def validate(self) -> None:
         if self.max_grasp_retries < 0:
@@ -106,6 +110,27 @@ class TaskConfig:
             raise ValueError("approach_clearance_margin_m must be finite and non-negative")
         if not math.isfinite(self.retry_retreat_distance_m) or self.retry_retreat_distance_m < 0:
             raise ValueError("retry_retreat_distance_m must be finite and non-negative")
+        if (
+            not math.isfinite(self.surface_aware_pregrasp_min_height_m)
+            or self.surface_aware_pregrasp_min_height_m <= 0
+        ):
+            raise ValueError(
+                "surface_aware_pregrasp_min_height_m must be finite and positive"
+            )
+        if (
+            not math.isfinite(self.surface_aware_pregrasp_max_vertical_error_m)
+            or self.surface_aware_pregrasp_max_vertical_error_m <= 0
+        ):
+            raise ValueError(
+                "surface_aware_pregrasp_max_vertical_error_m must be finite and positive"
+            )
+        if (
+            not math.isfinite(self.surface_aware_pregrasp_min_side_overlap_m)
+            or self.surface_aware_pregrasp_min_side_overlap_m <= 0
+        ):
+            raise ValueError(
+                "surface_aware_pregrasp_min_side_overlap_m must be finite and positive"
+            )
 
 
 @dataclass(frozen=True)

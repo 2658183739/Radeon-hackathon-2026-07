@@ -332,6 +332,62 @@ class ScriptedExpertTests(unittest.TestCase):
         expert = ScriptedPickPlaceExpert(self.config, sample)
         self.assertAlmostEqual(expert.pregrasp_tolerance_m(), 0.035)
 
+    def test_surface_aware_pregrasp_is_disabled_by_default(self) -> None:
+        sample = replace(self.sample, dimensions_m=(0.35, 0.07, 0.16))
+        expert = ScriptedPickPlaceExpert(self.config, sample)
+        parcel = self.state.parcel_pose
+        target = expert.pregrasp_position(parcel)
+
+        self.assertFalse(expert.at_pregrasp((target[0], target[1], target[2] + 0.04), parcel))
+
+    def test_surface_aware_pregrasp_accepts_a_height_supported_contact_band(self) -> None:
+        config = replace(
+            self.config,
+            task=replace(self.config.task, surface_aware_pregrasp_enabled=True),
+        )
+        sample = replace(self.sample, dimensions_m=(0.35, 0.07, 0.16))
+        expert = ScriptedPickPlaceExpert(config, sample)
+        parcel = self.state.parcel_pose
+        target = expert.pregrasp_position(parcel)
+
+        self.assertTrue(expert.at_pregrasp((target[0] + 0.005, target[1], target[2] + 0.05), parcel))
+
+    def test_surface_aware_pregrasp_rejects_insufficient_vertical_overlap(self) -> None:
+        config = replace(
+            self.config,
+            task=replace(self.config.task, surface_aware_pregrasp_enabled=True),
+        )
+        sample = replace(self.sample, dimensions_m=(0.35, 0.07, 0.16))
+        expert = ScriptedPickPlaceExpert(config, sample)
+        parcel = self.state.parcel_pose
+        target = expert.pregrasp_position(parcel)
+
+        self.assertFalse(expert.at_pregrasp((target[0], target[1], target[2] + 0.061), parcel))
+
+    def test_surface_aware_pregrasp_rejects_horizontal_misalignment(self) -> None:
+        config = replace(
+            self.config,
+            task=replace(self.config.task, surface_aware_pregrasp_enabled=True),
+        )
+        sample = replace(self.sample, dimensions_m=(0.35, 0.07, 0.16))
+        expert = ScriptedPickPlaceExpert(config, sample)
+        parcel = self.state.parcel_pose
+        target = expert.pregrasp_position(parcel)
+
+        self.assertFalse(expert.at_pregrasp((target[0] + 0.020, target[1], target[2] + 0.04), parcel))
+
+    def test_surface_aware_pregrasp_does_not_expand_short_box_window(self) -> None:
+        config = replace(
+            self.config,
+            task=replace(self.config.task, surface_aware_pregrasp_enabled=True),
+        )
+        sample = replace(self.sample, dimensions_m=(0.30, 0.07, 0.114))
+        expert = ScriptedPickPlaceExpert(config, sample)
+        parcel = self.state.parcel_pose
+        target = expert.pregrasp_position(parcel)
+
+        self.assertFalse(expert.at_pregrasp((target[0], target[1], target[2] + 0.04), parcel))
+
     def test_flat_box_keeps_the_precise_pregrasp_window(self) -> None:
         sample = replace(
             self.sample,

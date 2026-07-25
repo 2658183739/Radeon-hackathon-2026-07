@@ -262,3 +262,16 @@ Balanced RGB-D collection and learned-policy ranking remain blocked. The next
 candidate must generate reset and grasp poses that are feasible for each
 sampled parcel geometry, then pass the same safety gate before ACT, Diffusion,
 3D policy, VLA, or ROS 2 work resumes.
+
+## Latest eliminated candidate: surface-aware pregrasp capture
+
+A sequential Radeon probe tested whether high-carton approach stalls could be
+accepted as valid side grasps. V1 regressed successful `7000005` to a 56.50 N
+abort. V2 restricted the rule to cartons at least 150 mm high, preserved that
+success, but converted timeout `7000000` into a 66.22 N force abort after two
+retries. The candidate was stopped before formal A/B and remains disabled.
+
+This closes the tolerance-based branch. The next candidate must synthesize an
+IK- and collision-feasible pose rather than loosen completion semantics.
+Balanced collection, policy training/ranking, VLA, and ROS 2 remain gated on
+the expert reaching the fixed task and force thresholds.
