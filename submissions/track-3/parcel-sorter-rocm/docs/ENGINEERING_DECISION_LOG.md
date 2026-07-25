@@ -1073,3 +1073,78 @@ cleanup fault, and machine-enforced single-variable experiment contracts.
 **Revisit trigger.** Remove the status-139 exception when the pinned Genesis
 runtime no longer crashes after complete summary emission. Never broaden it to
 accept an incomplete run or a different exit status.
+
+### 54. Reject the first size-aware approach candidate and fix detached-run logging
+
+**Evidence.** On the same 20 Radeon episodes, the baseline completed 1/20 with
+12 force aborts and a 111.28 N peak. The size-aware candidate (vertical-envelope
+delta plus 20 mm margin) completed 0/20, kept 12 force aborts, raised the peak
+to 304.67 N, and regressed baseline success `7000005`. It also had eight
+approach timeouts versus seven and no lifted parcels. The comparison contains
+exactly the two declared task-field differences and returns `repeat_or_reject`.
+
+**Decision.** Reject the candidate and keep the feature disabled. The trace
+shows the regression occurs after a lost-grasp retry: the parcel has moved, and
+the retry enters approach before a safe recovery pose is established. Increasing
+transit height is therefore not a sufficient fix and must not be swept blindly.
+The next controller intervention is recovery-aware retry initialization, with
+the same 35 N hard boundary.
+
+**Operational fix.** Redirect each expert leg to a versioned run log inside the
+output root. The previous detached SSH run produced a complete baseline summary
+but lost the shell continuation after the remote stdout pipe closed, so the
+candidate had to be launched manually. Future runs retain baseline and candidate
+logs and hash them with the summaries and comparison.
+
+**Revisit trigger.** Only revisit size-aware clearance after a recovery-policy
+candidate has a matched experiment showing no retry regression; do not claim
+this rejected result as an optimization.
+
+### 55. Keep recovery-aware retry as a promising diagnostic, not a release change
+
+**Evidence.** The matched 20-episode Radeon A/B changed only
+`task.retry_retreat_distance_m` from `0.0` to `0.120`. The candidate improved
+success from 1/20 to 2/20, recovered episode `7000014`, introduced no success
+regressions or drops, reduced force aborts from 12 to 11, and retained 1.98x
+of baseline throughput. Failure attribution moved from 12 to 11 force aborts
+with the same seven approach timeouts.
+
+**Decision.** Keep the implementation disabled by default and classify this as
+a promising diagnostic. It still fails the absolute gates by a wide margin:
+10% success and 55% force-abort rate are not deployable. The result justifies a
+larger pre-registered recovery evaluation, not a default configuration change.
+
+**Implementation.** Add `retry_retreat_distance_m`, a lateral separation step
+used only when the supervisor increments `retry_count`; first attempts retain
+the historical path. The CLI, validation, unit tests, fixed A/B runner, failure
+analyses, compact summaries, logs, and hashes are all versioned.
+
+**Revisit trigger.** Repeat on a larger fixed episode set only after the data
+and safety protocol is predeclared. Promote the setting only if absolute
+success, force-abort, drop, and profile-stratified gates pass; otherwise keep it
+as a documented recovery component without claiming task readiness.
+
+### 53. Implement a size-aware horizontal-transit candidate
+
+**Problem.** The fixed `approach_clearance_m` is measured from the baseline parcel
+center. For a substantially taller carton, the parcel's vertical envelope grows
+while the robot crosses the workspace, reducing effective top clearance. A global
+height increase would change every profile and make the result hard to attribute.
+
+**Decision.** Add `TaskConfig.size_aware_approach_enabled` and
+`approach_clearance_margin_m`. With the switch off, behavior is exactly the
+legacy path. With it on, the expert adds only the current parcel's vertical
+envelope delta over the baseline parcel, plus an explicit margin. Reset pose,
+physics, grasp target, 35 N safety boundary, and random samples remain fixed.
+
+**Implementation.** Centralize the geometry rule in
+`ScriptedPickPlaceExpert.approach_clearance_m()`. Add CLI overrides that are
+validated before Genesis construction, plus
+`run_size_aware_approach_ab_rocm.sh`, which fixes 20 `large_narrow_carton`
+episodes on one Radeon and allows exactly the two task-field differences in the
+comparison contract.
+
+**Acceptance.** The candidate must pass the fixed success, force-abort, drop,
+and throughput gates before a full-catalog regression. Otherwise retain the
+artifacts as evidence and keep the switch disabled. Record the command and
+SHA-256 with the commit.

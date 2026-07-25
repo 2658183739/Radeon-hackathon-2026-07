@@ -51,6 +51,26 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "reset_qpos"):
             invalid.validate()
 
+    def test_approach_clearance_margin_must_be_non_negative(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            task=replace(config.task, approach_clearance_margin_m=-0.001),
+        )
+
+        with self.assertRaisesRegex(ValueError, "approach_clearance_margin_m"):
+            invalid.validate()
+
+    def test_retry_retreat_distance_must_be_non_negative(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            task=replace(config.task, retry_retreat_distance_m=-0.001),
+        )
+
+        with self.assertRaisesRegex(ValueError, "retry_retreat_distance_m"):
+            invalid.validate()
+
 
 if __name__ == "__main__":
     unittest.main()

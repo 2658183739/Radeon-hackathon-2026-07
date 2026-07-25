@@ -34,6 +34,10 @@ drop_hand_height_m = 0.24
 position_tolerance_m = 0.025
 release_settle_steps = 12
 grasp_settle_steps = 10
+grasp_stability_steps = 1
+size_aware_approach_enabled = false
+approach_clearance_margin_m = 0.0
+retry_retreat_distance_m = 0.0
 
 [control]
 arm_kp = [4500, 4500, 3500, 3500, 2000, 2000, 2000]

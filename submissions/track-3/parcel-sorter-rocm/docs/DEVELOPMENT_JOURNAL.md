@@ -528,3 +528,29 @@ status-139 cleanup crash. The runner now continues only for that exact status
 when a strict summary postcondition passes. The comparison also enforces that
 `control.reset_qpos` is the sole config difference. All 91 tests pass on the
 Radeon environment.
+
+### Record 49: reject the first size-aware transit candidate
+
+The candidate added the parcel's vertical-envelope delta and a 20 mm margin to
+horizontal transit clearance. On the fixed Radeon 20-episode match it produced
+0/20 successes, 12 force aborts, and a 304.67 N peak, while regressing baseline
+episode `7000005`. Trace attribution showed the regression after a lost-grasp
+retry, so the candidate remains disabled and the complete negative-control
+artifacts are stored under `evidence/expert/radeon-size-aware-ab-v1-*`.
+
+### Record 50: test recovery-aware retry separation
+
+The next isolated change added a 120 mm lateral retreat only after
+`retry_count` increased. The first-attempt path and safety threshold were
+unchanged. The matched Radeon result improved from 1/20 to 2/20, recovered one
+episode with no regressions or drops, and reduced force aborts from 12 to 11,
+but still failed the absolute task and safety gates. Keep the feature disabled
+by default; retain it as a candidate for a larger pre-registered recovery study.
+
+### Record 51: make detached Radeon experiments self-contained
+
+The first size-aware run lost its shell continuation after the SSH stdout pipe
+closed, even though the baseline summary was complete. Both A/B runners now
+redirect each expert leg to a versioned log inside the output root and hash the
+logs with the summaries and comparison. This is an operational reproducibility
+fix, not a task-performance claim.

@@ -51,6 +51,9 @@ class TaskConfig:
     grasp_settle_steps: int
     approach_xy_tolerance_m: float = 0.010
     grasp_stability_steps: int = 1
+    size_aware_approach_enabled: bool = False
+    approach_clearance_margin_m: float = 0.0
+    retry_retreat_distance_m: float = 0.0
 
     def validate(self) -> None:
         if self.max_grasp_retries < 0:
@@ -87,6 +90,10 @@ class TaskConfig:
             or self.grasp_stability_steps < 1
         ):
             raise ValueError("position tolerance must be positive and stability steps must be positive")
+        if not math.isfinite(self.approach_clearance_margin_m) or self.approach_clearance_margin_m < 0:
+            raise ValueError("approach_clearance_margin_m must be finite and non-negative")
+        if not math.isfinite(self.retry_retreat_distance_m) or self.retry_retreat_distance_m < 0:
+            raise ValueError("retry_retreat_distance_m must be finite and non-negative")
 
 
 @dataclass(frozen=True)

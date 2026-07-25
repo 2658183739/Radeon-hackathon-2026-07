@@ -20,6 +20,19 @@
 | `expert/radeon-reset-ab-v1-candidate-c-summary.json` | 20 回合候选 C compact summary；原始 trace 保留在云端 |
 | `expert/radeon-reset-ab-v1-run.log` | Radeon 预检、Genesis 运行日志和 summary 后退出诊断 |
 | `expert/radeon-reset-ab-v1-SHA256SUMS` | reset A/B 证据哈希清单 |
+| `expert/radeon-size-aware-ab-v1-comparison.json` | 匹配 Radeon 尺寸感知横移 A/B；20 mm 裕量候选被拒绝 | `c21b9f33b584e882a133d68f09dfaebd42671c3d60ce54ceddc20e8222cda12f` |
+| `expert/radeon-size-aware-ab-v1-baseline-summary.json` | 尺寸感知对照实验的 20 回合基线 compact summary | `82cce9c23f755fc95c998810f40e53ea9fb2c337d12304f92307f06db2db17e6` |
+| `expert/radeon-size-aware-ab-v1-candidate-size-aware-summary.json` | 被拒绝的尺寸感知候选 compact summary；原始 trace 保留在云端 | `e9711e6225df1207a427c792d8ba6d47fd1f929b0ab1d5ca7663a5a6e2f8c26f` |
+| `expert/radeon-size-aware-ab-v1-baseline-failure-analysis.json` | 匹配 20 回合基线的轨迹级失败归因 | `7f478ea03a6ba0e6859afb5496aba5eed4614be7cc087b4bdb66ff19e9e8daa4` |
+| `expert/radeon-size-aware-ab-v1-candidate-failure-analysis.json` | 候选失败归因和重试回归证据 | `03e133f66884a776616d694b66899522529a3b7d9d1c06e811cc8d34b927ae7f` |
+| `expert/radeon-size-aware-ab-v1-candidate.log` | 候选 Radeon Genesis 日志、最终 summary 和运行警告 | `2e9a5a57dd66af12020dae7f083e6be21ecfb5804fda24594cb5c1cccf1ad8ac` |
+| `expert/radeon-size-aware-ab-v1-SHA256SUMS` | 尺寸感知负对照证据哈希清单 | N/A |
+| `expert/radeon-retry-retreat-ab-v1-comparison.json` | 匹配 Radeon 恢复感知重试 A/B；方向有改善但未通过绝对安全/任务门禁 | `47cfd58a09e344db8c60751167e5504285d82f27276249e00d26dd07df9efec2` |
+| `expert/radeon-retry-retreat-ab-v1-baseline-summary.json` | 恢复重试对照实验的 20 回合基线 compact summary | `ae38f67d6665a18b1bad46cc38f1244b5189ed55011343077f9f16f6b76c9d1b` |
+| `expert/radeon-retry-retreat-ab-v1-candidate-summary.json` | 恢复感知重试候选 compact summary；尚未设为默认 | `cd4103caf414687eee3c44e44933b9a4c164f46edc7ab05e730197164cecfeb3` |
+| `expert/radeon-retry-retreat-ab-v1-baseline-failure-analysis.json` | 基线轨迹级失败归因 | `b468064bdbd200e5b021cddda98856e9124c01a5033ae8c807850a5d5fcd99e6` |
+| `expert/radeon-retry-retreat-ab-v1-candidate-failure-analysis.json` | 候选重试和力指标轨迹归因 | `36a826c40de6d3743f0fdc4e50eb9302478a9068ac8194d33b0b3ed9b0dcf10f` |
+| `expert/radeon-retry-retreat-ab-v1-SHA256SUMS` | 恢复感知重试实验哈希清单 | N/A |
 | `benchmarks/parallel-radeon.json` | 1/16/64/128 环境仿真扫描 |
 | `benchmarks/act-training-*.log` | FP32/AMP 与 batch 吞吐测试 |
 | `catalog/catalog-v1-submit-smoke.json` | 最终 20 秒、7 类 profile 目录回归烟雾 |

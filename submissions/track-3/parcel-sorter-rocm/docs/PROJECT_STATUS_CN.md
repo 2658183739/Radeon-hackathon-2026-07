@@ -97,3 +97,14 @@ watch_and_train_rocm.sh 可以等待采集 summary、生成清单并启动顺序
 - `OPTIMIZATION_ROADMAP_CN.md`
 - `RESEARCH_AND_MODEL_MATRIX_CN.md`
 - `DATASET_CARD_CN.md` 与 `MODEL_CARD_CN.md`
+
+下一项受控实验是 `scripts/run_size_aware_approach_ab_rocm.sh`：保留历史默认
+reset 姿态，只在 20 个固定的 `large_narrow_carton` 回合上比较尺寸感知横移高度。
+候选必须在 Radeon 上通过机器检查的安全和吞吐门禁后，才能被称为已接受的优化。
+
+首个尺寸感知候选已被匹配 Radeon 证据拒绝：0/20 成功、12/20 力中止、峰值力
+304.67 N，并使基线回合 `7000005` 回归。对应 summary 和轨迹级失败归因已索引在
+`evidence/expert/radeon-size-aware-ab-v1-*`。
+
+恢复感知重试诊断在匹配实验中提升到 2/20，恢复 1 个回合且无成功回归，但仍有
+11/20 次力中止。它在更大规模的预注册恢复研究完成前继续默认关闭。

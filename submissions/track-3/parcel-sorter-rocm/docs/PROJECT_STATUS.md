@@ -124,3 +124,18 @@ For the rationale and learning-oriented record, see:
 - `OPTIMIZATION_ROADMAP.md`
 - `RESEARCH_AND_MODEL_MATRIX.md`
 - `DATASET_CARD.md` and `MODEL_CARD.md`
+
+The next controlled experiment is `scripts/run_size_aware_approach_ab_rocm.sh`.
+It keeps the historical reset pose and compares only geometry-aware transit
+clearance on 20 fixed `large_narrow_carton` episodes. The candidate is not an
+accepted optimization until the machine-checked safety and throughput gates
+pass on Radeon.
+
+The first size-aware candidate was rejected on matched Radeon evidence:
+0/20 success, 12/20 force aborts, 304.67 N peak force, and a regression of
+baseline episode `7000005`. Its summaries and trace-derived failure analyses
+are indexed under `evidence/expert/radeon-size-aware-ab-v1-*`.
+
+The recovery-aware retry diagnostic improved the matched result to 2/20 with
+one recovered episode and no regression, but still had 11/20 force aborts. It
+remains disabled by default pending a larger pre-registered recovery study.

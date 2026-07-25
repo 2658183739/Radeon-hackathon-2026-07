@@ -69,6 +69,47 @@ class ScriptedExpertTests(unittest.TestCase):
         self.assertAlmostEqual(action.target_position[2], transit_z)
         self.assertGreater(action.target_position[0], state.end_effector_pose[0])
 
+    def test_size_aware_approach_is_disabled_by_default(self) -> None:
+        self.assertAlmostEqual(
+            self.expert.approach_clearance_m(),
+            self.config.task.approach_clearance_m,
+        )
+
+    def test_size_aware_approach_adds_only_vertical_envelope_delta_and_margin(self) -> None:
+        candidate_config = replace(
+            self.config,
+            task=replace(
+                self.config.task,
+                size_aware_approach_enabled=True,
+                approach_clearance_margin_m=0.02,
+            ),
+        )
+        sample = replace(self.sample, dimensions_m=(0.30, 0.079, 0.18))
+        expert = ScriptedPickPlaceExpert(candidate_config, sample)
+        expected = candidate_config.task.approach_clearance_m + (0.18 / 2 - 0.04 / 2) + 0.02
+        self.assertAlmostEqual(expert.approach_clearance_m(), expected)
+
+    def test_retry_retreat_moves_laterally_before_reapproach(self) -> None:
+        candidate_config = replace(
+            self.config,
+            task=replace(self.config.task, retry_retreat_distance_m=0.12),
+        )
+        expert = ScriptedPickPlaceExpert(candidate_config, self.sample)
+        parcel = self.state.parcel_pose
+        retry_state = replace(
+            self.state,
+            end_effector_pose=(parcel[0], parcel[1], 0.18, 1.0, 0.0, 0.0, 0.0),
+        )
+        action = expert.action(
+            ControlDecision("approach", Command.MOVE_PREGRASP.value, "retry", 1),
+            retry_state,
+        )
+
+        self.assertGreater(action.target_position[0], parcel[0])
+        self.assertAlmostEqual(action.target_position[1], parcel[1])
+        self.assertAlmostEqual(action.target_position[2], retry_state.end_effector_pose[2])
+        self.assertGreater(action.gripper, 0)
+
     def test_final_descent_stays_committed_after_xy_alignment(self) -> None:
         decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)
         parcel = self.state.parcel_pose

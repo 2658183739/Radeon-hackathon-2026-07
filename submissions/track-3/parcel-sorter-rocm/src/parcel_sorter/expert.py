@@ -44,6 +44,7 @@ class ScriptedPickPlaceExpert:
         self._grasp_origin_xy: tuple[float, float] | None = None
         self._descent_committed = False
         self._drop_descent_committed = False
+        self._retry_retreat_pending = False
         self._last_retry_count = 0
         half_yaw = profile_grasp_yaw(sample) / 2
         self._grasp_quaternion = (0.0, math.cos(half_yaw), math.sin(half_yaw), 0.0)
@@ -59,13 +60,17 @@ class ScriptedPickPlaceExpert:
             self._descent_committed = False
             self._drop_descent_committed = False
             self._grasp_origin_xy = None
+            self._retry_retreat_pending = (
+                decision.retry_count > 0
+                and self.config.task.retry_retreat_distance_m > 0
+            )
             self._last_retry_count = decision.retry_count
         command = Command(decision.command)
         current = state.end_effector_pose[:3]
         parcel = state.parcel_pose[:3]
 
         if command == Command.MOVE_PREGRASP:
-            desired = self._safe_approach_position(current, parcel)
+            desired = self._retry_or_safe_approach_position(current, parcel)
         elif command == Command.MOVE_LIFT:
             grasp_xy = self._grasp_origin_xy or (parcel[0], parcel[1])
             desired = (
@@ -92,7 +97,7 @@ class ScriptedPickPlaceExpert:
         target = self._bounded_step(current, desired, step_limit)
         target_quaternion = self._grasp_quaternion
         if command == Command.MOVE_PREGRASP:
-            transit_z = parcel[2] + self.config.task.approach_clearance_m
+            transit_z = parcel[2] + self.approach_clearance_m()
             horizontal_distance = math.hypot(current[0] - parcel[0], current[1] - parcel[1])
             if (
                 horizontal_distance > self.config.task.position_tolerance_m
@@ -124,6 +129,37 @@ class ScriptedPickPlaceExpert:
             return clearance + 0.008
         return clearance
 
+    def approach_clearance_m(self) -> float:
+        """Return the horizontal-transit clearance for the current parcel.
+
+        The legacy value is retained by default.  When enabled, only the
+        parcel's vertical envelope above the baseline parcel is added, plus a
+        separately audited margin.  This keeps the candidate causal: it changes
+        the transit height without changing reset pose, physics, or the final
+        grasp target.
+        """
+        base_clearance = self.config.task.approach_clearance_m
+        if not self.config.task.size_aware_approach_enabled:
+            return base_clearance
+        dimensions = self.sample.dimensions_m or tuple(
+            base * scale
+            for base, scale in zip(
+                self.config.task.parcel_base_size_m,
+                self.sample.size_scale_xyz,
+                strict=True,
+            )
+        )
+        if self.sample.shape == "cylinder" and self.sample.orientation_mode == "horizontal":
+            vertical_extent = dimensions[1]
+        else:
+            vertical_extent = dimensions[2] / 2.0
+        baseline_extent = self.config.task.parcel_base_size_m[2] / 2.0
+        return (
+            base_clearance
+            + max(0.0, vertical_extent - baseline_extent)
+            + self.config.task.approach_clearance_margin_m
+        )
+
     def pregrasp_tolerance_m(self) -> float:
         """Scale the close-pose window by grasp surface size and shape."""
         if self.sample.pregrasp_tolerance_m is not None:
@@ -152,7 +188,7 @@ class ScriptedPickPlaceExpert:
         parcel_pose: tuple[float, ...],
     ) -> tuple[float, float, float]:
         tolerance = self.config.task.approach_xy_tolerance_m
-        transit_z = parcel_pose[2] + self.config.task.approach_clearance_m
+        transit_z = parcel_pose[2] + self.approach_clearance_m()
         horizontal_distance = math.hypot(
             current[0] - parcel_pose[0],
             current[1] - parcel_pose[1],
@@ -166,6 +202,39 @@ class ScriptedPickPlaceExpert:
             return (parcel_pose[0], parcel_pose[1], transit_z)
         self._descent_committed = True
         return self.pregrasp_position(parcel_pose)
+
+    def _retry_or_safe_approach_position(
+        self,
+        current: tuple[float, ...],
+        parcel_pose: tuple[float, ...],
+    ) -> tuple[float, float, float]:
+        """Create separation before re-approaching a parcel that moved on retry."""
+        if not self._retry_retreat_pending:
+            return self._safe_approach_position(current, parcel_pose)
+
+        retreat_distance = self.config.task.retry_retreat_distance_m
+        horizontal_distance = math.hypot(
+            current[0] - parcel_pose[0],
+            current[1] - parcel_pose[1],
+        )
+        if horizontal_distance >= retreat_distance:
+            self._retry_retreat_pending = False
+            return self._safe_approach_position(current, parcel_pose)
+
+        if horizontal_distance > 1e-6:
+            direction_x = (current[0] - parcel_pose[0]) / horizontal_distance
+            direction_y = (current[1] - parcel_pose[1]) / horizontal_distance
+        else:
+            direction_x, direction_y = 1.0, 0.0
+        retreat_z = max(
+            current[2],
+            parcel_pose[2] + self.grasp_hand_clearance_m() + 0.03,
+        )
+        return (
+            parcel_pose[0] + direction_x * retreat_distance,
+            parcel_pose[1] + direction_y * retreat_distance,
+            retreat_z,
+        )
 
     def _is_final_approach(
         self,

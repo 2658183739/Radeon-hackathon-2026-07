@@ -22,6 +22,19 @@ the full dataset or checkpoint.
 | `expert/radeon-reset-ab-v1-candidate-c-summary.json` | Compact 20-episode pose-C summary; raw traces remain on the cloud instance | `a3aadb9f27e1c5642bac9a913e691d043b8a9ba6c7db8f85616b45651fe6ac81` |
 | `expert/radeon-reset-ab-v1-run.log` | Radeon preflight, Genesis run log, and post-summary exit diagnostic | `aef02638c6546c2d4645fca2143248d760ed88eedd396e2610bfddb807ad9a2e` |
 | `expert/radeon-reset-ab-v1-SHA256SUMS` | Hash manifest for the reset A/B evidence | N/A |
+| `expert/radeon-size-aware-ab-v1-comparison.json` | Matched Radeon size-aware transit A/B; 20 mm margin candidate rejected | `c21b9f33b584e882a133d68f09dfaebd42671c3d60ce54ceddc20e8222cda12f` |
+| `expert/radeon-size-aware-ab-v1-baseline-summary.json` | Compact 20-episode baseline summary for the size-aware comparison | `82cce9c23f755fc95c998810f40e53ea9fb2c337d12304f92307f06db2db17e6` |
+| `expert/radeon-size-aware-ab-v1-candidate-size-aware-summary.json` | Compact rejected size-aware candidate summary; raw traces remain on the cloud instance | `e9711e6225df1207a427c792d8ba6d47fd1f929b0ab1d5ca7663a5a6e2f8c26f` |
+| `expert/radeon-size-aware-ab-v1-baseline-failure-analysis.json` | Trace-derived baseline failure attribution for the matched 20 episodes | `7f478ea03a6ba0e6859afb5496aba5eed4614be7cc087b4bdb66ff19e9e8daa4` |
+| `expert/radeon-size-aware-ab-v1-candidate-failure-analysis.json` | Trace-derived candidate failure attribution and retry regression | `03e133f66884a776616d694b66899522529a3b7d9d1c06e811cc8d34b927ae7f` |
+| `expert/radeon-size-aware-ab-v1-candidate.log` | Candidate Radeon Genesis log, including final summary and runtime warnings | `2e9a5a57dd66af12020dae7f083e6be21ecfb5804fda24594cb5c1cccf1ad8ac` |
+| `expert/radeon-size-aware-ab-v1-SHA256SUMS` | Hash manifest for the size-aware negative-control evidence | N/A |
+| `expert/radeon-retry-retreat-ab-v1-comparison.json` | Matched Radeon recovery-aware retry A/B; promising but below absolute safety/task gates | `47cfd58a09e344db8c60751167e5504285d82f27276249e00d26dd07df9efec2` |
+| `expert/radeon-retry-retreat-ab-v1-baseline-summary.json` | Compact 20-episode baseline summary for recovery retry comparison | `ae38f67d6665a18b1bad46cc38f1244b5189ed55011343077f9f16f6b76c9d1b` |
+| `expert/radeon-retry-retreat-ab-v1-candidate-summary.json` | Compact recovery-aware retry candidate summary; not accepted as default | `cd4103caf414687eee3c44e44933b9a4c164f46edc7ab05e730197164cecfeb3` |
+| `expert/radeon-retry-retreat-ab-v1-baseline-failure-analysis.json` | Baseline trace-derived failure attribution | `b468064bdbd200e5b021cddda98856e9124c01a5033ae8c807850a5d5fcd99e6` |
+| `expert/radeon-retry-retreat-ab-v1-candidate-failure-analysis.json` | Candidate trace-derived retry and force attribution | `36a826c40de6d3743f0fdc4e50eb9302478a9068ac8194d33b0b3ed9b0dcf10f` |
+| `expert/radeon-retry-retreat-ab-v1-SHA256SUMS` | Hash manifest for the recovery-aware retry experiment | N/A |
 | `benchmarks/parallel-radeon.json` | 1/16/64/128 environment Genesis sweep | `120e9fc4e972ebf9d4b22d4a00a5f100dba8481d65dba6cc1eca8814bb570398` |
 | `benchmarks/act-training-amp-b32.log` | 200-step AMP, batch 32 throughput run | `36cc6539305a0585fe7d5b4db3fd62155fa2acef75f6fef1c045efca44215cbe` |
 | `benchmarks/act-training-fp32-b8.log` | 200-step FP32, batch 8 throughput run | `009384c98d41b0bcf5876f275044a6d15172183d7b554927b4fcfbcf0a57f92e` |

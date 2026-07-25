@@ -55,6 +55,23 @@ def main() -> int:
         metavar=("J1", "J2", "J3", "J4", "J5", "J6", "J7", "F1", "F2"),
         help="override the nine-joint reset pose for a controlled diagnostic",
     )
+    parser.add_argument(
+        "--size-aware-approach",
+        action="store_true",
+        help="enable geometry-aware horizontal-transit clearance for a controlled diagnostic",
+    )
+    parser.add_argument(
+        "--approach-clearance-margin",
+        type=float,
+        default=None,
+        help="add a fixed metres margin to size-aware transit clearance",
+    )
+    parser.add_argument(
+        "--retry-retreat-distance",
+        type=float,
+        default=None,
+        help="retreat this many metres laterally before a post-failure retry approach",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -73,6 +90,30 @@ def main() -> int:
         config = replace(
             config,
             control=replace(config.control, reset_qpos=tuple(args.reset_qpos)),
+        )
+    if (
+        args.size_aware_approach
+        or args.approach_clearance_margin is not None
+        or args.retry_retreat_distance is not None
+    ):
+        config = replace(
+            config,
+            task=replace(
+                config.task,
+                size_aware_approach_enabled=(
+                    config.task.size_aware_approach_enabled or args.size_aware_approach
+                ),
+                approach_clearance_margin_m=(
+                    config.task.approach_clearance_margin_m
+                    if args.approach_clearance_margin is None
+                    else args.approach_clearance_margin
+                ),
+                retry_retreat_distance_m=(
+                    config.task.retry_retreat_distance_m
+                    if args.retry_retreat_distance is None
+                    else args.retry_retreat_distance
+                ),
+            ),
         )
     try:
         config.validate()
