@@ -1002,3 +1002,24 @@ paired holdout before any integration.
 
 The final synchronized Radeon tree compiled cleanly and passed all 227 unit
 tests with `PYTHONPATH` bound to that tree rather than the older editable install.
+
+### Record 71: Build the ROCm scorer pipeline without enabling it
+
+The next unit converted formal counterfactual JSON into a strict versioned
+dataset. The builder rejects non-fresh scenes, requested/selected mismatch,
+inconsistent force-abort labels, unknown categorical values, non-finite
+features, duplicate rollout keys, and episodes absent from the frozen split
+protocol. Twenty-eight structured features and four targets are explicit.
+
+The first checkpoint is a two-hidden-layer 6,276-parameter MLP. Training,
+checkpoint loading, prediction ranking, independent evaluation, cold latency,
+and warm P50/P95 are now separate executable paths. An initial function-boundary
+mistake made the shared rank key return `None`; the new evaluator test caught it
+before full regression, and the corrected six-test unit passed.
+
+The only physical labels used were the already observed six-candidate
+`4120001` smoke group. A 1,000-step Radeon fit took 1.715 s and reconstructed a
+safe successful choice, but training and evaluation rows are identical. The
+result validates plumbing, checkpoint portability, and sub-millisecond warm
+batch inference only. The model remains disconnected while 12 train, six
+development, and six holdout episode IDs remain unobserved.

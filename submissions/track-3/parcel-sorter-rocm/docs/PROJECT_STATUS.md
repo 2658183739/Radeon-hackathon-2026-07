@@ -428,3 +428,23 @@ a controller-faithful ROCm label collector. The next milestone is a frozen
 multi-episode candidate dataset, lightweight PyTorch/ROCm scoring, and an
 untouched paired holdout. This keeps learning and AMD acceleration central
 without fitting a height rule to one episode.
+
+## Latest learning milestone: scorer pipeline ready, model still gated
+
+The project now has a frozen three-profile candidate-learning protocol, strict
+28-feature dataset builder, 6,276-parameter PyTorch/ROCm MLP trainer,
+checkpoint loader, offline evaluator, and cold/warm latency benchmark. None of
+these components changes the active controller.
+
+The observed six-row smoke fit took 1.715 s and warm six-candidate inference
+measured 0.883 ms P50 / 0.902 ms P95. It reconstructed one known successful
+alternative where static rank failed, but evaluation reused the training group.
+This is pipeline evidence only.
+
+The remaining critical path is now explicit: collect the frozen 12 train and
+six development episodes, choose one model without viewing holdout, execute
+the six holdout episodes once, and apply the preregistered safety/utility gate.
+RGB-D embedding and VLA integration remain later work, after this structured
+physical scorer proves held-out value.
+
+The current Radeon compile and complete unit suite pass 237 tests.

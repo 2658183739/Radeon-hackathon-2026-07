@@ -1754,3 +1754,29 @@ potential, not generalization.
 **Revisit trigger.** Freeze new episode IDs, collect candidate labels, train a
 small PyTorch/ROCm scorer with safety-first targets, and beat static ranking on
 an untouched paired holdout before integration.
+
+### 75. Freeze a small safety-first scorer before collecting new labels
+
+**Question.** Choose the first learnable grasp-ranking model and define what
+must be frozen before expensive counterfactual collection.
+
+**Alternatives.** A hand-coded height rule is fitted to one episode. A VLA adds
+large visual/language capacity without solving the label-fidelity or safety
+problem. Direct online rollout remains too slow and the idealized rollout has
+already failed predictive validation.
+
+**Decision and reason.** Use a 6,276-parameter PyTorch/ROCm MLP over 28 explicit
+physical/planning features. Predict safety abort, success, force, and duration;
+rank safety first. Keep IK, collision checks, and 35 N supervision outside the
+model. Freeze 12 train, six development, and six untouched holdout episodes
+across three box profiles before observing any new result.
+
+**Implementation evidence.** The builder enforces fresh-scene formal labels and
+split membership. Training, checkpoint loading, offline evaluation, and warm
+latency benchmarking run independently. A six-row observed smoke fit completed
+in 1.715 s on Radeon; steady six-candidate P95 was 0.902 ms. In-sample recovery
+is explicitly not a model-performance claim.
+
+**Promotion gate.** Holdout must add no safety abort or per-profile paired
+regression, recover at least one static-ranking failure, and keep warm batch
+P95 below 5 ms. Until then the scorer remains disconnected.

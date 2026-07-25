@@ -341,3 +341,15 @@ loop, `+40 mm` missed the destination while centered `+45 mm` completed at
 crossed the unchanged safety line. These are development labels, not a success
 rate. The scorer remains unimplemented pending a frozen multi-episode dataset
 and untouched paired holdout.
+
+## Structured grasp-scorer ROCm smoke
+
+`training/grasp-scorer-smoke-rocm-v1.json` records the frozen protocol,
+28-feature six-row smoke dataset, 6,276-parameter checkpoint, 1,000-step Radeon
+fit, independent checkpoint load, and cold/warm latency benchmark. It binds the
+ignored dataset, training summary, evaluation, and checkpoint by SHA-256.
+
+Training and evaluation use the same already observed group, so reconstructed
+selection is not a generalization result. The active controller is unchanged.
+Twelve train, six development, and six holdout episode IDs remain frozen and
+unobserved; the tracked record states the promotion gate before collection.

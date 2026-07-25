@@ -371,3 +371,18 @@ controller-faithful outcomes. Safety abort remains a hard target and the
 
 Final verification used the current source tree explicitly and passed the
 complete 227-test Radeon suite after compiling `src`, `scripts`, and `tests`.
+
+## Implemented structured scorer boundary
+
+The learned component is deliberately narrow: pure extraction validates every
+feature and formal label; the network module owns architecture and checkpoint
+loading; training owns optimization only; evaluation owns candidate-level
+selection and latency. The controller imports none of them. This separation
+allows dataset and checkpoint work to proceed without silently changing task
+behavior or weakening deterministic safety.
+
+The smoke uncovered and fixed one shared-rank function boundary defect before
+full integration. Cold startup is reported separately from warm P50/P95.
+Complete commands, frozen IDs, result limits, and hashes are in
+`docs/GRASP_SCORER_TRAINING.md` and
+`evidence/training/grasp-scorer-smoke-rocm-v1.json`.
