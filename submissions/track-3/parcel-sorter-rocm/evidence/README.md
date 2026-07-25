@@ -353,3 +353,17 @@ Training and evaluation use the same already observed group, so reconstructed
 selection is not a generalization result. The active controller is unchanged.
 Twelve train, six development, and six holdout episode IDs remain frozen and
 unobserved; the tracked record states the promotion gate before collection.
+
+## Contact-wrench development diagnostic
+
+`expert/radeon-contact-wrench-development-v1.json` binds four ignored raw
+artifacts covering the Genesis contact-schema probe, one observed mechanism
+pair, one frozen six-candidate train group, and a matched CPU/ROCm scheduling
+comparison. The score uses contact positions, normals, forces, friction-cone
+margin, center-of-mass moment arms, and bounded disturbance reserve.
+
+Successes and failures overlap, including one successful pre-lift false
+negative and one later 100.70 N false positive, so the metric remains
+default-off telemetry and does not open holdout. The tiny per-step ROCm path
+was also slower than the reference. Final telemetry samples at 30 Hz while
+Genesis physics and contact solving remain on Radeon.

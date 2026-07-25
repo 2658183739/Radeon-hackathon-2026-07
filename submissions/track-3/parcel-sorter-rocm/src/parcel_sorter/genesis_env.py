@@ -8,6 +8,13 @@ import time
 from typing import Any, Mapping
 
 from .config import ExperimentConfig
+from .contact_wrench import (
+    ContactPoint,
+    ContactWrenchConfig,
+    evaluate_contact_wrench,
+    evaluate_contact_wrench_torch,
+    summarize_contact_wrench_events,
+)
 from .contracts import CartesianAction, ControlDecision, Observation, RobotState
 from .capabilities import require_supported_handling
 from .expert import ScriptedPickPlaceExpert
@@ -365,6 +372,8 @@ class GenesisParcelEnv:
         show_viewer: bool = False,
         video_path: str | Path | None = None,
         capture_sensors: bool = False,
+        capture_contact_wrench_telemetry: bool = False,
+        contact_wrench_telemetry_backend: str = "cpu",
         defer_initialization_settle: bool = False,
     ) -> None:
         self.config = config
@@ -394,6 +403,10 @@ class GenesisParcelEnv:
         self._gripper_force_n = 0.0
         self._closed = False
         self._capture_sensors = capture_sensors
+        self._capture_contact_wrench_telemetry = capture_contact_wrench_telemetry
+        if contact_wrench_telemetry_backend not in {"cpu", "rocm"}:
+            raise ValueError("contact_wrench_telemetry_backend must be cpu or rocm")
+        self._contact_wrench_telemetry_backend = contact_wrench_telemetry_backend
         self._latest_rgb: Any | None = None
         self._latest_depth: Any | None = None
         self._video_path = Path(video_path) if video_path else None
@@ -450,6 +463,12 @@ class GenesisParcelEnv:
         self._transport_slip_last_force_limit_n = config.control.close_force_n
         self._transport_slip_events: list[dict[str, Any]] = []
         self._transport_slip_setdown_pending = False
+        self._last_applied_command: str | None = None
+        self._contact_wrench_events: list[dict[str, Any]] = []
+        self._contact_wrench_samples = 0
+        self._contact_wrench_compute_ms_total = 0.0
+        self._contact_wrench_device: str | None = None
+        self._contact_wrench_last: dict[str, Any] | None = None
 
         physics_dt = 1.0 / config.simulation.physics_hz
         rolling_friction = needs_rolling_friction(sample)
@@ -480,6 +499,16 @@ class GenesisParcelEnv:
 
         spawn = parcel_spawn_spec(config, sample)
         self._initial_parcel_z = spawn.initial_z_m
+        self._contact_wrench_config = ContactWrenchConfig(
+            parcel_mass_kg=sample.mass_kg,
+            parcel_dimensions_m=spawn.dimensions_m,
+            # Genesis 1.2.3 combines a contact pair with max(mu_a, mu_b).
+            friction_coefficient=max(
+                sample.friction,
+                sample.finger_friction if sample.finger_friction is not None else 1.0,
+            ),
+            max_contact_force_n=config.task.max_contact_force_n,
+        )
         color = (0.10, 0.55, 0.92) if sample.destination == "left" else (0.96, 0.55, 0.12)
         if spawn.shape == "box":
             parcel_morph = self.gs.morphs.Box(
@@ -1037,10 +1066,16 @@ class GenesisParcelEnv:
         delayed_action = self._action_queue.popleft()
         if delayed_action is not None:
             self._apply_action(delayed_action)
+            self._last_applied_command = delayed_action.command
 
         physics_steps = self.config.simulation.physics_hz // self.config.simulation.control_hz
-        for _ in range(physics_steps):
+        for physics_substep in range(physics_steps):
             self.scene.step()
+            if (
+                self._capture_contact_wrench_telemetry
+                and physics_substep == physics_steps - 1
+            ):
+                self._record_contact_wrench(physics_substep)
         self.control_step += 1
 
         camera_stride = self.config.simulation.control_hz // self.config.simulation.camera_hz
@@ -1129,6 +1164,10 @@ class GenesisParcelEnv:
             ),
             "grasp_waypoint_rejections": self._grasp_waypoint_rejections,
             "grasp_waypoint_last_collision": self._grasp_waypoint_last_collision,
+            "contact_wrench_telemetry_enabled": (
+                self._capture_contact_wrench_telemetry
+            ),
+            "contact_wrench_last": self._contact_wrench_last,
         }
 
     def safety_summary(self) -> dict[str, Any]:
@@ -1136,6 +1175,13 @@ class GenesisParcelEnv:
             self._aabb_guard_compute_ms_total / self._aabb_guard_samples
             if self._aabb_guard_samples
             else 0.0
+        )
+        contact_wrench_summary = summarize_contact_wrench_events(
+            self._contact_wrench_events,
+            predictive_window_samples=max(
+                1,
+                round(self.config.simulation.control_hz * 0.1),
+            ),
         )
         return {
             "precontact_aabb_guard_enabled": (
@@ -1320,6 +1366,25 @@ class GenesisParcelEnv:
             "grasp_waypoint_last_restore_error": (
                 self._grasp_waypoint_last_restore_error
             ),
+            "contact_wrench_telemetry_enabled": (
+                self._capture_contact_wrench_telemetry
+            ),
+            "contact_wrench_device": self._contact_wrench_device,
+            "contact_wrench_telemetry_backend": (
+                self._contact_wrench_telemetry_backend
+            ),
+            "contact_wrench_sample_hz": self.config.simulation.control_hz,
+            "contact_wrench_samples": self._contact_wrench_samples,
+            "contact_wrench_compute_ms_total": (
+                self._contact_wrench_compute_ms_total
+            ),
+            "contact_wrench_compute_ms_mean": (
+                self._contact_wrench_compute_ms_total / self._contact_wrench_samples
+                if self._contact_wrench_samples
+                else 0.0
+            ),
+            "contact_wrench_summary": contact_wrench_summary,
+            "contact_wrench_events": tuple(self._contact_wrench_events),
         }
 
     def close(self) -> None:
@@ -1719,6 +1784,125 @@ class GenesisParcelEnv:
             )
             finger_gaps.append(self.torch.linalg.vector_norm(axis_gap))
         return float(self.torch.stack(finger_gaps).min().item())
+
+    def _finger_contact_tensors(self) -> tuple[Any, Any, Any, Any]:
+        """Return finger contacts on-device with forces acting on the parcel."""
+        contacts = self.robot.get_contacts(with_entity=self.parcel)
+        required = {
+            "link_a",
+            "link_b",
+            "position",
+            "normal",
+            "penetration",
+            "force_a",
+            "force_b",
+        }
+        missing = sorted(required - set(contacts))
+        if missing:
+            raise RuntimeError(
+                "Genesis contact telemetry is missing fields: " + ", ".join(missing)
+            )
+        force_a = contacts["force_a"]
+        self._contact_wrench_device = str(force_a.device)
+        magnitudes = self.torch.linalg.vector_norm(force_a, dim=-1)
+        mask = magnitudes >= self._contact_wrench_config.minimum_active_force_n
+        if "valid_mask" in contacts:
+            mask &= contacts["valid_mask"]
+        link_a = contacts["link_a"]
+        link_b = contacts["link_b"]
+        left_index = int(self.left_finger.idx)
+        right_index = int(self.right_finger.idx)
+        parcel_start = int(self.parcel.link_start)
+        parcel_end = int(self.parcel.link_end)
+        finger_a = (link_a == left_index) | (link_a == right_index)
+        finger_b = (link_b == left_index) | (link_b == right_index)
+        parcel_a = (link_a >= parcel_start) & (link_a < parcel_end)
+        parcel_b = (link_b >= parcel_start) & (link_b < parcel_end)
+        finger_is_a = finger_a & parcel_b
+        finger_is_b = finger_b & parcel_a
+        mask &= finger_is_a | finger_is_b
+
+        forces_on_parcel = self.torch.where(
+            finger_is_a.unsqueeze(-1),
+            contacts["force_b"],
+            contacts["force_a"],
+        )[mask]
+        finger_links = self.torch.where(finger_is_a, link_a, link_b)[mask]
+        finger_indices = self.torch.where(
+            finger_links == left_index,
+            self.torch.zeros_like(finger_links),
+            self.torch.ones_like(finger_links),
+        )
+        return (
+            contacts["position"][mask],
+            forces_on_parcel,
+            contacts["normal"][mask],
+            finger_indices,
+        )
+
+    def _record_contact_wrench(self, physics_substep: int) -> None:
+        if self._last_applied_command not in {
+            "close_gripper",
+            "hold",
+            "move_lift",
+            "move_drop",
+        }:
+            return
+        started = time.perf_counter_ns()
+        parcel_com = self.parcel.get_pos()
+        positions, forces, normals, finger_indices = self._finger_contact_tensors()
+        if self._contact_wrench_telemetry_backend == "rocm":
+            quality = evaluate_contact_wrench_torch(
+                positions,
+                forces,
+                normals,
+                finger_indices,
+                parcel_com,
+                self._contact_wrench_config,
+                self.torch,
+            )
+        else:
+            packed_contacts = self.torch.cat(
+                (
+                    positions,
+                    forces,
+                    normals,
+                    finger_indices.to(dtype=positions.dtype).unsqueeze(-1),
+                ),
+                dim=-1,
+            ).detach().cpu().tolist()
+            contact_points = tuple(
+                ContactPoint(
+                    finger_id=(
+                        "left_finger" if round(row[9]) == 0 else "right_finger"
+                    ),
+                    position_world_m=tuple(float(value) for value in row[0:3]),
+                    force_on_parcel_world_n=tuple(
+                        float(value) for value in row[3:6]
+                    ),
+                    normal_world=tuple(float(value) for value in row[6:9]),
+                )
+                for row in packed_contacts
+            )
+            quality = evaluate_contact_wrench(
+                contact_points,
+                self._flat_tuple(parcel_com),
+                self._contact_wrench_config,
+            )
+        compute_ms = (time.perf_counter_ns() - started) / 1_000_000
+        event = {
+            "control_step": self.control_step,
+            "physics_substep": int(physics_substep),
+            "command": self._last_applied_command,
+            "transport_phase": self.expert.transport_phase,
+            "parcel_lift_m": float(parcel_com[2].item() - self._initial_parcel_z),
+            "compute_ms": compute_ms,
+            **quality.to_dict(),
+        }
+        self._contact_wrench_samples += 1
+        self._contact_wrench_compute_ms_total += compute_ms
+        self._contact_wrench_last = event
+        self._contact_wrench_events.append(event)
 
     def _finger_contact(self) -> tuple[bool, float]:
         contacts = self.robot.get_contacts(with_entity=self.parcel)

@@ -1055,3 +1055,30 @@ minimum observed force candidate. Six-candidate steady P95 was 0.921 ms, but a
 latency pass cannot establish utility. The scorer remains disconnected,
 holdout remains locked and unobserved, and no parameter scan follows this
 single-group diagnostic. The final Radeon tree compiled and passed 247 tests.
+
+### Record 73: Measure contact wrench, then reject it as a selector
+
+Genesis 1.2.3 source inspection and a live Radeon probe established the actual
+contact contract: position, normal, penetration, both geom/link IDs, and forces
+on both bodies are tensors on `cuda:0`. A pure reference metric now standardizes
+force direction, computes bilateral friction-cone margins, force symmetry,
+center-of-mass moment arms, gravity residual, and bounded disturbance reserve.
+The environment records it only when an explicit telemetry flag is set; the
+controller, candidate rank, and 35 N gate are unchanged.
+
+Predictive summaries use fixed 0.1 s windows at the 30 Hz control rate. In the
+observed `4120001` pair, the successful `+45 mm` candidate had larger early
+friction and disturbance margins than failed `+40 mm`, but both early-loaded
+windows remained robust. The frozen train group `7130001` then supplied the
+stop evidence: its three successes and three failures overlapped, including a
+successful pre-lift false negative and a later 100.70 N false positive. The
+metric remains useful telemetry but is rejected as a selector; holdout remains
+unopened.
+
+A vectorized ROCm implementation matched the reference but increased the
+matched 240 Hz run from 93.98 to 101.65 s because approximately eight contacts
+per sample are too small for repeated GPU launch and synchronization. Sampling
+only the last physics substep preserved metric direction, reduced raw output
+from 14.3 to 6.0 MB, and reduced the matched run to 86.66 s. The final default
+uses the faster CPU diagnostic scorer while Genesis physics/contact solving
+remain on Radeon. All 254 tests pass on the synchronized ROCm tree.

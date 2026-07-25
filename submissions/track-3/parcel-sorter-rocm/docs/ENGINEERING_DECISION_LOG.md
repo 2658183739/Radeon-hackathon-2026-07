@@ -1806,3 +1806,30 @@ applicable group cannot support model selection. Keep the checkpoint as a
 reproducible negative result. Revisit after improving the candidate/support
 geometry or preregistering a new development set with sufficient gate-active
 coverage; holdout IDs remain untouched.
+
+### 77. Retain contact-wrench telemetry but reject threshold integration
+
+**Question.** Can measured contact points, normals, forces, center-of-mass
+moment arms, and friction reserve reject unstable grasps before long transport?
+
+**Code capability.** Add a dependency-free reference calculation, a numerically
+matched PyTorch path, fixed pre-lift and early-loaded summaries, and default-off
+Genesis telemetry. The counterfactual runner exposes the scorer backend while
+recording that neither actions nor candidate rank change.
+
+**Evidence.** The observed `4120001` pair showed the expected direction, but
+both early-loaded candidates passed the robust check. In frozen train group
+`7130001`, three successes and three failures overlapped: a successful
+candidate failed the pre-lift check and a later 100.70 N abort passed it. Early
+quality for successes spanned 0.710--0.900 and failures 0.515--0.895.
+
+**GPU scheduling evidence.** The tiny vectorized ROCm workload was slower than
+the reference: 101.65 versus 93.98 s for the matched 240 Hz two-rollout run.
+The final diagnostic samples at 30 Hz; physics/contact solving stay on Radeon,
+while the small scalar score defaults to CPU. This is a measured scheduling
+decision, not a claim that CPU is generally preferable.
+
+**Decision and revisit trigger.** Do not tune a threshold, integrate the score,
+or open holdout. Keep it as explanatory telemetry. Revisit only after a
+licensed support-geometry change creates a new candidate family, or after
+batched contact scoring makes GPU execution technically justified.

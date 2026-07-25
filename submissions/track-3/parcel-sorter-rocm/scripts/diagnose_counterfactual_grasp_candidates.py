@@ -42,6 +42,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-candidates", type=int, default=6)
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument(
+        "--contact-wrench-telemetry",
+        action="store_true",
+        help=(
+            "record read-only post-contact wrench diagnostics; this does not "
+            "change candidate ranking or controller actions"
+        ),
+    )
+    parser.add_argument(
+        "--contact-wrench-backend",
+        choices=("cpu", "rocm"),
+        default="cpu",
+        help="diagnostic scorer backend; Genesis physics remains on --backend",
+    )
+    parser.add_argument(
         "--inactive-gate",
         choices=("error", "skip"),
         default="error",
@@ -192,7 +206,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     for candidate_id in selected_ids:
         static_row = feasible_by_id[candidate_id]
         for repeat in range(args.repeats):
-            with GenesisParcelEnv(config, sample, backend=args.backend) as env:
+            with GenesisParcelEnv(
+                config,
+                sample,
+                backend=args.backend,
+                capture_contact_wrench_telemetry=args.contact_wrench_telemetry,
+                contact_wrench_telemetry_backend=args.contact_wrench_backend,
+            ) as env:
                 env.set_diagnostic_grasp_candidate_allowlist(
                     frozenset({candidate_id})
                 )
@@ -229,6 +249,18 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     "transport_final_phase": report.safety_summary[
                         "grasp_planning_transport_final_phase"
                     ],
+                    "contact_wrench_summary": report.safety_summary[
+                        "contact_wrench_summary"
+                    ],
+                    "contact_wrench_samples": report.safety_summary[
+                        "contact_wrench_samples"
+                    ],
+                    "contact_wrench_device": report.safety_summary[
+                        "contact_wrench_device"
+                    ],
+                    "contact_wrench_telemetry_backend": report.safety_summary[
+                        "contact_wrench_telemetry_backend"
+                    ],
                     "report": report.to_dict(),
                 }
             )
@@ -251,6 +283,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "transport_lookahead_enabled": False,
             "max_grasp_retries": 0,
             "force_abort_n": config.task.max_contact_force_n,
+            "contact_wrench_telemetry_enabled": args.contact_wrench_telemetry,
+            "contact_wrench_telemetry_backend": args.contact_wrench_backend,
+            "contact_wrench_sample_hz": config.simulation.control_hz,
+            "contact_wrench_changes_controller": False,
+            "contact_wrench_changes_ranking": False,
             "only_intervention": "reject every generated candidate ID except the target",
         },
         "static_feasible_candidates": [
