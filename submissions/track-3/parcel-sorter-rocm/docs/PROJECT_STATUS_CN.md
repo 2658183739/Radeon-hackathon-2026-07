@@ -160,3 +160,18 @@ compact summary 保留安全聚合和源文件哈希。
 
 证据索引为 `evidence/expert/radeon-approach-compliance-ab-v1-*`。下一项控制器目标是接触邻域内的
 笛卡尔速度/阻抗控制与显式恢复状态；在专家安全门禁通过前，均衡 RGB-D 采集和学习策略排名仍保持阻塞。
+
+## 最新受控实验：操作空间接近速度控制
+
+候选只把 `MOVE_PREGRASP` 的 IK 位置命令替换为使用 Genesis Jacobian 的有界、加权阻尼最小二乘
+速度控制。Radeon 隔离检查证明 Jacobian 约定和 `control_dofs_velocity()` 链路均可工作；正式
+比较只允许 `control.approach_velocity_control_enabled` 一项差异。
+
+固定 `7000000`--`7000019` 上，基线为 1/20 成功、12/20 力中止、0 掉落和每小时 17.80 件；
+候选为 0/20、13/20 力中止、0 掉落和 0 吞吐，并使 `7000005` 回归。虽然 P95 降低，最大力仍为
+111.28 N。候选已拒绝且继续默认关闭，证据索引为
+`evidence/expert/radeon-approach-velocity-ab-v1-*`。
+
+实测停滞把下一项边界定位到手部/纸箱几何。均衡 360 成功 RGB-D 采集、ACT/Diffusion/3D 排名、
+VLA 和 ROS 2 继续阻塞。下一候选必须围绕显式几何重设计抓取位姿与恢复状态，并先通过相同固定
+Radeon 淘汰协议，再扩大评估。

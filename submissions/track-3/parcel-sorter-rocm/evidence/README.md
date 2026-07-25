@@ -154,3 +154,23 @@ summary `84f2a585...4749f`, and comparison `e47f2573...0be61`. Full values are
 in `expert/radeon-approach-compliance-ab-v1-SHA256SUMS`; the remote manifest
 preserves hashes for the 6.9 MB and 9.1 MB trace-rich source summaries and all
 derived artifacts.
+
+## Operational-space velocity negative control
+
+`expert/radeon-approach-velocity-ab-v1-*` records a matched 20-episode,
+single-Radeon A/B in which only
+`control.approach_velocity_control_enabled` changed. The candidate used the
+Genesis end-effector Jacobian and bounded weighted damped least squares during
+`MOVE_PREGRASP`; IK position control remained active for grasp, lift, and place.
+
+Baseline achieved 1/20 successes, 12/20 force aborts, and zero drops. The
+candidate achieved 0/20 successes, 13/20 force aborts, zero drops, and zero
+successful throughput. It regressed episode `7000005`. P95 episode peak force
+fell from 98.12 N to 67.55 N, but maximum force remained 111.28 N, so the
+candidate failed the task, safety, and throughput gates and remains disabled.
+
+The candidate executed 5,727 velocity-control samples on ROCm, averaging
+1.983 ms of synchronized controller computation. The maximum command was
+1.50 rad/s and maximum pose error was 0.1817 m. Local compact hashes are in
+`expert/radeon-approach-velocity-ab-v1-SHA256SUMS`; both remote manifests
+preserve the trace-rich source and compact provenance.

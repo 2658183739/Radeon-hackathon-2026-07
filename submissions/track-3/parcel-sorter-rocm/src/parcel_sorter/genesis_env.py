@@ -52,6 +52,94 @@ def scaled_robot_gains(
     )
 
 
+def _limit_vector(values: tuple[float, ...], maximum_norm: float) -> tuple[float, ...]:
+    norm = math.sqrt(sum(value * value for value in values))
+    if norm <= maximum_norm or norm == 0.0:
+        return values
+    scale = maximum_norm / norm
+    return tuple(value * scale for value in values)
+
+
+def cartesian_velocity_twist(
+    current_position: tuple[float, float, float],
+    current_quaternion: tuple[float, float, float, float],
+    target_position: tuple[float, float, float],
+    target_quaternion: tuple[float, float, float, float],
+    *,
+    position_gain_s: float,
+    orientation_gain_s: float,
+    max_linear_m_s: float,
+    max_angular_rad_s: float,
+) -> tuple[float, float, float, float, float, float]:
+    """Build a bounded world-frame twist from a Cartesian pose error.
+
+    Genesis quaternions are ordered wxyz. The shortest quaternion arc avoids a
+    discontinuity when equivalent quaternions have opposite signs.
+    """
+    linear = _limit_vector(
+        tuple(
+            (target - current) * position_gain_s
+            for current, target in zip(current_position, target_position, strict=True)
+        ),
+        max_linear_m_s,
+    )
+    current_norm = math.sqrt(sum(value * value for value in current_quaternion))
+    target_norm = math.sqrt(sum(value * value for value in target_quaternion))
+    if current_norm == 0.0 or target_norm == 0.0:
+        raise ValueError("Cartesian velocity control requires non-zero quaternions")
+    cw, cx, cy, cz = (value / current_norm for value in current_quaternion)
+    tw, tx, ty, tz = (value / target_norm for value in target_quaternion)
+    # target * conjugate(current)
+    error = (
+        tw * cw + tx * cx + ty * cy + tz * cz,
+        -tw * cx + tx * cw - ty * cz + tz * cy,
+        -tw * cy + tx * cz + ty * cw - tz * cx,
+        -tw * cz - tx * cy + ty * cx + tz * cw,
+    )
+    if error[0] < 0.0:
+        error = tuple(-value for value in error)
+    vector_norm = math.sqrt(sum(value * value for value in error[1:]))
+    if vector_norm < 1e-12:
+        angular = (0.0, 0.0, 0.0)
+    else:
+        angle = 2.0 * math.atan2(vector_norm, max(0.0, min(1.0, error[0])))
+        angular = _limit_vector(
+            tuple(value / vector_norm * angle * orientation_gain_s for value in error[1:]),
+            max_angular_rad_s,
+        )
+    return (*linear, *angular)
+
+
+def damped_least_squares_velocity(
+    jacobian: Any,
+    twist: Any,
+    *,
+    damping: float,
+    max_joint_velocity: float,
+    array_module: Any,
+) -> Any:
+    """Map a Cartesian twist to bounded joint velocity for NumPy or Torch arrays."""
+    if tuple(jacobian.shape)[0] != 6 or tuple(twist.shape) != (6,):
+        raise ValueError("expected a 6xN Jacobian and a six-element twist")
+    if hasattr(jacobian, "new_zeros"):
+        identity = jacobian.new_zeros((6, 6))
+        identity.diagonal().fill_(1.0)
+    else:
+        identity = array_module.eye(6, dtype=jacobian.dtype)
+    joint_velocity = jacobian.transpose(-2, -1) @ array_module.linalg.solve(
+        jacobian @ jacobian.transpose(-2, -1) + identity * damping * damping,
+        twist,
+    )
+    if hasattr(joint_velocity, "abs"):
+        peak = joint_velocity.abs().max()
+        scale = (joint_velocity.new_tensor(max_joint_velocity) / (peak + 1e-12)).clamp(max=1.0)
+        return joint_velocity * scale
+    peak = float(array_module.max(array_module.abs(joint_velocity)))
+    if peak > max_joint_velocity:
+        joint_velocity = joint_velocity * (max_joint_velocity / peak)
+    return joint_velocity
+
+
 @dataclass(frozen=True)
 class ParcelSpawnSpec:
     shape: str
@@ -197,6 +285,14 @@ class GenesisParcelEnv:
         self._aabb_guard_last_reason: str | None = None
         self._aabb_guard_last_nominal_target_m: tuple[float, float, float] | None = None
         self._aabb_guard_last_filtered_target_m: tuple[float, float, float] | None = None
+        self._approach_velocity_samples = 0
+        self._approach_velocity_compute_ms_total = 0.0
+        self._approach_velocity_max_joint_rad_s = 0.0
+        self._approach_velocity_max_pose_error_m = 0.0
+        self._approach_velocity_last_twist: tuple[float, ...] | None = None
+        self._approach_velocity_last_joint_command: tuple[float, ...] | None = None
+        self._approach_velocity_last_predicted_twist: tuple[float, ...] | None = None
+        self._approach_velocity_last_actual_joint_velocity: tuple[float, ...] | None = None
 
         physics_dt = 1.0 / config.simulation.physics_hz
         rolling_friction = needs_rolling_friction(sample)
@@ -443,6 +539,34 @@ class GenesisParcelEnv:
             "precontact_aabb_guard_samples": self._aabb_guard_samples,
             "precontact_aabb_guard_compute_ms_total": self._aabb_guard_compute_ms_total,
             "precontact_aabb_guard_compute_ms_mean": mean_compute_ms,
+            "approach_velocity_control_enabled": (
+                self.config.control.approach_velocity_control_enabled
+            ),
+            "approach_velocity_control_samples": self._approach_velocity_samples,
+            "approach_velocity_control_compute_ms_total": (
+                self._approach_velocity_compute_ms_total
+            ),
+            "approach_velocity_control_compute_ms_mean": (
+                self._approach_velocity_compute_ms_total / self._approach_velocity_samples
+                if self._approach_velocity_samples
+                else 0.0
+            ),
+            "approach_velocity_control_max_joint_rad_s": (
+                self._approach_velocity_max_joint_rad_s
+            ),
+            "approach_velocity_control_max_pose_error_m": (
+                self._approach_velocity_max_pose_error_m
+            ),
+            "approach_velocity_control_last_twist": self._approach_velocity_last_twist,
+            "approach_velocity_control_last_joint_command": (
+                self._approach_velocity_last_joint_command
+            ),
+            "approach_velocity_control_last_predicted_twist": (
+                self._approach_velocity_last_predicted_twist
+            ),
+            "approach_velocity_control_last_actual_joint_velocity": (
+                self._approach_velocity_last_actual_joint_velocity
+            ),
         }
 
     def close(self) -> None:
@@ -461,15 +585,21 @@ class GenesisParcelEnv:
     def _apply_action(self, action: CartesianAction) -> None:
         action = self._filter_precontact_action(action)
         self._set_arm_stiffness_for_command(action.command)
-        qpos = self.robot.inverse_kinematics(
-            link=self.end_effector,
-            pos=self.np.asarray(action.target_position),
-            quat=self.np.asarray(action.target_quaternion),
-        )
-        qpos_array = self.np.asarray(qpos.detach().cpu() if hasattr(qpos, "detach") else qpos)
-        if not self.np.isfinite(qpos_array).all():
-            raise RuntimeError(f"IK returned a non-finite solution for {action.command}")
-        self.robot.control_dofs_position(qpos_array[:7], self.arm_dofs)
+        if (
+            self.config.control.approach_velocity_control_enabled
+            and action.command == "move_pregrasp"
+        ):
+            self._apply_approach_velocity(action)
+        else:
+            qpos = self.robot.inverse_kinematics(
+                link=self.end_effector,
+                pos=self.np.asarray(action.target_position),
+                quat=self.np.asarray(action.target_quaternion),
+            )
+            qpos_array = self.np.asarray(qpos.detach().cpu() if hasattr(qpos, "detach") else qpos)
+            if not self.np.isfinite(qpos_array).all():
+                raise RuntimeError(f"IK returned a non-finite solution for {action.command}")
+            self.robot.control_dofs_position(qpos_array[:7], self.arm_dofs)
         if action.gripper > 0:
             self._gripper_force_n = 0.0
             width = self.config.control.open_width_m
@@ -481,6 +611,59 @@ class GenesisParcelEnv:
             )
             force = self._gripper_force_n
             self.robot.control_dofs_force(self.np.asarray((-force, -force)), self.finger_dofs)
+
+    def _apply_approach_velocity(self, action: CartesianAction) -> None:
+        """Execute one bounded operational-space velocity command on the Radeon."""
+        started = time.perf_counter_ns()
+        actual_joint_velocity = self.robot.get_dofs_velocity(self.arm_dofs)
+        current_position = self._flat_tuple(self.end_effector.get_pos())
+        current_quaternion = self._flat_tuple(self.end_effector.get_quat())
+        control = self.config.control
+        twist_values = cartesian_velocity_twist(
+            current_position,
+            current_quaternion,
+            action.target_position,
+            action.target_quaternion,
+            position_gain_s=control.approach_velocity_position_gain_s,
+            orientation_gain_s=control.approach_velocity_orientation_gain_s,
+            max_linear_m_s=control.approach_velocity_max_linear_m_s,
+            max_angular_rad_s=control.approach_velocity_max_angular_rad_s,
+        )
+        jacobian = self.robot.get_jacobian(self.end_effector)[..., :7]
+        twist = jacobian.new_tensor(twist_values)
+        task_weights = jacobian.new_tensor(
+            (1.0, 1.0, 1.0) + (control.approach_velocity_orientation_weight,) * 3
+        )
+        weighted_jacobian = jacobian * task_weights[:, None]
+        weighted_twist = twist * task_weights
+        joint_velocity = damped_least_squares_velocity(
+            weighted_jacobian,
+            weighted_twist,
+            damping=control.approach_velocity_damping,
+            max_joint_velocity=control.approach_velocity_max_joint_rad_s,
+            array_module=self.torch,
+        )
+        if not bool(self.torch.isfinite(joint_velocity).all().item()):
+            raise RuntimeError("approach velocity control produced a non-finite command")
+        self.robot.control_dofs_velocity(joint_velocity, self.arm_dofs)
+        predicted_twist = jacobian @ joint_velocity
+        compute_ms = (time.perf_counter_ns() - started) / 1_000_000
+        self._approach_velocity_samples += 1
+        self._approach_velocity_compute_ms_total += compute_ms
+        self._approach_velocity_max_joint_rad_s = max(
+            self._approach_velocity_max_joint_rad_s,
+            float(joint_velocity.abs().max().item()),
+        )
+        self._approach_velocity_max_pose_error_m = max(
+            self._approach_velocity_max_pose_error_m,
+            self._distance(current_position, action.target_position),
+        )
+        self._approach_velocity_last_twist = tuple(float(value) for value in twist_values)
+        self._approach_velocity_last_joint_command = self._flat_tuple(joint_velocity)
+        self._approach_velocity_last_predicted_twist = self._flat_tuple(predicted_twist)
+        self._approach_velocity_last_actual_joint_velocity = self._flat_tuple(
+            actual_joint_velocity
+        )
 
     def _set_arm_stiffness_for_command(self, command: str) -> None:
         scale = (

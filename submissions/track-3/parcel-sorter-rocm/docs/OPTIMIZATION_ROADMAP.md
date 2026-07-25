@@ -344,3 +344,25 @@ run a global stiffness sweep. The next registered candidate must constrain
 Cartesian approach velocity or impedance near measured geometry, preserve the
 35 N hard stop, and include a recovery-state transition. It must first pass the
 same 20-episode machine gates before any data collection or model ranking.
+
+## 15. Velocity-control result and geometry-first next step
+
+The approach-only weighted DLS controller was executable on Radeon but failed
+the matched task gates: 0/20 candidate successes versus 1/20 baseline, 13/20
+versus 12/20 force aborts, and zero versus 17.80/hour successful throughput.
+Do not tune position gain, damping, orientation weight, or velocity caps on the
+same geometry. That would optimize a controller around a measured collision
+constraint without addressing its cause.
+
+Proceed in this order:
+
+1. Use link-level geometry or collision queries to identify which non-finger
+   hand link blocks the `large_narrow_carton` descent.
+2. Define a grasp-pose generator with feasible palm clearance and an explicit
+   retreat/re-approach recovery transition.
+3. Unit-test feasibility and state transitions, then run isolated Radeon
+   motion probes before registering one 20+20 A/B.
+4. Require no regression of `7000005`, no added force abort, maximum force at
+   or below baseline, and at least 85% throughput retention.
+5. Only after a candidate passes, expand to box, flat, long-carton, horizontal
+   and upright cylinder strata before reopening balanced collection.

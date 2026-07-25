@@ -10,6 +10,8 @@ from parcel_sorter.contracts import CartesianAction
 from parcel_sorter.genesis_env import (
     GenesisParcelEnv,
     aabb_gap_m,
+    cartesian_velocity_twist,
+    damped_least_squares_velocity,
     genesis_depth_to_meters,
     scaled_robot_gains,
 )
@@ -163,6 +165,39 @@ class ApproachComplianceTests(unittest.TestCase):
         env._set_arm_stiffness_for_command("grasp")
         self.assertEqual(len(env.robot.kp_calls), 2)
         np.testing.assert_allclose(env.robot.kp_calls[-1][:7], np.asarray(config.control.arm_kp))
+
+
+class ApproachVelocityControlTests(unittest.TestCase):
+    def test_cartesian_twist_uses_shortest_quaternion_arc_and_limits_speed(self) -> None:
+        twist = cartesian_velocity_twist(
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (-1.0, 0.0, 0.0, 0.0),
+            position_gain_s=8.0,
+            orientation_gain_s=6.0,
+            max_linear_m_s=0.3,
+            max_angular_rad_s=1.5,
+        )
+
+        np.testing.assert_allclose(twist[:3], (0.3, 0.0, 0.0), atol=1e-9)
+        np.testing.assert_allclose(twist[3:], (0.0, 0.0, 0.0), atol=1e-9)
+
+    def test_damped_least_squares_tracks_identity_and_clamps_joint_speed(self) -> None:
+        jacobian = np.eye(6, dtype=np.float64)
+        twist = np.asarray((2.0, -1.0, 0.5, 0.0, 0.0, 0.0))
+
+        velocity = damped_least_squares_velocity(
+            jacobian,
+            twist,
+            damping=0.05,
+            max_joint_velocity=1.0,
+            array_module=np,
+        )
+
+        self.assertAlmostEqual(float(np.max(np.abs(velocity))), 1.0)
+        self.assertGreater(velocity[0], 0.0)
+        self.assertLess(velocity[1], 0.0)
 
 
 if __name__ == "__main__":

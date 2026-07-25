@@ -111,3 +111,18 @@ summary、轨迹派生失败归因、两侧日志、精确 comparison 和本地/
 `84f2a585...4749f`、comparison `e47f2573...0be61`。完整值见
 `expert/radeon-approach-compliance-ab-v1-SHA256SUMS`；远端清单保留 6.9 MB 与 9.1 MB 完整轨迹
 summary 及全部派生产物的来源哈希。
+
+## 操作空间速度控制负对照
+
+`expert/radeon-approach-velocity-ab-v1-*` 保存固定 20 回合、单张 Radeon 的匹配 A/B，唯一
+配置差异是 `control.approach_velocity_control_enabled`。候选在 `MOVE_PREGRASP` 使用 Genesis
+末端 Jacobian 与有界加权阻尼最小二乘；抓取、抬升和放置仍使用原 IK 位置控制。
+
+基线为 1/20 成功、12/20 力中止、0 掉落；候选为 0/20 成功、13/20 力中止、0 掉落和 0 成功
+吞吐，并使 `7000005` 回归。逐回合峰值力 P95 从 98.12 N 降到 67.55 N，但最大力仍为 111.28 N，
+因此候选未通过任务、安全和吞吐门禁，继续默认关闭。
+
+候选在 ROCm 上执行 5,727 次速度控制采样，同步控制计算平均 1.983 ms；最大关节命令 1.50 rad/s，
+最大位姿误差 0.1817 m。本地 compact 哈希见
+`expert/radeon-approach-velocity-ab-v1-SHA256SUMS`，两份远端清单分别保留完整轨迹来源与 compact
+产物的哈希来源链。

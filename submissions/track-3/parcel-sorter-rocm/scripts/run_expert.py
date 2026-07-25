@@ -108,6 +108,11 @@ def main() -> int:
         default=None,
         help="scale approach arm Kp and preserve damping ratio by scaling Kv by sqrt(scale)",
     )
+    parser.add_argument(
+        "--approach-velocity-control",
+        action="store_true",
+        help="enable Jacobian damped-least-squares velocity control during MOVE_PREGRASP",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -137,6 +142,7 @@ def main() -> int:
         or args.approach_barrier_recovery_step is not None
         or args.precontact_aabb_guard_distance is not None
         or args.approach_stiffness_scale is not None
+        or args.approach_velocity_control
     ):
         config = replace(
             config,
@@ -182,6 +188,10 @@ def main() -> int:
                     config.control.approach_stiffness_scale
                     if args.approach_stiffness_scale is None
                     else args.approach_stiffness_scale
+                ),
+                approach_velocity_control_enabled=(
+                    config.control.approach_velocity_control_enabled
+                    or args.approach_velocity_control
                 ),
             ),
         )

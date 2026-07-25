@@ -108,6 +108,28 @@ class ExpertComparisonTests(unittest.TestCase):
             1.5,
         )
 
+    def test_aggregates_optional_approach_velocity_telemetry(self) -> None:
+        baseline = _run((True, True), (10.0, 10.0))
+        candidate = _run((True, True), (10.0, 10.0))
+        for index, episode in enumerate(candidate["episodes"]):
+            episode["safety_summary"] = {
+                "approach_velocity_control_enabled": True,
+                "approach_velocity_control_samples": 10,
+                "approach_velocity_control_compute_ms_total": 12.0,
+                "approach_velocity_control_max_joint_rad_s": 1.0 + index * 0.2,
+                "approach_velocity_control_max_pose_error_m": 0.04 + index * 0.01,
+            }
+
+        result = compare_expert_runs(baseline, candidate)
+
+        self.assertFalse(result["baseline_approach_velocity_control"]["enabled"])
+        summary = result["candidate_approach_velocity_control"]
+        self.assertTrue(summary["enabled"])
+        self.assertEqual(summary["samples"], 20)
+        self.assertAlmostEqual(summary["compute_ms_mean"], 1.2)
+        self.assertAlmostEqual(summary["max_joint_command_rad_s"], 1.2)
+        self.assertAlmostEqual(summary["max_pose_error_m"], 0.05)
+
 
 if __name__ == "__main__":
     unittest.main()

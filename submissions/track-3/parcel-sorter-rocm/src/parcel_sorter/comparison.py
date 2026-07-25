@@ -94,6 +94,12 @@ def compare_expert_runs(
         "candidate_force_abort_indices": candidate_force_aborts,
         "baseline_precontact_aabb_guard": _aabb_guard_summary(baseline_episodes),
         "candidate_precontact_aabb_guard": _aabb_guard_summary(candidate_episodes),
+        "baseline_approach_velocity_control": _approach_velocity_summary(
+            baseline_episodes
+        ),
+        "candidate_approach_velocity_control": _approach_velocity_summary(
+            candidate_episodes
+        ),
         "acceptance": acceptance,
         "recommendation": "keep" if all(acceptance.values()) else "repeat_or_reject",
     }
@@ -119,6 +125,41 @@ def _aabb_guard_summary(episodes: dict[int, dict[str, Any]]) -> dict[str, Any]:
         "samples": samples,
         "compute_ms_total": compute_ms,
         "compute_ms_mean": compute_ms / samples if samples else 0.0,
+    }
+
+
+def _approach_velocity_summary(episodes: dict[int, dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate optional operational-space telemetry across matched episodes."""
+    summaries = [episode.get("safety_summary", {}) for episode in episodes.values()]
+    samples = sum(
+        int(item.get("approach_velocity_control_samples", 0)) for item in summaries
+    )
+    compute_ms = sum(
+        float(item.get("approach_velocity_control_compute_ms_total", 0.0))
+        for item in summaries
+    )
+    return {
+        "enabled": any(
+            bool(item.get("approach_velocity_control_enabled", False))
+            for item in summaries
+        ),
+        "samples": samples,
+        "compute_ms_total": compute_ms,
+        "compute_ms_mean": compute_ms / samples if samples else 0.0,
+        "max_joint_command_rad_s": max(
+            (
+                float(item.get("approach_velocity_control_max_joint_rad_s", 0.0))
+                for item in summaries
+            ),
+            default=0.0,
+        ),
+        "max_pose_error_m": max(
+            (
+                float(item.get("approach_velocity_control_max_pose_error_m", 0.0))
+                for item in summaries
+            ),
+            default=0.0,
+        ),
     }
 
 

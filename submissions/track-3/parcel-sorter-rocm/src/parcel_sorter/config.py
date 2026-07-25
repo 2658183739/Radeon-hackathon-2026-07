@@ -113,6 +113,14 @@ class ControlConfig:
     approach_barrier_recovery_step_m: float | None = None
     precontact_aabb_guard_distance_m: float | None = None
     approach_stiffness_scale: float = 1.0
+    approach_velocity_control_enabled: bool = False
+    approach_velocity_position_gain_s: float = 8.0
+    approach_velocity_orientation_gain_s: float = 6.0
+    approach_velocity_orientation_weight: float = 0.20
+    approach_velocity_max_linear_m_s: float = 0.30
+    approach_velocity_max_angular_rad_s: float = 1.50
+    approach_velocity_max_joint_rad_s: float = 1.50
+    approach_velocity_damping: float = 0.05
     reset_qpos: tuple[float, ...] = DEFAULT_RESET_QPOS
 
     def validate(self) -> None:
@@ -169,6 +177,20 @@ class ControlConfig:
             or self.approach_stiffness_scale > 1
         ):
             raise ValueError("approach_stiffness_scale must be in (0, 1]")
+        velocity_parameters = (
+            self.approach_velocity_position_gain_s,
+            self.approach_velocity_orientation_gain_s,
+            self.approach_velocity_max_linear_m_s,
+            self.approach_velocity_max_angular_rad_s,
+            self.approach_velocity_max_joint_rad_s,
+            self.approach_velocity_damping,
+        )
+        if any(not math.isfinite(value) or value <= 0 for value in velocity_parameters):
+            raise ValueError("approach velocity-control parameters must be positive and finite")
+        if self.approach_velocity_damping > 1.0:
+            raise ValueError("approach_velocity_damping must be at most 1.0")
+        if not 0.0 <= self.approach_velocity_orientation_weight <= 1.0:
+            raise ValueError("approach_velocity_orientation_weight must be in [0, 1]")
         if len(self.reset_qpos) != 9 or any(not math.isfinite(value) for value in self.reset_qpos):
             raise ValueError("reset_qpos must contain nine finite joint positions")
 

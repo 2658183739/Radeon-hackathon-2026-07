@@ -1324,3 +1324,45 @@ Evidence is indexed under
 on the Radeon host; Git contains compact summaries, comparison, failure
 analyses, logs, and local/remote SHA-256 manifests. Remote validation passed
 123 tests plus 6 subtests; the fixed A/B and both post-run analyses completed.
+
+### 61. Reject approach-stage operational-space velocity control
+
+**Hypothesis and implementation.** Joint-space stiffness scaling reduced some
+forces but lost tracking authority. The next isolated candidate replaced IK
+position commands only during `MOVE_PREGRASP` with a world-frame Cartesian
+twist and weighted damped-least-squares joint velocity. Translation weight was
+1.0, orientation weight 0.20, damping 0.05, and each joint was capped at
+1.50 rad/s. Grasp, lift, place, the 8-D policy action, delayed-action path,
+gripper control, and 35 N hard abort were unchanged. The feature defaults off.
+
+**API and correction evidence.** Genesis 1.2.3 source and an on-device probe
+confirmed that `get_jacobian()` rows 0--2 are translation and rows 3--5 are
+rotation. An initial equal-weight controller over-prioritized orientation, so
+the registered version used an explicit 0.20 orientation task weight. An
+isolated `control_dofs_velocity()` check on Radeon produced about 1.03 rad/s
+measured joint velocity and 25 mm end-effector descent, proving that the API
+and Jacobian order worked. In the parcel scene, predicted downward motion
+persisted while measured joint velocity fell near 0.005 rad/s: the non-finger
+hand/carton geometry physically blocked descent. This separated an execution
+failure from a numerical or API failure.
+
+**Protocol and result.** The formal single-Radeon A/B fixed
+`large_narrow_carton`, episodes `7000000`--`7000019`, seed, reset, physics,
+runtime, and force threshold. The only accepted difference was
+`control.approach_velocity_control_enabled`. Baseline achieved 1/20 success,
+12/20 force aborts, 7 approach timeouts, zero drops, and 17.80 parcels/hour.
+The candidate achieved 0/20, 13/20 force aborts, 7 timeouts, zero drops, and
+zero throughput; it regressed `7000005`. P95 peak force improved from 98.12 N
+to 67.55 N, but maximum force stayed 111.28 N. Across 5,727 controller samples,
+mean synchronized compute time was 1.983 ms, maximum command 1.50 rad/s, and
+maximum pose error 0.1817 m.
+
+**Decision.** Reject and keep disabled. A controller that lowers a percentile
+force metric while eliminating the only success and adding a force abort does
+not pass the task, safety, or throughput gates. Keep the typed configuration,
+controller, telemetry, comparison support, tests, and runner as a reproducible
+negative control. The next justified intervention is an explicit
+geometry-aware grasp pose and recovery-state redesign, not another velocity-
+gain sweep. Evidence is under
+`evidence/expert/radeon-approach-velocity-ab-v1-*`; formal Radeon validation
+passed 128 tests plus 6 subtests.

@@ -220,3 +220,24 @@ Evidence is indexed under `evidence/expert/radeon-approach-compliance-ab-v1-*`.
 The next controller target is contact-near Cartesian velocity/impedance with an
 explicit recovery state. Balanced RGB-D collection and learned-policy ranking
 remain blocked until the expert safety gates pass.
+
+## Latest controlled experiment: operational-space approach velocity
+
+The candidate replaced only `MOVE_PREGRASP` IK position commands with a
+bounded, weighted damped-least-squares velocity controller using the Genesis
+Jacobian. Isolated Radeon checks proved both the Jacobian convention and
+`control_dofs_velocity()` path; the formal comparison accepted only
+`control.approach_velocity_control_enabled` as a difference.
+
+On fixed episodes `7000000`--`7000019`, baseline produced 1/20 successes,
+12/20 force aborts, zero drops, and 17.80 parcels/hour. The candidate produced
+0/20, 13/20 force aborts, zero drops, and zero throughput. It regressed
+`7000005`; maximum force remained 111.28 N despite a lower P95. The controller
+is rejected and remains disabled. Evidence is indexed under
+`evidence/expert/radeon-approach-velocity-ab-v1-*`.
+
+The measured stall identifies hand/carton geometry as the next boundary.
+Balanced 360-success RGB-D collection, ACT/Diffusion/3D ranking, VLA, and ROS 2
+remain blocked. The next candidate must redesign the grasp pose and recovery
+state around explicit geometry, then pass the same fixed Radeon elimination
+protocol before broader evaluation.

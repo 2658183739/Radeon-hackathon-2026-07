@@ -660,3 +660,29 @@ next design must constrain Cartesian approach velocity/energy near contact and
 define recovery explicitly. Validation included 123 Radeon tests plus 6
 subtests, the exact single-config comparison, failure attribution, compact/full
 hash manifests, and retained run logs.
+
+### Entry 57: Prove the velocity API, then reject the task controller
+
+I checked the installed Genesis source before coding: Jacobian translation is
+stored in rows 0--2 and rotation in rows 3--5. The first equal-weight DLS smoke
+spent too much authority on orientation, so I introduced an explicit 0.20
+orientation weight rather than changing unrelated state-machine tolerances.
+An isolated Radeon check then proved the full API path: the robot accepted a
+velocity command, measured joint speed reached about 1.03 rad/s, and the end
+effector descended about 25 mm.
+
+The integrated smoke taught a different lesson. The solver predicted about
+-0.078 m/s vertical motion, while measured joints stalled near 0.005 rad/s
+beside the large carton. That points to physical blocking by the hand/carton
+geometry, not a reversed Jacobian or failed ROCm operation. I therefore kept
+the implementation observable: it logs requested and predicted twists,
+commanded and measured joint velocities, pose error, sample count, and
+synchronized computation time.
+
+The fixed 20+20 A/B rejected the candidate: success changed from 1 to 0,
+force aborts from 12 to 13, and throughput from 17.80/hour to zero. Although
+P95 force improved, maximum force did not, and `7000005` regressed. The
+default remains off. Validation is 128 formal Radeon tests plus 6 subtests,
+shell syntax, comparison, two failure analyses, logs, and local/remote hashes.
+The next code should express feasible hand/carton geometry and recovery
+states before tuning another continuous controller.

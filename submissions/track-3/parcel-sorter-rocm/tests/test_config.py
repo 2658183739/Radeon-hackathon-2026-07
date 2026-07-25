@@ -89,6 +89,22 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "approach_stiffness_scale"):
             invalid.validate()
 
+    def test_approach_velocity_parameters_are_positive_and_bounded(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            control=replace(config.control, approach_velocity_damping=1.01),
+        )
+
+        with self.assertRaisesRegex(ValueError, "approach_velocity_damping"):
+            invalid.validate()
+        invalid_weight = replace(
+            config,
+            control=replace(config.control, approach_velocity_orientation_weight=1.01),
+        )
+        with self.assertRaisesRegex(ValueError, "orientation_weight"):
+            invalid_weight.validate()
+
     def test_parcel_profile_rejects_negative_rolling_friction(self) -> None:
         config = load_config(PROJECT_ROOT / "configs" / "catalog_v2.toml")
         invalid_profile = replace(config.parcel_profiles[0], rolling_friction=-0.001)
