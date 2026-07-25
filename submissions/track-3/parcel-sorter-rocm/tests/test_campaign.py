@@ -63,6 +63,21 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual(metadata["mailing_tube"]["handling_class"], "parallel_jaw")
         self.assertEqual(metadata["large_cylinder_boundary"]["handling_class"], "cradle_required")
 
+    def test_geometry_screen_campaign_freezes_unseen_profile_pairs(self) -> None:
+        payload = load_campaign(ROOT / "configs" / "campaign_geometry_screen_v1.toml")
+        evaluation = payload["evaluation"]
+        self.assertEqual(evaluation["split"], "heldout")
+        self.assertEqual(len(evaluation["profile_ids"]), 12)
+        self.assertEqual(len(evaluation["local_episode_ids"]), 5)
+        self.assertEqual(len(evaluation["episode_ids"]), 60)
+        self.assertEqual(len(payload["experiments"]), 3)
+
+    def test_structured_campaign_rejects_incomplete_cartesian_product(self) -> None:
+        payload = load_campaign(ROOT / "configs" / "campaign_geometry_screen_v1.toml")
+        payload["evaluation"]["episode_ids"].pop()
+        with self.assertRaisesRegex(ValueError, "every profile/local episode pair"):
+            validate_campaign(payload)
+
 
 if __name__ == "__main__":
     unittest.main()

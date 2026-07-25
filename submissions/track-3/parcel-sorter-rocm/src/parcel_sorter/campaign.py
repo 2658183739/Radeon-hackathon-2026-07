@@ -79,6 +79,30 @@ def validate_campaign(payload: dict[str, Any]) -> None:
         raise ValueError("evaluation.episode_ids must be unique")
     if evaluation.get("split") not in {"heldout", "fixed_regression", "validation"}:
         raise ValueError("evaluation.split must identify a fixed evaluation purpose")
+    profile_ids = evaluation.get("profile_ids")
+    local_episode_ids = evaluation.get("local_episode_ids")
+    if profile_ids is not None or local_episode_ids is not None:
+        if (
+            not isinstance(profile_ids, list)
+            or not profile_ids
+            or any(
+                not isinstance(profile_id, str) or not profile_id
+                for profile_id in profile_ids
+            )
+            or len(set(profile_ids)) != len(profile_ids)
+        ):
+            raise ValueError("evaluation.profile_ids must contain unique non-empty strings")
+        if (
+            not isinstance(local_episode_ids, list)
+            or not local_episode_ids
+            or any(not isinstance(index, int) or index < 0 for index in local_episode_ids)
+            or len(set(local_episode_ids)) != len(local_episode_ids)
+        ):
+            raise ValueError("evaluation.local_episode_ids must contain unique non-negative integers")
+        if len(episode_ids) != len(profile_ids) * len(local_episode_ids):
+            raise ValueError(
+                "evaluation.episode_ids must cover every profile/local episode pair"
+            )
 
     if not isinstance(experiments, list) or not experiments:
         raise ValueError("campaign must declare at least one experiment")

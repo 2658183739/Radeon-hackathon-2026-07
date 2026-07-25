@@ -628,3 +628,17 @@ v1 证明混合控制器对事件时序非常敏感：低纸箱窗口只扩大�
 提升到 359.36 件。它仍没有达到 18/20 成功和最多 1/20 力中止门禁，因此规划器继续默认关闭，
 数据与模型工作仍受门禁约束。Radeon 162 项测试通过；compact/full 产物、日志、失败归因和哈希以
 `evidence/expert/radeon-geometry-aware-grasp-planning-*` 为前缀归档。
+
+### 记录 61：建设多 profile 配对证据层
+
+启动更多物理仿真前先审计仓库和 Radeon 实例。GPU 空闲，显存 47.98 GiB，工作区剩余 71 GiB。
+现有 campaign 校验器已经固定 ROCm、单卡和 35 N 边界，专家 runner 也已有四个规划器消融开关；
+缺少的是三组调度器、精确配对推断、逐 profile 连续指标，以及关闭两级接近策略的开关。
+
+本轮新增无外部统计依赖的精确 McNemar、确定性配对 Bootstrap 和符号翻转检验、Wilson 区间、
+力/时长/延迟分布、规划器计时和 profile 宏平均。冻结的 12 profile 筛选让历史、复位、几何三组
+各使用每个 profile 的 5 个全新局部 episode，并把另一段命名空间保留而不查看。
+
+Radeon 定向验证通过 4 个新统计测试、7 个 campaign 测试、Python 编译、shell 语法和 campaign
+指纹校验。统计器还回放了已有 20+20 几何产物，重现 5/20 与 15/20 汇总。这只验证证据管线；
+12 profile campaign 的任务结果在正式运行完成前仍是未知数。

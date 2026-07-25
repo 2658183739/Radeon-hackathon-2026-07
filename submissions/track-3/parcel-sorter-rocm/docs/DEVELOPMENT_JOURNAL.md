@@ -770,3 +770,24 @@ the 18/20 success and at-most-1/20 force-abort gates, so the planner remains
 disabled by default and model/data work stays gated. Validation passed 162
 Radeon tests; compact/full artifacts, logs, failure analyses, and hashes are
 archived under `evidence/expert/radeon-geometry-aware-grasp-planning-*`.
+
+### Record 61: Build the matched multi-profile evidence layer
+
+The repository and Radeon instance were audited before launching more physics.
+The GPU was idle with 47.98 GiB VRAM and 71 GiB workspace free. The existing
+campaign validator already fixed ROCm, one GPU, and the 35 N boundary, while
+the expert runner already exposed four planner ablations. Missing pieces were a
+three-group scheduler, exact paired inference, profile-stratified continuous
+effects, and a switch for removing the tiered approach policy.
+
+The implementation adds dependency-free exact McNemar, deterministic paired
+bootstrap and sign-flip tests, Wilson intervals, force/duration/latency
+distributions, planner timing, and profile macro results. A frozen 12-profile
+screen uses five new local episode IDs per profile across historical, reset,
+and geometry groups. A second namespace is reserved rather than inspected.
+
+Focused Radeon validation passed four new statistics tests and seven campaign
+tests, Python compilation, shell syntax, and campaign fingerprint validation.
+The analyzer also replayed the existing 20+20 geometry artifacts and recovered
+the expected 5/20 and 15/20 summaries. This validates evidence plumbing only;
+the 12-profile campaign result remains unknown until execution finishes.

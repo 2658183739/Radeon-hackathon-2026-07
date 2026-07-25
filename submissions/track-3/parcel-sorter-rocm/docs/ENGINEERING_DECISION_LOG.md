@@ -1480,3 +1480,39 @@ SHA-256 manifests are under
 and lift retention on new preregistered probes. Do not fit more height thresholds
 to the same 20 episodes. Expand to held-out shapes only after reaching 18/20
 success and at most 1/20 force abort.
+
+### 65. Freeze an unseen multi-profile screen before further controller tuning
+
+**Problem.** The leading planner was developed against one 20-episode high-box
+set. Reusing it would underestimate uncertainty and encourage threshold fitting;
+immediately running hundreds of episodes without a frozen contract would create
+expensive but weak evidence.
+
+**Evidence and alternatives.** The catalog has 12 training profiles supported
+by the current parallel-jaw end effector and nine evaluation-only profiles that
+explicitly require suction or a cradle. Existing tooling had deterministic
+profile namespaces and Wilson intervals, but no multi-group matched report,
+exact paired test, or campaign runner. Alternatives were another single-profile
+A/B, one unstratified random pool, or a balanced screen followed by a separate
+confirmatory namespace.
+
+**Decision and reason.** Freeze the balanced screen. Run historical control,
+collision-checked reset, and complete geometry planning on the same five unseen
+episodes for each supported profile. Treat the resulting 180 episodes as
+exploratory elimination evidence. Reserve local episodes `200000`--`200039`
+for later confirmation and keep all unsupported end-effector profiles outside
+the denominator.
+
+**Code capability.** `campaign_geometry_screen_v1.toml` freezes samples and
+groups; `run_geometry_screen_campaign_rocm.sh` verifies and executes them;
+`evaluation_statistics.py` reports Wilson intervals, exact McNemar tests,
+paired bootstrap/sign-flip effects, per-profile strata, and planning overhead.
+The tall-box tier now has an explicit ablation-only disable switch. None of
+these changes alters the default controller or 35 N limit.
+
+**Validation and revisit trigger.** Focused Radeon tests, Python compilation,
+shell syntax, campaign fingerprinting, and a replay through the existing 20+20
+artifacts must pass before launch. The method advances only if aggregate safety
+does not regress and no profile loses more than one matched success. A formal
+claim requires the untouched reserved namespace and a separately frozen primary
+hypothesis.

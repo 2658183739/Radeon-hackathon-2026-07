@@ -166,6 +166,11 @@ def main() -> int:
         help="cap final planned grasp approach in metres per control step",
     )
     parser.add_argument(
+        "--grasp-planning-disable-tiered-approach",
+        action="store_true",
+        help="ablation only: use the regular planned approach step for tall boxes",
+    )
+    parser.add_argument(
         "--grasp-planning-drop-step",
         type=float,
         default=None,
@@ -211,6 +216,7 @@ def main() -> int:
         or args.grasp_planning_waypoint_gate
         or args.grasp_planning_stability_steps is not None
         or args.grasp_planning_final_approach_step is not None
+        or args.grasp_planning_disable_tiered_approach
         or args.grasp_planning_drop_step is not None
     ):
         config = replace(
@@ -268,6 +274,15 @@ def main() -> int:
                     if args.grasp_planning_final_approach_step is None
                     else args.grasp_planning_final_approach_step
                 ),
+                grasp_planning_tall_box_final_approach_step_m=(
+                    (
+                        config.task.grasp_planning_final_approach_step_m
+                        if args.grasp_planning_final_approach_step is None
+                        else args.grasp_planning_final_approach_step
+                    )
+                    if args.grasp_planning_disable_tiered_approach
+                    else config.task.grasp_planning_tall_box_final_approach_step_m
+                ),
                 grasp_planning_drop_step_m=(
                     config.task.grasp_planning_drop_step_m
                     if args.grasp_planning_drop_step is None
@@ -324,6 +339,7 @@ def main() -> int:
         or args.grasp_planning_waypoint_gate
         or args.grasp_planning_stability_steps is not None
         or args.grasp_planning_final_approach_step is not None
+        or args.grasp_planning_disable_tiered_approach
         or args.grasp_planning_drop_step is not None
     ) and not config.task.geometry_aware_grasp_planning_enabled:
         parser.error("grasp-planning options require --geometry-aware-grasp-planning")
