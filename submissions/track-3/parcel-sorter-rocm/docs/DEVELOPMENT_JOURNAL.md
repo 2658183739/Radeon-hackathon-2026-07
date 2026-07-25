@@ -1114,3 +1114,32 @@ two deterministic episodes are mechanism evidence rather than independent
 samples. Documentation also records that the current generated geometry keeps
 stock explicit finger inertials; real adapter mass, fasteners, compliance,
 CAD clearance, and force calibration remain future requirements.
+
+### Record 75: Add physical inertia, reproduce a sentinel regression, and stop
+
+The next unit implemented the previously stated fidelity requirement instead
+of starting a larger campaign. A uniform 30 mm adapter box at a fixed effective
+density of 1240 kg/m3 adds 5.952 g to each 15 g finger. A pure helper combines
+the stock and box centers and inertia tensors with the parallel-axis theorem;
+the generated MJCF replaces `diaginertia` with `fullinertia`. Filenames,
+configuration validation, three CLIs, geometry-probe output, and environment
+telemetry now expose extension, density, mass, and inertia model explicitly.
+
+Unit tests check mass, center, finite tensor values, and positive-definite
+principal minors. Targeted remote tests passed before the live probe. Genesis
+1.2.3 then accepted the tensor on Radeon/ROCm, retained the 6-to-7 collision
+geom change and 56-to-85 mm AABB extension, and produced a generated-asset
+SHA-256 of `c1785752199e90c2631c3bff46eb6733545d35f707819686dec590c236e95e32`.
+
+The elimination gate reused only the observed `4120001` mechanism pair. The
+known failed `+40 mm` grasp still completed, now at 13.14 N. The known-success
+`+45 mm` sentinel then jumped from 5.06 N at frame 202 to an abnormal
+19-contact, unilateral branch at frame 203 and aborted at frame 204 with
+38.3364 N. One exact same-parameter repeat reproduced the complete outcome.
+
+The stop rule cancelled `7130001` and all new episodes. No density, length,
+controller, or safety-threshold tuning followed the failure. The code remains
+useful as a default-off physical-model capability, but the mass-aware candidate
+failed promotion. The next admissible diagnostic must independently specify
+which contact-pair and finger-actuator signals to inspect around frames
+202--204; it may not optimize against the observed sentinel.

@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--profile", default="large_narrow_carton")
     parser.add_argument("--episode", type=int, default=4_120_001)
     parser.add_argument("--extension-m", type=float, default=0.030)
+    parser.add_argument("--density-kg-m3", type=float, default=1240.0)
     parser.add_argument("--backend", choices=("cpu", "rocm"), default="rocm")
     parser.add_argument("--output", type=Path)
     return parser.parse_args()
@@ -73,6 +74,17 @@ def _adapter_geometries(path: Path) -> list[dict[str, str]]:
     ]
 
 
+def _finger_inertials(path: Path) -> dict[str, dict[str, str]]:
+    root = ET.parse(path).getroot()
+    rows = {}
+    for finger_name in ("left_finger", "right_finger"):
+        finger = root.find(f".//body[@name='{finger_name}']")
+        if finger is None or finger.find("inertial") is None:
+            raise ValueError(f"MJCF is missing {finger_name} inertial data")
+        rows[finger_name] = dict(finger.find("inertial").attrib)
+    return rows
+
+
 def _variant(
     config: ExperimentConfig,
     sample: Any,
@@ -80,6 +92,7 @@ def _variant(
     backend: str,
     enabled: bool,
     extension_m: float,
+    density_kg_m3: float,
 ) -> dict[str, Any]:
     variant_config = replace(
         config,
@@ -87,6 +100,7 @@ def _variant(
             config.task,
             parcel_gripper_adapter_enabled=enabled,
             parcel_gripper_adapter_extension_m=extension_m,
+            parcel_gripper_adapter_density_kg_m3=density_kg_m3,
         ),
     )
     variant_config.validate()
@@ -110,9 +124,12 @@ def _variant(
         return {
             "adapter_enabled": enabled,
             "extension_m": extension_m,
+            "effective_density_kg_m3": density_kg_m3,
+            "adapter_mass_per_finger_kg": env._robot_adapter_mass_per_finger_kg,
             "robot_asset_source": env._robot_asset_source,
             "mjcf_path": str(asset_path),
             "mjcf_sha256": _sha256(asset_path),
+            "finger_inertials": _finger_inertials(asset_path),
             "adapter_geometries": (
                 _adapter_geometries(asset_path) if enabled else []
             ),
@@ -134,6 +151,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         backend=args.backend,
         enabled=False,
         extension_m=args.extension_m,
+        density_kg_m3=args.density_kg_m3,
     )
     adapter = _variant(
         config,
@@ -141,6 +159,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         backend=args.backend,
         enabled=True,
         extension_m=args.extension_m,
+        density_kg_m3=args.density_kg_m3,
     )
 
     geometry_count_delta = {

@@ -382,3 +382,18 @@ successes were preserved; the unchanged 35 N gate stopped the one remaining
 unsafe adapter candidate at 36.95 N. This is development mechanism evidence,
 not a success-rate or holdout result. The 30 mm value is frozen, the adapter
 remains default off, and printed mass/compliance are not yet modeled.
+
+## Parcel adapter mass/inertia safety gate
+
+`expert/radeon-parcel-gripper-adapter-inertia-development-v2.json` binds the
+mass-aware geometry probe and three ignored full traces. The generated MJCF
+adds 5.952 g per finger at a fixed effective density of 1240 kg/m3, shifts the
+combined center of mass, and writes a six-component full inertia tensor using
+the parallel-axis theorem.
+
+The known failed `+40 mm` mechanism grasp still completed at 13.14 N. The
+known successful `+45 mm` sentinel then aborted at 38.34 N in two exactly
+matching runs. The preregistered stop rule cancelled the `7130001` expansion
+and any new paired campaign. The implementation is retained default off as a
+physical-model capability, but the candidate failed promotion; no holdout or
+new episode was opened.

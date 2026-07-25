@@ -386,3 +386,20 @@ full integration. Cold startup is reported separately from warm P50/P95.
 Complete commands, frozen IDs, result limits, and hashes are in
 `docs/GRASP_SCORER_TRAINING.md` and
 `evidence/training/grasp-scorer-smoke-rocm-v1.json`.
+
+## Implemented mass-aware adapter boundary
+
+The geometry generator now owns the complete rigid-body update: uniform-box
+mass, combined center of mass, and parallel-axis full inertia. Configuration
+and CLI layers carry only explicit physical inputs; generated asset names and
+telemetry preserve the values needed to reproduce a run. Stock behavior is
+unchanged when the feature is off, including a corrected
+`stock_explicit_inertia` telemetry label and zero added-mass report.
+
+Optimization stopped at the first safety regression. The mechanism recovery
+passed, but the known-success sentinel reproducibly aborted at 38.34 N. This
+is recorded as a valuable negative result: increasing physical fidelity can
+change the contact branch and invalidate an earlier geometric result. No
+parameter scan, larger campaign, or model training was allowed to hide that
+failure. Detailed equations, commands, hashes, and the next admissible
+diagnostic are in `docs/PARCEL_GRIPPER_ADAPTER_INERTIA.md`.

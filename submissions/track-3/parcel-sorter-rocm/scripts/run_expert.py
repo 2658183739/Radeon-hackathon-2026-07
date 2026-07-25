@@ -140,6 +140,12 @@ def main() -> int:
         help="override the parcel finger extension length in metres",
     )
     parser.add_argument(
+        "--parcel-gripper-density-kg-m3",
+        type=float,
+        default=None,
+        help="override the effective adapter density used for finger inertia",
+    )
+    parser.add_argument(
         "--grasp-planning-reset-fallback-gate",
         action="store_true",
         help="plan only when collision checking actually selected the fallback reset pose",
@@ -270,6 +276,7 @@ def main() -> int:
         or args.geometry_aware_grasp_planning
         or args.parcel_gripper_adapter
         or args.parcel_gripper_extension_m is not None
+        or args.parcel_gripper_density_kg_m3 is not None
         or args.grasp_planning_reset_fallback_gate
         or args.grasp_planning_disable_collision_filter
         or args.grasp_planning_disable_manipulability_ranking
@@ -322,6 +329,11 @@ def main() -> int:
                     config.task.parcel_gripper_adapter_extension_m
                     if args.parcel_gripper_extension_m is None
                     else args.parcel_gripper_extension_m
+                ),
+                parcel_gripper_adapter_density_kg_m3=(
+                    config.task.parcel_gripper_adapter_density_kg_m3
+                    if args.parcel_gripper_density_kg_m3 is None
+                    else args.parcel_gripper_density_kg_m3
                 ),
                 grasp_planning_reset_fallback_gate_enabled=(
                     config.task.grasp_planning_reset_fallback_gate_enabled

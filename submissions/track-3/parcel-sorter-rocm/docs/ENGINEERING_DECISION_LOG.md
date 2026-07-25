@@ -1867,3 +1867,31 @@ episodes and no holdout was opened. Do not treat 7/8 as a success rate.
 **Revisit trigger.** Model material, fasteners, added mass/inertia, and
 compliance, then preregister a separate paired evaluation. Hardware deployment
 also requires CAD clearance review and force calibration.
+
+### 79. Retain the mass/inertia implementation but reject candidate promotion
+
+**Question.** Does the frozen 30 mm support geometry remain safe after adding
+a finite adapter mass, shifted center of mass, and full inertia tensor?
+
+**Code capability.** Combine a uniform adapter box with the stock finger using
+the parallel-axis theorem; generate explicit `fullinertia`; version assets by
+extension and effective density; validate configuration; expose production,
+counterfactual, and geometry-probe CLI controls; report stock versus combined
+inertia and added mass in telemetry.
+
+**Evidence.** At 1240 kg/m3 the box adds 5.952 g per finger. The live Radeon
+scene accepted the tensor and preserved the geometry checks. The `+40 mm`
+mechanism grasp completed at 13.14 N, but the known-success `+45 mm` sentinel
+aborted at frame 204 with 38.3364 N in two identical executions. The force
+jump followed a reproducible change from 8 bilateral contacts to 19 unilateral
+contacts. No holdout or new episode was opened.
+
+**Decision and reason.** Retain the implementation default off because it is
+the physically correct modeling boundary and is independently testable. Reject
+promotion and cancel the planned larger campaign because a success sentinel
+became a safety abort. Do not scan density or extension on this observation.
+
+**Revisit trigger.** Freeze a separate contact-pair and finger-actuator
+diagnostic before executing it. Resume paired evaluation only after that
+mechanism is understood and a candidate passes both mechanism and sentinel
+gates without changing the independent 35 N supervisor.

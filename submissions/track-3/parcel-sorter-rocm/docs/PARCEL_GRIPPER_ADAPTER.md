@@ -89,8 +89,11 @@ it by default or making a generalization claim.
 - Do not open the existing scorer holdout to justify this geometry.
 - Treat the generated MJCF and source hashes as part of every evidence record.
 
-The current simulation keeps the stock explicit finger inertial parameters.
-It therefore represents a lightweight adapter but does not yet model a
-specific printed material, fastener, added mass, or compliance. Hardware
-transfer requires CAD, material/mass identification, combined inertia,
-collision-clearance review, and real force calibration before deployment.
+The follow-up physical-fidelity implementation now models a fixed effective
+density, added mass, shifted center of mass, and combined full inertia. Its
+first safety gate retained the `+40 mm` recovery but reproducibly changed the
+`+45 mm` success sentinel into a 38.34 N abort. It therefore remains default
+off and did not advance to a new evaluation campaign. See
+`docs/PARCEL_GRIPPER_ADAPTER_INERTIA.md`. Hardware transfer still requires
+CAD, identified material/fastener properties, compliance, collision-clearance
+review, and real force calibration.

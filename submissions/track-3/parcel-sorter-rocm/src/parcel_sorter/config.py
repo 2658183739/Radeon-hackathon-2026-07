@@ -93,6 +93,7 @@ class TaskConfig:
     grasp_planning_joint_segment_resolution_rad: float = 0.025
     parcel_gripper_adapter_enabled: bool = False
     parcel_gripper_adapter_extension_m: float = 0.030
+    parcel_gripper_adapter_density_kg_m3: float = 1240.0
 
     def validate(self) -> None:
         if self.max_grasp_retries < 0:
@@ -218,6 +219,13 @@ class TaskConfig:
         ):
             raise ValueError(
                 "parcel_gripper_adapter_extension_m must be in [0.005, 0.060]"
+            )
+        if (
+            not math.isfinite(self.parcel_gripper_adapter_density_kg_m3)
+            or not 100.0 <= self.parcel_gripper_adapter_density_kg_m3 <= 2500.0
+        ):
+            raise ValueError(
+                "parcel_gripper_adapter_density_kg_m3 must be in [100, 2500]"
             )
 
 

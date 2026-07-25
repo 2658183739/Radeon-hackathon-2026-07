@@ -35,14 +35,126 @@ from .randomization import ParcelSample
 _INITIALIZED_BACKEND: str | None = None
 
 
+def combine_rigid_body_with_box_inertia(
+    base_mass_kg: float,
+    base_center_m: tuple[float, float, float],
+    base_full_inertia_kg_m2: tuple[float, float, float, float, float, float],
+    box_density_kg_m3: float,
+    box_half_size_m: tuple[float, float, float],
+    box_center_m: tuple[float, float, float],
+) -> tuple[
+    float,
+    tuple[float, float, float],
+    tuple[float, float, float, float, float, float],
+]:
+    """Combine a rigid body with a uniform box using the parallel-axis theorem."""
+    values = (
+        base_mass_kg,
+        *base_center_m,
+        *base_full_inertia_kg_m2,
+        box_density_kg_m3,
+        *box_half_size_m,
+        *box_center_m,
+    )
+    if any(not math.isfinite(value) for value in values):
+        raise ValueError("rigid-body inertia inputs must be finite")
+    if base_mass_kg <= 0 or box_density_kg_m3 <= 0:
+        raise ValueError("rigid-body masses and density must be positive")
+    if any(value <= 0 for value in box_half_size_m):
+        raise ValueError("box half-sizes must be positive")
+
+    box_size_m = tuple(2.0 * value for value in box_half_size_m)
+    box_mass_kg = box_density_kg_m3 * math.prod(box_size_m)
+    total_mass_kg = base_mass_kg + box_mass_kg
+    center_m = tuple(
+        (
+            base_mass_kg * base_center_m[axis]
+            + box_mass_kg * box_center_m[axis]
+        )
+        / total_mass_kg
+        for axis in range(3)
+    )
+
+    base_matrix = _full_inertia_matrix(base_full_inertia_kg_m2)
+    dx, dy, dz = box_size_m
+    box_matrix = [
+        [box_mass_kg * (dy * dy + dz * dz) / 12.0, 0.0, 0.0],
+        [0.0, box_mass_kg * (dx * dx + dz * dz) / 12.0, 0.0],
+        [0.0, 0.0, box_mass_kg * (dx * dx + dy * dy) / 12.0],
+    ]
+    combined = _shift_inertia_matrix(
+        base_matrix,
+        base_mass_kg,
+        tuple(value - center_m[axis] for axis, value in enumerate(base_center_m)),
+    )
+    shifted_box = _shift_inertia_matrix(
+        box_matrix,
+        box_mass_kg,
+        tuple(value - center_m[axis] for axis, value in enumerate(box_center_m)),
+    )
+    for row in range(3):
+        for column in range(3):
+            combined[row][column] += shifted_box[row][column]
+    full_inertia = (
+        combined[0][0],
+        combined[1][1],
+        combined[2][2],
+        combined[0][1],
+        combined[0][2],
+        combined[1][2],
+    )
+    return total_mass_kg, center_m, full_inertia
+
+
+def _full_inertia_matrix(
+    inertia: tuple[float, float, float, float, float, float],
+) -> list[list[float]]:
+    ixx, iyy, izz, ixy, ixz, iyz = inertia
+    return [
+        [ixx, ixy, ixz],
+        [ixy, iyy, iyz],
+        [ixz, iyz, izz],
+    ]
+
+
+def _shift_inertia_matrix(
+    inertia: list[list[float]],
+    mass_kg: float,
+    offset_m: tuple[float, float, float],
+) -> list[list[float]]:
+    squared_norm = sum(value * value for value in offset_m)
+    return [
+        [
+            inertia[row][column]
+            + mass_kg
+            * (
+                (squared_norm if row == column else 0.0)
+                - offset_m[row] * offset_m[column]
+            )
+            for column in range(3)
+        ]
+        for row in range(3)
+    ]
+
+
+def _float_triplet(value: str, name: str) -> tuple[float, float, float]:
+    parsed = tuple(float(item) for item in value.split())
+    if len(parsed) != 3 or any(not math.isfinite(item) for item in parsed):
+        raise ValueError(f"{name} must contain three finite values")
+    return parsed
+
+
 def build_parcel_gripper_mjcf(
     source_path: str | Path,
     output_path: str | Path,
     extension_m: float,
+    density_kg_m3: float = 1240.0,
 ) -> Path:
     """Generate a Panda MJCF with explicit, versioned parcel finger adapters."""
     if not math.isfinite(extension_m) or not 0.005 <= extension_m <= 0.060:
         raise ValueError("parcel gripper extension must be in [0.005, 0.060] m")
+    if not math.isfinite(density_kg_m3) or not 100.0 <= density_kg_m3 <= 2500.0:
+        raise ValueError("parcel gripper density must be in [100, 2500] kg/m^3")
     source = Path(source_path).resolve()
     output = Path(output_path).resolve()
     if not source.is_file():
@@ -67,6 +179,39 @@ def build_parcel_gripper_mjcf(
         finger = root.find(f".//body[@name='{finger_name}']")
         if finger is None:
             raise ValueError(f"Panda MJCF is missing {finger_name}")
+        inertial = finger.find("inertial")
+        if inertial is None:
+            raise ValueError(f"Panda MJCF {finger_name} is missing inertial data")
+        if "diaginertia" not in inertial.attrib:
+            raise ValueError(
+                f"Panda MJCF {finger_name} must use explicit diaginertia"
+            )
+        base_mass_kg = float(inertial.attrib["mass"])
+        base_center_m = _float_triplet(inertial.attrib["pos"], "inertial pos")
+        diagonal = _float_triplet(
+            inertial.attrib["diaginertia"],
+            "inertial diaginertia",
+        )
+        combined_mass_kg, combined_center_m, combined_inertia = (
+            combine_rigid_body_with_box_inertia(
+                base_mass_kg,
+                base_center_m,
+                (*diagonal, 0.0, 0.0, 0.0),
+                density_kg_m3,
+                (0.010, 0.004, half_extension),
+                (0.0, 0.0055, center_z_m),
+            )
+        )
+        inertial.set("mass", f"{combined_mass_kg:.12g}")
+        inertial.set(
+            "pos",
+            " ".join(f"{value:.12g}" for value in combined_center_m),
+        )
+        inertial.attrib.pop("diaginertia")
+        inertial.set(
+            "fullinertia",
+            " ".join(f"{value:.12g}" for value in combined_inertia),
+        )
         ET.SubElement(
             finger,
             "geom",
@@ -450,6 +595,7 @@ class GenesisParcelEnv:
         self.gs.set_random_seed(config.seed + sample.episode_index)
         self._robot_asset_source = "Genesis 1.2.3 Apache-2.0 Panda MJCF"
         self._robot_mjcf_path = "xml/franka_emika_panda/panda.xml"
+        self._robot_adapter_mass_per_finger_kg = 0.0
         if config.task.parcel_gripper_adapter_enabled:
             source_mjcf = (
                 Path(self.gs.__file__).resolve().parent
@@ -458,20 +604,36 @@ class GenesisParcelEnv:
                 / "franka_emika_panda"
                 / "panda.xml"
             )
-            extension_tag = (
-                f"{config.task.parcel_gripper_adapter_extension_m * 1000.0:.1f}"
+            extension_value = (
+                f"{config.task.parcel_gripper_adapter_extension_m * 1000.0:.6f}"
+                .rstrip("0")
+            )
+            if extension_value.endswith("."):
+                extension_value += "0"
+            extension_tag = extension_value.replace(".", "p")
+            density_tag = (
+                f"{config.task.parcel_gripper_adapter_density_kg_m3:.3f}"
+                .rstrip("0")
+                .rstrip(".")
                 .replace(".", "p")
             )
             generated_mjcf = (
                 Path(config.output.root_dir)
                 / "generated_assets"
-                / f"panda_parcel_adapter_{extension_tag}mm.xml"
+                / f"panda_parcel_adapter_{extension_tag}mm_{density_tag}kgm3.xml"
+            )
+            self._robot_adapter_mass_per_finger_kg = (
+                config.task.parcel_gripper_adapter_density_kg_m3
+                * 0.020
+                * 0.008
+                * config.task.parcel_gripper_adapter_extension_m
             )
             self._robot_mjcf_path = str(
                 build_parcel_gripper_mjcf(
                     source_mjcf,
                     generated_mjcf,
                     config.task.parcel_gripper_adapter_extension_m,
+                    config.task.parcel_gripper_adapter_density_kg_m3,
                 )
             )
         self.expert = ScriptedPickPlaceExpert(config, sample)
@@ -1445,6 +1607,17 @@ class GenesisParcelEnv:
             ),
             "parcel_gripper_adapter_extension_m": (
                 self.config.task.parcel_gripper_adapter_extension_m
+            ),
+            "parcel_gripper_adapter_density_kg_m3": (
+                self.config.task.parcel_gripper_adapter_density_kg_m3
+            ),
+            "parcel_gripper_adapter_mass_per_finger_kg": (
+                self._robot_adapter_mass_per_finger_kg
+            ),
+            "parcel_gripper_adapter_inertia_model": (
+                "combined_rigid_body"
+                if self.config.task.parcel_gripper_adapter_enabled
+                else "stock_explicit_inertia"
             ),
             "robot_mjcf_path": self._robot_mjcf_path,
             "robot_asset_source": self._robot_asset_source,

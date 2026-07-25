@@ -27,6 +27,7 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(config.task.grasp_planning_transport_lookahead_enabled)
         self.assertFalse(config.task.parcel_gripper_adapter_enabled)
         self.assertEqual(config.task.parcel_gripper_adapter_extension_m, 0.030)
+        self.assertEqual(config.task.parcel_gripper_adapter_density_kg_m3, 1240.0)
         self.assertFalse(config.control.transport_slip_recovery_enabled)
         self.assertFalse(config.control.transport_slip_setdown_regrasp_enabled)
         self.assertEqual(config.control.transport_slip_setdown_step_m, 0.010)
@@ -61,6 +62,23 @@ class ConfigTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     ValueError,
                     "parcel_gripper_adapter_extension_m",
+                ):
+                    invalid.validate()
+
+    def test_parcel_gripper_density_is_bounded(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        for density_kg_m3 in (99.9, 2500.1):
+            invalid = replace(
+                config,
+                task=replace(
+                    config.task,
+                    parcel_gripper_adapter_density_kg_m3=density_kg_m3,
+                ),
+            )
+            with self.subTest(density_kg_m3=density_kg_m3):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "parcel_gripper_adapter_density_kg_m3",
                 ):
                     invalid.validate()
 

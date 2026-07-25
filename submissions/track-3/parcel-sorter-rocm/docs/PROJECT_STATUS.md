@@ -476,3 +476,23 @@ evaluation or hardware claim, the project must model printed mass/inertia and
 compliance, preregister a separate paired set, and retain the independent
 force gate. See `docs/PARCEL_GRIPPER_ADAPTER.md` and
 `evidence/expert/radeon-parcel-gripper-adapter-development-v1.json`.
+
+## Latest physical-fidelity gate: mass-aware adapter stopped
+
+The runtime generator now computes a fixed 5.952 g adapter mass per finger,
+combined center of mass, and six-component full inertia tensor. The resulting
+20.952 g finger model is accepted by Genesis 1.2.3 on the single Radeon through
+ROCm, and all prior geometry/provenance checks remain valid.
+
+The minimal elimination gate did not pass. The known failed `+40 mm` grasp
+still completed at 13.14 N, but the known successful `+45 mm` sentinel aborted
+at 38.34 N in two exactly matching runs. The 35 N supervisor worked as
+intended. No new episode, `7130001` expansion, or holdout was opened.
+
+The physical-model implementation is retained default off, while the
+mass-aware candidate is rejected for promotion. The next work is a separately
+frozen contact-pair/finger-actuator diagnostic around the frame-203 branch,
+not density, length, force, or controller tuning on this observed episode.
+The synchronized Radeon tree compiles and passes all 259 tests.
+See `docs/PARCEL_GRIPPER_ADAPTER_INERTIA.md` and
+`evidence/expert/radeon-parcel-gripper-adapter-inertia-development-v2.json`.

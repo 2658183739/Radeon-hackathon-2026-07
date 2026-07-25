@@ -336,3 +336,19 @@ VLA 接入继续放在后面，必须先让结构化物理评分器证明留出�
 30 mm 数值已冻结，适配器继续默认关闭。进入最终评估或硬件声明前，项目必须建模打印件质量/惯性
 与柔顺性，预注册独立配对集合，并保留独立力门禁。详见 `docs/PARCEL_GRIPPER_ADAPTER_CN.md` 和
 `evidence/expert/radeon-parcel-gripper-adapter-development-v1.json`。
+
+## 最新物理真实性门禁：质量感知适配器停止
+
+运行时生成器现在会计算每指固定 5.952 g 适配器质量、合并质心与六分量完整惯量张量。得到的
+20.952 g 手指模型已经由 Genesis 1.2.3 通过 ROCm 在单张 Radeon 上接受，原有几何与来源检查
+继续成立。
+
+最小淘汰门没有通过。已知失败的 `+40 mm` 抓取仍以 13.14 N 完成，但已知成功的 `+45 mm` 哨兵
+在两次完全一致的运行中都以 38.34 N 中止；35 N 监督器按预期工作。没有打开新 episode、
+`7130001` 扩大组或 holdout。
+
+物理建模实现默认关闭保留，质量感知候选则拒绝晋级。下一项工作是围绕第 203 帧分支另行冻结的
+碰撞对/手指执行器诊断，而不是在该已观察 episode 上调密度、长度、夹力或控制器。同步后的
+Radeon 源码编译通过，全量 259 项测试全部通过。详见 `docs/PARCEL_GRIPPER_ADAPTER_INERTIA_CN.md`
+和
+`evidence/expert/radeon-parcel-gripper-adapter-inertia-development-v2.json`。

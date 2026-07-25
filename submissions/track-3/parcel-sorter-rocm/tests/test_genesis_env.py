@@ -1,3 +1,4 @@
+import math
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -14,6 +15,7 @@ from parcel_sorter.genesis_env import (
     aabb_gap_m,
     build_parcel_gripper_mjcf,
     cartesian_velocity_twist,
+    combine_rigid_body_with_box_inertia,
     cross_entity_collision_pairs,
     damped_least_squares_velocity,
     detect_transport_slip,
@@ -34,7 +36,8 @@ class ParcelGripperAssetTests(unittest.TestCase):
             source = root / "panda.xml"
             source.write_text(
                 """<mujoco><compiler meshdir="assets"/><worldbody><body name="hand">
-<body name="left_finger"/><body name="right_finger"/>
+<body name="left_finger"><inertial mass="0.015" pos="0 0 0" diaginertia="2.375e-6 2.375e-6 7.5e-7"/></body>
+<body name="right_finger"><inertial mass="0.015" pos="0 0 0" diaginertia="2.375e-6 2.375e-6 7.5e-7"/></body>
 </body></worldbody></mujoco>""",
                 encoding="utf-8",
             )
@@ -59,10 +62,41 @@ class ParcelGripperAssetTests(unittest.TestCase):
                 self.assertEqual(collision.attrib["pos"], "0 0.0055 0.068000000")
                 self.assertEqual(visual.attrib["contype"], "0")
                 self.assertEqual(visual.attrib["conaffinity"], "0")
+                inertial = finger.find("inertial")
+                self.assertAlmostEqual(float(inertial.attrib["mass"]), 0.020952)
+                self.assertNotIn("diaginertia", inertial.attrib)
+                self.assertEqual(len(inertial.attrib["fullinertia"].split()), 6)
 
     def test_rejects_unbounded_extension_before_reading_source(self) -> None:
         with self.assertRaisesRegex(ValueError, "extension"):
             build_parcel_gripper_mjcf("missing.xml", "output.xml", 0.061)
+
+    def test_combines_box_mass_center_and_parallel_axis_inertia(self) -> None:
+        mass, center, full_inertia = combine_rigid_body_with_box_inertia(
+            0.015,
+            (0.0, 0.0, 0.0),
+            (2.375e-6, 2.375e-6, 7.5e-7, 0.0, 0.0, 0.0),
+            1240.0,
+            (0.010, 0.004, 0.015),
+            (0.0, 0.0055, 0.068),
+        )
+
+        self.assertAlmostEqual(mass, 0.020952)
+        self.assertAlmostEqual(center[0], 0.0)
+        self.assertAlmostEqual(center[1], 0.00156242840778923)
+        self.assertAlmostEqual(center[2], 0.0193172966781214)
+        self.assertTrue(all(math.isfinite(value) for value in full_inertia))
+        self.assertGreater(full_inertia[0], 2.375e-6)
+        self.assertLess(full_inertia[5], 0.0)
+        ixx, iyy, izz, ixy, ixz, iyz = full_inertia
+        self.assertGreater(ixx, 0.0)
+        self.assertGreater(ixx * iyy - ixy * ixy, 0.0)
+        determinant = (
+            ixx * (iyy * izz - iyz * iyz)
+            - ixy * (ixy * izz - iyz * ixz)
+            + ixz * (ixy * iyz - iyy * ixz)
+        )
+        self.assertGreater(determinant, 0.0)
 
 
 class DiagnosticGraspAllowlistTests(unittest.TestCase):

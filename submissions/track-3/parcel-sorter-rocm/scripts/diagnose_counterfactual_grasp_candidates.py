@@ -67,6 +67,12 @@ def parse_args() -> argparse.Namespace:
         help="override the adapter extension length in metres",
     )
     parser.add_argument(
+        "--parcel-gripper-density-kg-m3",
+        type=float,
+        default=None,
+        help="override the effective adapter density used for finger inertia",
+    )
+    parser.add_argument(
         "--inactive-gate",
         choices=("error", "skip"),
         default="error",
@@ -164,6 +170,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 config.task.parcel_gripper_adapter_extension_m
                 if args.parcel_gripper_extension_m is None
                 else args.parcel_gripper_extension_m
+            ),
+            parcel_gripper_adapter_density_kg_m3=(
+                config.task.parcel_gripper_adapter_density_kg_m3
+                if args.parcel_gripper_density_kg_m3 is None
+                else args.parcel_gripper_density_kg_m3
             ),
         ),
         control=replace(
@@ -308,6 +319,24 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "parcel_gripper_adapter_extension_m": (
                 config.task.parcel_gripper_adapter_extension_m
+            ),
+            "parcel_gripper_adapter_density_kg_m3": (
+                config.task.parcel_gripper_adapter_density_kg_m3
+            ),
+            "parcel_gripper_adapter_mass_per_finger_kg": (
+                (
+                    0.020
+                    * 0.008
+                    * config.task.parcel_gripper_adapter_extension_m
+                    * config.task.parcel_gripper_adapter_density_kg_m3
+                )
+                if config.task.parcel_gripper_adapter_enabled
+                else 0.0
+            ),
+            "parcel_gripper_adapter_inertia_model": (
+                "combined_rigid_body"
+                if config.task.parcel_gripper_adapter_enabled
+                else "stock_explicit_inertia"
             ),
             "contact_wrench_changes_controller": False,
             "contact_wrench_changes_ranking": False,
