@@ -75,6 +75,10 @@ def main() -> int:
             control=replace(config.control, reset_qpos=tuple(args.reset_qpos)),
         )
     try:
+        config.validate()
+    except ValueError as exc:
+        parser.error(str(exc))
+    try:
         if args.collection_plan:
             requests = load_collection_requests(
                 args.collection_plan,

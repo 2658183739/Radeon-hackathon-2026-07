@@ -965,3 +965,28 @@ to competition evidence and makes the next run a clear one-variable A/B test.
 
 **Revisit trigger.** Run identical Radeon episodes with the same 35 N limit,
 then require no success or throughput regression and a full catalog check.
+
+### 48. Revalidate the complete configuration after CLI overrides
+
+**Observation.** TOML loading validates the configuration, but `--reset-qpos`
+replaces a field after loading. Python's `float` parser accepts `NaN` and
+`Inf`, so load-time validation alone allowed non-finite joints to reach
+environment initialization.
+
+**Decision and reason.** Call `config.validate()` once all runtime overrides
+have been merged, and report failures through `argparse`. The validation
+boundary belongs at the final effective configuration, not only at source-file
+parsing.
+
+**Code capability.** Final-configuration contract enforcement, non-finite
+numeric input protection, and fast failure before expensive simulation setup.
+
+**Verification.** A CLI-level regression test supplies nine `NaN` values and
+asserts exit code 2, an actionable message, and no `GenesisParcelEnv`
+construction. All 88 tests pass on Radeon when the current project's
+`PYTHONPATH` is explicit. The first test attempt accidentally resolved an old
+editable install at `/workspace/parcel-sorter-rocm`; that was an environment
+path mix-up rather than a code regression.
+
+**Revisit trigger.** Any new CLI or environment-based override must preserve
+the sequence: merge all overrides, validate once, then create side effects.

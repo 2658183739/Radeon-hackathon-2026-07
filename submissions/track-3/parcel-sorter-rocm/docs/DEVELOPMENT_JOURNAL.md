@@ -486,3 +486,13 @@ default from CPU evidence.** CPU screening only ranks candidates and is not a
 competition result because the task requires AMD Radeon execution. The exact
 Radeon command is documented in the README and the candidate remains subject
 to matched episode, full-catalog, and throughput gates.
+
+### Record 44: close the final runtime-configuration validation gap
+
+`--reset-qpos` previously replaced configuration after TOML validation, which
+could let `NaN/Inf` bypass the finite-value contract. The entry point now
+revalidates the complete configuration after every override. A new test injects
+nine `NaN` values through the real CLI path and confirms exit before Genesis
+environment construction. All 88 tests pass on Radeon. Reproduction commands
+must explicitly select the current checkout's `src`, because the shared virtual
+environment retains an editable install pointing to an older workspace.
