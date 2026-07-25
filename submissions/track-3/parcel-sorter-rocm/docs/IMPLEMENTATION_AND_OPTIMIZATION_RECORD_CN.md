@@ -256,3 +256,11 @@ python scripts/build_dataset_split.py \
 
 本记录、配套的[工程流程与学习手册](ENGINEERING_PLAYBOOK_CN.md)和原始证据共同构成项目
 事实来源。报告和视频应该引用结果状态与产物，而不是用不可复现的叙述替代证据。
+
+## 已完成的抓取稳定性机理决策
+
+stock Panda 侧抓/倾斜抓筛选和反馈式滑移恢复探针已经完成。静态几何没有产生可接入的深抓姿态。
+默认关闭的 2 N 夹力响应通过 Radeon 全量 200 项测试，物理峰值也低于 35 N 门禁，但只把最终
+失去接触推迟一帧，未能恢复 `4120001`。两种方法都只作为可复现负对照保留。详见
+`docs/GRASP_CONTACT_STABILITY_2026-07-26_CN.md` 和
+`evidence/expert/radeon-slip-recovery-feedback-probe-v1/`。

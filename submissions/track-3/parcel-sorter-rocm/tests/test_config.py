@@ -21,6 +21,9 @@ class ConfigTests(unittest.TestCase):
         self.assertFalse(config.task.grasp_planning_waypoint_collision_gate_enabled)
         self.assertFalse(config.task.grasp_planning_reset_fallback_gate_enabled)
         self.assertFalse(config.task.grasp_planning_transport_contract_enabled)
+        self.assertTrue(config.task.grasp_planning_transport_lookahead_enabled)
+        self.assertFalse(config.control.transport_slip_recovery_enabled)
+        self.assertEqual(config.control.transport_slip_force_boost_n, 2.0)
         self.assertEqual(len(config.control.arm_kp), 7)
         self.assertEqual(len(config.control.reset_qpos), 9)
         self.assertLessEqual(config.control.final_approach_step_m, config.control.max_ee_step_m)
@@ -81,6 +84,50 @@ class ConfigTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "grasp_planning_transport_step_m"):
+            invalid.validate()
+
+    def test_transport_slip_recovery_requires_transport_contract(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            control=replace(config.control, transport_slip_recovery_enabled=True),
+        )
+
+        with self.assertRaisesRegex(ValueError, "transport_slip_recovery_enabled"):
+            invalid.validate()
+
+    def test_disabling_transport_lookahead_requires_transport_contract(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            task=replace(
+                config.task,
+                grasp_planning_transport_lookahead_enabled=False,
+            ),
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "grasp_planning_transport_lookahead_enabled",
+        ):
+            invalid.validate()
+
+    def test_transport_slip_force_target_preserves_safety_margin(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            task=replace(
+                config.task,
+                grasp_planning_transport_contract_enabled=True,
+            ),
+            control=replace(
+                config.control,
+                transport_slip_recovery_enabled=True,
+                transport_slip_force_boost_n=5.1,
+            ),
+        )
+
+        with self.assertRaisesRegex(ValueError, "at least 10 N below"):
             invalid.validate()
 
     def test_reset_fallback_gate_requires_planning_and_collision_checked_reset(self) -> None:

@@ -295,3 +295,19 @@ fit to the same development case. The next mechanism should alter grasp
 stability through payload-aware candidate scoring, side grasps, or slip
 detection and regrasp. Bilingual results, runtime metadata, and three SHA-256
 manifests preserve the evidence provenance.
+
+## Feedback slip-recovery negative control
+
+`expert/radeon-slip-recovery-feedback-probe-v1/` records the default-off slip
+detector and bounded close-force response on the already observed
+`4120001 medium_carton` mechanism episode. The detector uses frozen 8 mm
+relative, 6 mm downward, 1 N contact, and 80 mm destination gates. It raises
+the command from 20 N to 22 N for 15 frames without changing the 35 N abort
+threshold.
+
+The rule triggered at frames 159 and 261. Peak measured force remained at
+22.92 N, but final contact loss moved only from frame 260 to 261 and the task
+still failed after one retry. The preregistered stop rule cancelled sentinels
+and parameter scans. Compact evidence, a trace comparison, bilingual results,
+runtime metadata, source hashes, and full-summary hashes are retained in the
+directory.

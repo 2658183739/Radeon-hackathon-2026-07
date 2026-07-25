@@ -150,6 +150,7 @@ class ScriptedPickPlaceExpert:
             command == Command.MOVE_DROP
             and self._planned_transport_contract_active()
             and not self._drop_descent_committed
+            and self.config.task.grasp_planning_transport_lookahead_enabled
         ):
             target = self._bounded_transport_reference(current, desired, step_limit)
         else:

@@ -92,3 +92,24 @@ Implement default-off slip telemetry and a short, bounded close-force boost.
 The command must retain a substantial margin below the unchanged 35 N measured
 force abort. Test `4120001` first, then rerun both successful sentinels. Only a
 safe mechanism probe may proceed to new predeclared episodes.
+
+## Gated experiment outcome
+
+The implementation uses an 8 mm relative jump, 6 mm downward component, 1 N
+contact floor, and 80 mm destination exclusion. A 2 N boost raises the close
+command from 20 N to 22 N for 15 frames. It is default-off, requires the staged
+transport contract, and exposes event and force telemetry. A separate ablation
+switch disables transport lookahead so the probe reproduces the feedback trace
+used to freeze the detector. Default behavior remains unchanged. The complete
+Radeon suite passed 200 tests.
+
+The `4120001` probe triggered at the expected frame 159 and again at frame 261.
+Peak measured force was 22.92 N, below the unchanged 35 N line. The first boost
+restored bilateral contact only temporarily. Final contact loss moved from
+frame 260 to frame 261; both the feedback baseline and candidate failed after
+one retry in 19.97 s.
+
+This fails the primary task gate. The two successful sentinels, parameter scans,
+and new-episode validation are therefore cancelled. Force-only recovery remains
+a disabled negative control. The next valid mechanism must change capture
+geometry or execute a safe set-down/regrasp transition.

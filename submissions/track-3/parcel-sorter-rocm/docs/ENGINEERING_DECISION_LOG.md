@@ -1629,3 +1629,50 @@ same development cases would be post-hoc fitting. Keep the code default off as
 a negative control. The next method must change grasp stability itself through
 payload-aware ranking, a side-grasp family, or measured-slip-triggered regrasp,
 then freeze new episodes before making a performance claim.
+
+### 70. Reject stock-Panda side and oblique grasps after feasibility screening
+
+**Observation.** The failed and successful transport-contract episodes all
+used the same centered top grasp, but mass and friction did not explain the
+failure ordering. This justified checking deeper contact geometry before
+changing force or transport timing again.
+
+**Alternatives and evidence.** Top-down, three long-axis side-clearance groups,
+and 30/45-degree oblique grasps were evaluated with the same IK, FK restore,
+and non-finger collision contract. Top-down produced 36/72 feasible
+evaluations. Every side group produced 0/24. Oblique grasps produced 24/24 IK
+solutions and 24/24 hand/carton collisions.
+
+**Decision and reason.** Do not integrate these pose families. The stock hand
+cannot establish the intended deeper contact without collision. Longer fingers,
+a cradle, or suction are different robot assets and must have explicit source,
+license, model, and collision validation before evaluation. Diagnostic
+generators remain for reproducibility; the production candidate set is
+unchanged.
+
+### 71. Reject force-only slip recovery and require a state-changing response
+
+**Hypothesis and fixed rule.** A single-frame 8 mm relative jump with at least
+6 mm downward motion, 1 N contact, and 80 mm destination distance isolated the
+known frame-159 slip without firing on two successful frozen traces. The only
+response was a 20 N to 22 N close-force command for 15 frames; the 35 N abort
+threshold and every pose/transport parameter remained fixed.
+
+**Implementation evidence.** Slip detection, bounded force response, per-frame
+and episode telemetry, a default-preserving transport-lookahead ablation, CLI
+validation, and unit contracts passed all 200 Radeon tests. The lookahead
+switch was necessary to compare against the feedback trace on which the rule
+was frozen; leaving lookahead active produced a separate 39.95 N failure and
+would confound the experiment.
+
+**Physical result.** The rule fired at frames 159 and 261. Peak force was a safe
+22.92 N, but final contact loss moved by only one frame, from 260 to 261. The
+candidate and feedback baseline both failed after one retry in 19.97 s. At the
+second trigger bilateral contact was already absent, so close force could not
+recapture the parcel.
+
+**Decision and revisit trigger.** Reject promotion, retain the code disabled,
+and cancel sentinels and parameter scans under the preregistered stop rule.
+Revisit only with a response that changes state: safe set-down/regrasp, verified
+deeper capture geometry, or a different licensed end effector. Do not infer a
+success-rate effect from this single development episode.

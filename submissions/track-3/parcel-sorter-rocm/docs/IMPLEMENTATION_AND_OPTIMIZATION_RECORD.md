@@ -310,3 +310,13 @@ Reason and revisit trigger:
 This record, the [Engineering Playbook](ENGINEERING_PLAYBOOK.md), and raw
 evidence are the project source of truth. Reports and videos should cite the
 result state and artifacts, not replace them with unrepeatable narration.
+
+## Completed grasp-stability mechanism decision
+
+The stock-Panda side/oblique pose screen and the feedback slip-recovery probe
+are complete. Static geometry produced no integrable deeper grasp. The
+default-off 2 N force response passed 200 Radeon tests and stayed below the
+35 N physical gate, but delayed final contact loss by only one frame and did
+not recover `4120001`. Both methods are retained only as reproducible negative
+controls. See `docs/GRASP_CONTACT_STABILITY_2026-07-26.md` and
+`evidence/expert/radeon-slip-recovery-feedback-probe-v1/`.

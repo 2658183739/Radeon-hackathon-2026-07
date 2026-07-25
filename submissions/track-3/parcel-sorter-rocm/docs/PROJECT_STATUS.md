@@ -371,3 +371,21 @@ freeze new development episodes. Balanced collection, formal learned-policy
 ranking, VLA, and ROS 2 remain gated on expert task performance and safety.
 Complete evidence is under
 `evidence/expert/radeon-transport-contract-probe-v1/`.
+
+## Latest mechanism probe: force-only slip recovery rejected
+
+Static screening rejected deeper stock-Panda grasps before controller
+integration: all three side-grasp groups had zero feasible candidates, and all
+24 oblique IK solutions collided with the hand. No unmodeled longer fingers or
+custom gripper were introduced.
+
+A frozen slip detector then triggered on the known `4120001` transport event.
+The default-off response raised the close command from 20 N to 22 N for 15
+frames while retaining the 35 N abort line. Radeon validation passed 200 tests.
+The physical probe peaked at 22.92 N but only delayed final contact loss from
+frame 260 to 261; task result and 19.97 s duration were unchanged failures.
+
+The candidate remains a disabled negative control. Its failed primary probe
+cancels successful sentinels, threshold scans, and confirmation runs. The next
+controller mechanism must add safe set-down/regrasp or a verified open-source
+capture geometry. Learned-policy and VLA claims remain gated.

@@ -187,6 +187,11 @@ def main() -> int:
         help="stage planned payload raise, transfer, and descent with stable handoffs",
     )
     parser.add_argument(
+        "--grasp-planning-disable-transport-lookahead",
+        action="store_true",
+        help="ablation only: use measured-pose feedback instead of a staged lookahead reference",
+    )
+    parser.add_argument(
         "--grasp-planning-raise-step",
         type=float,
         default=None,
@@ -203,6 +208,11 @@ def main() -> int:
         type=int,
         default=None,
         help="hold this many control frames at planned transport phase boundaries",
+    )
+    parser.add_argument(
+        "--transport-slip-recovery",
+        action="store_true",
+        help="enable frozen mid-transport slip detection and bounded force recovery",
     )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
@@ -248,9 +258,11 @@ def main() -> int:
         or args.grasp_planning_disable_tiered_approach
         or args.grasp_planning_drop_step is not None
         or args.grasp_planning_transport_contract
+        or args.grasp_planning_disable_transport_lookahead
         or args.grasp_planning_raise_step is not None
         or args.grasp_planning_transport_step is not None
         or args.grasp_planning_transfer_settle_steps is not None
+        or args.transport_slip_recovery
     ):
         config = replace(
             config,
@@ -329,6 +341,10 @@ def main() -> int:
                     config.task.grasp_planning_transport_contract_enabled
                     or args.grasp_planning_transport_contract
                 ),
+                grasp_planning_transport_lookahead_enabled=(
+                    config.task.grasp_planning_transport_lookahead_enabled
+                    and not args.grasp_planning_disable_transport_lookahead
+                ),
                 grasp_planning_raise_step_m=(
                     config.task.grasp_planning_raise_step_m
                     if args.grasp_planning_raise_step is None
@@ -380,6 +396,10 @@ def main() -> int:
                     config.control.collision_checked_reset_enabled
                     or args.collision_checked_reset
                 ),
+                transport_slip_recovery_enabled=(
+                    config.control.transport_slip_recovery_enabled
+                    or args.transport_slip_recovery
+                ),
             ),
         )
     if args.approach_step is not None:
@@ -399,9 +419,11 @@ def main() -> int:
         or args.grasp_planning_disable_tiered_approach
         or args.grasp_planning_drop_step is not None
         or args.grasp_planning_transport_contract
+        or args.grasp_planning_disable_transport_lookahead
         or args.grasp_planning_raise_step is not None
         or args.grasp_planning_transport_step is not None
         or args.grasp_planning_transfer_settle_steps is not None
+        or args.transport_slip_recovery
     ) and not config.task.geometry_aware_grasp_planning_enabled:
         parser.error("grasp-planning options require --geometry-aware-grasp-planning")
     try:

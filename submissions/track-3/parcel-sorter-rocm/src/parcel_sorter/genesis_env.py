@@ -196,6 +196,70 @@ class ParcelSpawnSpec:
     cylinder_radius_m: float | None = None
 
 
+PAYLOAD_TRANSPORT_PHASES = frozenset(
+    {"raise", "raise_settle", "transfer", "transfer_settle"}
+)
+
+
+@dataclass(frozen=True)
+class TransportSlipSignal:
+    relative_delta_m: float
+    downward_delta_m: float
+    destination_distance_m: float
+    contact_force_n: float
+    triggered: bool
+
+
+def detect_transport_slip(
+    previous_relative_position_m: tuple[float, float, float] | None,
+    state: RobotState,
+    *,
+    phase: str,
+    relative_delta_threshold_m: float,
+    downward_delta_threshold_m: float,
+    min_contact_force_n: float,
+    min_destination_distance_m: float,
+) -> TransportSlipSignal | None:
+    """Fuse relative motion, contact, and task phase into one slip signal."""
+    if previous_relative_position_m is None:
+        return None
+    current_relative = tuple(
+        float(ee - parcel)
+        for ee, parcel in zip(
+            state.end_effector_pose[:3],
+            state.parcel_pose[:3],
+            strict=True,
+        )
+    )
+    relative_step = tuple(
+        current - previous
+        for current, previous in zip(
+            current_relative,
+            previous_relative_position_m,
+            strict=True,
+        )
+    )
+    relative_delta_m = math.sqrt(sum(value * value for value in relative_step))
+    downward_delta_m = relative_step[2]
+    destination_distance_m = math.hypot(
+        state.end_effector_pose[0] - state.target_position[0],
+        state.end_effector_pose[1] - state.target_position[1],
+    )
+    return TransportSlipSignal(
+        relative_delta_m=relative_delta_m,
+        downward_delta_m=downward_delta_m,
+        destination_distance_m=destination_distance_m,
+        contact_force_n=state.gripper_contact_force_n,
+        triggered=(
+            phase in PAYLOAD_TRANSPORT_PHASES
+            and relative_delta_m >= relative_delta_threshold_m
+            and downward_delta_m >= downward_delta_threshold_m
+            and state.gripper_contact_force_n >= min_contact_force_n
+            and destination_distance_m >= min_destination_distance_m
+        ),
+    )
+
+
 def parcel_spawn_spec(config: ExperimentConfig, sample: ParcelSample) -> ParcelSpawnSpec:
     dimensions = sample.dimensions_m or tuple(
         base * scale
@@ -371,6 +435,17 @@ class GenesisParcelEnv:
         self._grasp_waypoint_max_segment_samples = 0
         self._grasp_waypoint_last_collision: tuple[dict[str, Any], ...] = ()
         self._grasp_waypoint_last_restore_error = 0.0
+        self._transport_slip_previous_relative_position_m: (
+            tuple[float, float, float] | None
+        ) = None
+        self._transport_slip_samples = 0
+        self._transport_slip_trigger_count = 0
+        self._transport_slip_active_steps = 0
+        self._transport_slip_force_remaining_steps = 0
+        self._transport_slip_max_relative_delta_m = 0.0
+        self._transport_slip_last_signal: TransportSlipSignal | None = None
+        self._transport_slip_last_force_limit_n = config.control.close_force_n
+        self._transport_slip_events: list[dict[str, Any]] = []
 
         physics_dt = 1.0 / config.simulation.physics_hz
         rolling_friction = needs_rolling_friction(sample)
@@ -535,7 +610,8 @@ class GenesisParcelEnv:
         )
 
     def prepare_action(self, decision: ControlDecision, state: RobotState) -> None:
-        """Select one audited grasp pose before the expert emits an action."""
+        """Update payload safety and select a grasp before policy prediction."""
+        self._update_transport_slip_recovery(decision, state)
         task = self.config.task
         if (
             not self._geometry_grasp_planning_active
@@ -561,6 +637,69 @@ class GenesisParcelEnv:
         self._grasp_plan_pending_replan = False
         self._action_queue = deque([None] * self.sample.action_delay_steps)
         self._plan_grasp_pose(state, decision.retry_count)
+
+    def _update_transport_slip_recovery(
+        self,
+        decision: ControlDecision,
+        state: RobotState,
+    ) -> None:
+        control = self.config.control
+        phase = self.expert.transport_phase
+        active = (
+            control.transport_slip_recovery_enabled
+            and self._geometry_grasp_planning_active
+            and decision.command in {"move_lift", "move_drop"}
+            and phase in PAYLOAD_TRANSPORT_PHASES
+        )
+        if not active:
+            self._transport_slip_previous_relative_position_m = None
+            self._transport_slip_force_remaining_steps = 0
+            return
+
+        current_relative = tuple(
+            float(ee - parcel)
+            for ee, parcel in zip(
+                state.end_effector_pose[:3],
+                state.parcel_pose[:3],
+                strict=True,
+            )
+        )
+        signal = detect_transport_slip(
+            self._transport_slip_previous_relative_position_m,
+            state,
+            phase=phase,
+            relative_delta_threshold_m=control.transport_slip_relative_delta_m,
+            downward_delta_threshold_m=control.transport_slip_downward_delta_m,
+            min_contact_force_n=control.transport_slip_min_contact_force_n,
+            min_destination_distance_m=(
+                control.transport_slip_min_destination_distance_m
+            ),
+        )
+        self._transport_slip_previous_relative_position_m = current_relative
+        if signal is None:
+            return
+
+        self._transport_slip_samples += 1
+        self._transport_slip_last_signal = signal
+        self._transport_slip_max_relative_delta_m = max(
+            self._transport_slip_max_relative_delta_m,
+            signal.relative_delta_m,
+        )
+        if not signal.triggered:
+            return
+
+        self._transport_slip_trigger_count += 1
+        self._transport_slip_force_remaining_steps = max(
+            self._transport_slip_force_remaining_steps,
+            control.transport_slip_force_hold_steps,
+        )
+        self._transport_slip_events.append(
+            {
+                "frame": self.control_step,
+                "phase": phase,
+                **asdict(signal),
+            }
+        )
 
     def _plan_grasp_pose(self, state: RobotState, retry_count: int) -> None:
         started = time.perf_counter_ns()
@@ -914,6 +1053,24 @@ class GenesisParcelEnv:
                 else None
             ),
             "grasp_planning_transport_phase": self.expert.transport_phase,
+            "grasp_planning_transport_lookahead_enabled": (
+                self.config.task.grasp_planning_transport_lookahead_enabled
+            ),
+            "transport_slip_recovery_enabled": (
+                self.config.control.transport_slip_recovery_enabled
+            ),
+            "transport_slip_trigger_count": self._transport_slip_trigger_count,
+            "transport_slip_force_remaining_steps": (
+                self._transport_slip_force_remaining_steps
+            ),
+            "transport_slip_last_force_limit_n": (
+                self._transport_slip_last_force_limit_n
+            ),
+            "transport_slip_last_signal": (
+                asdict(self._transport_slip_last_signal)
+                if self._transport_slip_last_signal is not None
+                else None
+            ),
             "grasp_waypoint_rejections": self._grasp_waypoint_rejections,
             "grasp_waypoint_last_collision": self._grasp_waypoint_last_collision,
         }
@@ -1026,6 +1183,9 @@ class GenesisParcelEnv:
             "grasp_planning_transport_contract_enabled": (
                 self.config.task.grasp_planning_transport_contract_enabled
             ),
+            "grasp_planning_transport_lookahead_enabled": (
+                self.config.task.grasp_planning_transport_lookahead_enabled
+            ),
             "grasp_planning_raise_step_m": (
                 self.config.task.grasp_planning_raise_step_m
             ),
@@ -1036,6 +1196,37 @@ class GenesisParcelEnv:
                 self.config.task.grasp_planning_transfer_settle_steps
             ),
             "grasp_planning_transport_final_phase": self.expert.transport_phase,
+            "transport_slip_recovery_enabled": (
+                self.config.control.transport_slip_recovery_enabled
+            ),
+            "transport_slip_relative_delta_m": (
+                self.config.control.transport_slip_relative_delta_m
+            ),
+            "transport_slip_downward_delta_m": (
+                self.config.control.transport_slip_downward_delta_m
+            ),
+            "transport_slip_min_contact_force_n": (
+                self.config.control.transport_slip_min_contact_force_n
+            ),
+            "transport_slip_min_destination_distance_m": (
+                self.config.control.transport_slip_min_destination_distance_m
+            ),
+            "transport_slip_force_boost_n": (
+                self.config.control.transport_slip_force_boost_n
+            ),
+            "transport_slip_force_hold_steps": (
+                self.config.control.transport_slip_force_hold_steps
+            ),
+            "transport_slip_samples": self._transport_slip_samples,
+            "transport_slip_trigger_count": self._transport_slip_trigger_count,
+            "transport_slip_active_steps": self._transport_slip_active_steps,
+            "transport_slip_max_relative_delta_m": (
+                self._transport_slip_max_relative_delta_m
+            ),
+            "transport_slip_last_force_limit_n": (
+                self._transport_slip_last_force_limit_n
+            ),
+            "transport_slip_events": tuple(self._transport_slip_events),
             "grasp_planning_joint_segment_resolution_rad": (
                 self.config.task.grasp_planning_joint_segment_resolution_rad
             ),
@@ -1113,11 +1304,21 @@ class GenesisParcelEnv:
                 self.robot.control_dofs_position(qpos_array[:7], self.arm_dofs)
         if action.gripper > 0:
             self._gripper_force_n = 0.0
+            self._transport_slip_force_remaining_steps = 0
+            self._transport_slip_last_force_limit_n = (
+                self.config.control.close_force_n
+            )
             width = self.config.control.open_width_m
             self.robot.control_dofs_position(self.np.asarray((width, width)), self.finger_dofs)
         else:
+            force_limit_n = self.config.control.close_force_n
+            if self._transport_slip_force_remaining_steps > 0:
+                force_limit_n += self.config.control.transport_slip_force_boost_n
+                self._transport_slip_force_remaining_steps -= 1
+                self._transport_slip_active_steps += 1
+            self._transport_slip_last_force_limit_n = force_limit_n
             self._gripper_force_n = min(
-                self.config.control.close_force_n,
+                force_limit_n,
                 self._gripper_force_n + self.config.control.close_force_ramp_n_per_step,
             )
             force = self._gripper_force_n

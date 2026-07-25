@@ -895,3 +895,43 @@ bounded lookahead produced 39.95 N and 40.95 N at 10 mm and 5 mm increments.
 The 35 N gate stopped expansion. Code, CLI, 186 passing tests, compact evidence,
 and full-summary hashes are archived. The next record must address payload-aware
 grasp stability rather than another transport-step scan.
+
+### Record 66: Reject infeasible deeper grasp families before integration
+
+The grasp-stability investigation first separated static feasibility from
+loaded transport behavior. The original top-down family produced 36 feasible
+IK/collision evaluations out of 72. Three long-axis side-grasp clearances each
+produced zero feasible candidates out of 24, while all 24 oblique 30/45-degree
+candidates solved IK but collided with the stock Panda hand.
+
+These candidates remain diagnostic-only. Connecting them to the controller or
+silently extending the stock fingers would overstate the implemented robot.
+The source generator records approach direction and palm-clearance metadata,
+the compact Radeon evidence binds the full candidate artifact, and all 191
+tests passed before the next mechanism was selected.
+
+Frozen trace replay then identified a state-based slip signal. An 8 mm
+single-frame relative jump, 6 mm downward component, 1 N contact floor, and
+80 mm destination exclusion selected only frame 159 of `4120001`; it produced
+zero triggers on the two successful sentinels. This froze a force-response
+probe without claiming in advance that force could recover the grasp.
+
+### Record 67: Reject force-only slip recovery after one gated probe
+
+The implementation adds default-off slip telemetry and a 2 N, 15-frame close
+force boost. A separate default-preserving lookahead switch reconstructs the
+measured-pose feedback controller used to freeze the signal. Configuration
+validation keeps the 22 N command target at least 10 N below the unchanged
+35 N abort line, while telemetry records events, active frames, force target,
+and maximum relative displacement. The full Radeon suite passed 200 tests.
+
+On `4120001`, the detector fired at the frozen frame 159 and again at frame
+261. Peak measured force remained below the gate at 22.92 N. The first boost
+temporarily restored bilateral contact, but the carton continued descending;
+final contact loss moved only from frame 260 to frame 261. Both baseline and
+candidate failed after one retry in 19.97 s.
+
+The primary mechanism probe failed, so the two successful sentinels and all
+threshold/force scans were cancelled. The code is retained as a disabled,
+auditable negative control. Reconsideration requires a capture-geometry or
+recovery-state change, not a larger close-force command.

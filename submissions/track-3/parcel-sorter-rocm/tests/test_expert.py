@@ -540,6 +540,45 @@ class ScriptedExpertTests(unittest.TestCase):
             0.005,
         )
 
+    def test_transport_without_lookahead_uses_measured_pose_feedback(self) -> None:
+        config = replace(
+            self.config,
+            task=replace(
+                self.config.task,
+                geometry_aware_grasp_planning_enabled=True,
+                grasp_planning_transport_contract_enabled=True,
+                grasp_planning_transport_lookahead_enabled=False,
+                grasp_planning_transport_step_m=0.010,
+                grasp_planning_transfer_settle_steps=1,
+            ),
+        )
+        expert = ScriptedPickPlaceExpert(config, self.sample)
+        expert.set_planned_grasp_pose(
+            (self.state.parcel_pose[0], self.state.parcel_pose[1], 0.20),
+            (0.0, 1.0, 0.0, 0.0),
+        )
+        decision = ControlDecision("place", Command.MOVE_DROP.value, "test", 0)
+        transfer_z = max(
+            config.task.drop_hand_height_m + 0.10,
+            expert.lift_position()[2] + 0.05,
+        )
+        raised = replace(
+            self.state,
+            end_effector_pose=(0.35, 0.0, transfer_z, 1.0, 0.0, 0.0, 0.0),
+        )
+        expert.action(decision, raised)
+        expert.action(decision, raised)
+
+        first_transfer = expert.action(decision, raised)
+        second_transfer = expert.action(decision, raised)
+
+        self.assertEqual(expert.transport_phase, "transfer")
+        self.assertAlmostEqual(
+            math.dist(first_transfer.target_position, raised.end_effector_pose[:3]),
+            config.task.grasp_planning_transport_step_m,
+        )
+        self.assertEqual(second_transfer.target_position, first_transfer.target_position)
+
     def test_retry_lift_uses_latest_grasp_location(self) -> None:
         close = ControlDecision("grasp", Command.CLOSE_GRIPPER.value, "test", 1)
         self.expert.action(close, self.state)

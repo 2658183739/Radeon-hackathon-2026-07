@@ -6,13 +6,14 @@ from types import SimpleNamespace
 import numpy as np
 
 from parcel_sorter.config import load_config
-from parcel_sorter.contracts import CartesianAction
+from parcel_sorter.contracts import CartesianAction, RobotState
 from parcel_sorter.genesis_env import (
     GenesisParcelEnv,
     aabb_gap_m,
     cartesian_velocity_twist,
     cross_entity_collision_pairs,
     damped_least_squares_velocity,
+    detect_transport_slip,
     genesis_depth_to_meters,
     resolve_geometry_grasp_planning_active,
     scaled_robot_gains,
@@ -48,6 +49,102 @@ class AabbGapTests(unittest.TestCase):
     def test_rejects_malformed_bounds(self) -> None:
         with self.assertRaisesRegex(ValueError, "min and max"):
             aabb_gap_m(((0.0, 0.0, 0.0),), ((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)))
+
+
+class TransportSlipDetectionTests(unittest.TestCase):
+    @staticmethod
+    def _state(
+        *,
+        end_effector_position: tuple[float, float, float],
+        parcel_position: tuple[float, float, float],
+        force_n: float,
+        destination: tuple[float, float, float] = (0.48, 0.34, 0.025),
+    ) -> RobotState:
+        return RobotState(
+            joint_positions=(0.0,) * 9,
+            end_effector_pose=(*end_effector_position, 1.0, 0.0, 0.0, 0.0),
+            parcel_pose=(*parcel_position, 1.0, 0.0, 0.0, 0.0),
+            target_position=destination,
+            gripper_contact_force_n=force_n,
+        )
+
+    def test_triggers_on_mid_transfer_downward_relative_jump(self) -> None:
+        state = self._state(
+            end_effector_position=(0.596, 0.024, 0.335),
+            parcel_position=(0.585, 0.030, 0.168),
+            force_n=16.52,
+        )
+
+        signal = detect_transport_slip(
+            (0.0057, -0.0030, 0.1560),
+            state,
+            phase="transfer",
+            relative_delta_threshold_m=0.008,
+            downward_delta_threshold_m=0.006,
+            min_contact_force_n=1.0,
+            min_destination_distance_m=0.080,
+        )
+
+        self.assertIsNotNone(signal)
+        assert signal is not None
+        self.assertTrue(signal.triggered)
+        self.assertGreater(signal.relative_delta_m, 0.008)
+        self.assertGreater(signal.downward_delta_m, 0.006)
+        self.assertGreater(signal.destination_distance_m, 0.080)
+
+    def test_excludes_equivalent_jump_at_destination(self) -> None:
+        state = self._state(
+            end_effector_position=(0.480, 0.335, 0.352),
+            parcel_position=(0.463, 0.343, 0.159),
+            force_n=13.88,
+        )
+
+        signal = detect_transport_slip(
+            (0.011, 0.003, 0.176),
+            state,
+            phase="transfer",
+            relative_delta_threshold_m=0.008,
+            downward_delta_threshold_m=0.006,
+            min_contact_force_n=1.0,
+            min_destination_distance_m=0.080,
+        )
+
+        self.assertIsNotNone(signal)
+        assert signal is not None
+        self.assertGreater(signal.relative_delta_m, 0.008)
+        self.assertFalse(signal.triggered)
+        self.assertLess(signal.destination_distance_m, 0.080)
+
+    def test_requires_active_phase_downward_motion_and_contact(self) -> None:
+        base = self._state(
+            end_effector_position=(0.600, 0.020, 0.340),
+            parcel_position=(0.590, 0.020, 0.170),
+            force_n=5.0,
+        )
+        cases = (
+            ("descend", base, (0.0, 0.0, 0.150)),
+            (
+                "transfer",
+                replace(base, gripper_contact_force_n=0.0),
+                (0.0, 0.0, 0.150),
+            ),
+            ("transfer", base, (0.0, 0.0, 0.169)),
+        )
+
+        for phase, state, previous in cases:
+            with self.subTest(phase=phase, force=state.gripper_contact_force_n):
+                signal = detect_transport_slip(
+                    previous,
+                    state,
+                    phase=phase,
+                    relative_delta_threshold_m=0.008,
+                    downward_delta_threshold_m=0.006,
+                    min_contact_force_n=1.0,
+                    min_destination_distance_m=0.080,
+                )
+                self.assertIsNotNone(signal)
+                assert signal is not None
+                self.assertFalse(signal.triggered)
 
 
 class PrecontactAabbGuardTests(unittest.TestCase):

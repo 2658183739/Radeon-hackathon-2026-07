@@ -21,6 +21,8 @@ COLLISION_FREE_RESET_QPOS = (
     0.04,
 )
 
+MIN_TRANSPORT_SLIP_FORCE_MARGIN_N = 10.0
+
 
 @dataclass(frozen=True)
 class SimulationConfig:
@@ -83,6 +85,7 @@ class TaskConfig:
     grasp_planning_tall_box_final_approach_step_m: float = 0.0025
     grasp_planning_drop_step_m: float = 0.005
     grasp_planning_transport_contract_enabled: bool = False
+    grasp_planning_transport_lookahead_enabled: bool = True
     grasp_planning_raise_step_m: float = 0.020
     grasp_planning_transport_step_m: float = 0.010
     grasp_planning_transfer_settle_steps: int = 2
@@ -225,6 +228,13 @@ class ControlConfig:
     approach_velocity_max_angular_rad_s: float = 1.50
     approach_velocity_max_joint_rad_s: float = 1.50
     approach_velocity_damping: float = 0.05
+    transport_slip_recovery_enabled: bool = False
+    transport_slip_relative_delta_m: float = 0.008
+    transport_slip_downward_delta_m: float = 0.006
+    transport_slip_min_contact_force_n: float = 1.0
+    transport_slip_min_destination_distance_m: float = 0.080
+    transport_slip_force_boost_n: float = 2.0
+    transport_slip_force_hold_steps: int = 15
     collision_checked_reset_enabled: bool = False
     collision_free_reset_qpos: tuple[float, ...] = COLLISION_FREE_RESET_QPOS
     reset_qpos: tuple[float, ...] = DEFAULT_RESET_QPOS
@@ -297,6 +307,29 @@ class ControlConfig:
             raise ValueError("approach_velocity_damping must be at most 1.0")
         if not 0.0 <= self.approach_velocity_orientation_weight <= 1.0:
             raise ValueError("approach_velocity_orientation_weight must be in [0, 1]")
+        slip_positive_parameters = (
+            self.transport_slip_relative_delta_m,
+            self.transport_slip_downward_delta_m,
+            self.transport_slip_min_destination_distance_m,
+            self.transport_slip_force_boost_n,
+        )
+        if any(
+            not math.isfinite(value) or value <= 0
+            for value in slip_positive_parameters
+        ):
+            raise ValueError(
+                "transport slip thresholds, destination distance, and force boost "
+                "must be positive and finite"
+            )
+        if (
+            not math.isfinite(self.transport_slip_min_contact_force_n)
+            or self.transport_slip_min_contact_force_n < 0
+        ):
+            raise ValueError(
+                "transport_slip_min_contact_force_n must be non-negative and finite"
+            )
+        if self.transport_slip_force_hold_steps < 1:
+            raise ValueError("transport_slip_force_hold_steps must be positive")
         if len(self.collision_free_reset_qpos) != 9 or any(
             not math.isfinite(value) for value in self.collision_free_reset_qpos
         ):
@@ -465,6 +498,30 @@ class ExperimentConfig:
         self.sensors.validate()
         self.task.validate()
         self.control.validate()
+        if (
+            self.control.transport_slip_recovery_enabled
+            and not self.task.grasp_planning_transport_contract_enabled
+        ):
+            raise ValueError(
+                "transport_slip_recovery_enabled requires "
+                "grasp_planning_transport_contract_enabled"
+            )
+        if (
+            not self.task.grasp_planning_transport_lookahead_enabled
+            and not self.task.grasp_planning_transport_contract_enabled
+        ):
+            raise ValueError(
+                "disabling grasp_planning_transport_lookahead_enabled requires "
+                "grasp_planning_transport_contract_enabled"
+            )
+        if self.control.transport_slip_recovery_enabled and (
+            self.control.close_force_n + self.control.transport_slip_force_boost_n
+            > self.task.max_contact_force_n - MIN_TRANSPORT_SLIP_FORCE_MARGIN_N
+        ):
+            raise ValueError(
+                "transport slip close-force target must remain at least "
+                f"{MIN_TRANSPORT_SLIP_FORCE_MARGIN_N:.0f} N below max_contact_force_n"
+            )
         if (
             self.task.grasp_planning_final_approach_step_m
             > self.control.max_ee_step_m
