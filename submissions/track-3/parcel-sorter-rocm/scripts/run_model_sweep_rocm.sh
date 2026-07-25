@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DATASET_ROOT="${1:?usage: run_model_sweep_rocm.sh DATASET_ROOT SPLIT_MANIFEST OUTPUT_ROOT}"
 SPLIT_MANIFEST="${2:?usage: run_model_sweep_rocm.sh DATASET_ROOT SPLIT_MANIFEST OUTPUT_ROOT}"
 OUTPUT_ROOT="${3:?usage: run_model_sweep_rocm.sh DATASET_ROOT SPLIT_MANIFEST OUTPUT_ROOT}"
+CAMPAIGN_PATH="${CAMPAIGN_PATH:-${ROOT_DIR}/configs/campaign_v1.toml}"
 SEEDS_TEXT="${MODEL_SWEEP_SEEDS:-11,22,33}"
 MODELS_TEXT="${MODEL_SWEEP_MODELS:-act}"
 ACT_STEPS="${MODEL_SWEEP_ACT_STEPS:-30000}"
@@ -15,6 +16,12 @@ export PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
 cd "${ROOT_DIR}"
 source scripts/activate_radeon_env.sh
 bash scripts/preflight_radeon.sh
+
+if [[ ! -f "${CAMPAIGN_PATH}" ]]; then
+  echo "ERROR: campaign contract not found: ${CAMPAIGN_PATH}" >&2
+  exit 4
+fi
+python scripts/validate_campaign.py "${CAMPAIGN_PATH}"
 
 if [[ ! -f "${SPLIT_MANIFEST}" ]]; then
   echo "ERROR: split manifest not found: ${SPLIT_MANIFEST}" >&2

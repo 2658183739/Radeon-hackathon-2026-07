@@ -463,6 +463,10 @@ hash, evaluation episode IDs, seeds, training budgets, open-source declarations,
 and acceptance gates. It intentionally leaves future dataset and split hashes
 as `PENDING` until balanced RGB-D collection is complete.
 
+`run_model_sweep_rocm.sh` validates this contract automatically before it starts
+any ACT or Diffusion cell. Set `CAMPAIGN_PATH` only when replaying a new,
+separately committed campaign version.
+
 To aggregate an existing expert or policy summary by physical category:
 
 ```bash
