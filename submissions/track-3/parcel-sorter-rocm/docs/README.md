@@ -14,6 +14,7 @@
 | Implementation learning record | [Implementation and optimization record](IMPLEMENTATION_AND_OPTIMIZATION_RECORD.md) | [实施与优化学习记录](IMPLEMENTATION_AND_OPTIMIZATION_RECORD_CN.md) |
 | Latest optimization session | [2026-07-25 session](OPTIMIZATION_SESSION_2026-07-25.md) | [2026-07-25 优化记录](OPTIMIZATION_SESSION_2026-07-25_CN.md) |
 | Geometry-aware grasp planning | [Method and Radeon result](GEOMETRY_AWARE_GRASP_PLANNING.md) | [几何感知抓取规划](GEOMETRY_AWARE_GRASP_PLANNING_CN.md) |
+| Reset-risk-gated planning | [Method and validation](RESET_FALLBACK_RISK_GATED_PLANNING.md) | [复位风险门控规划](RESET_FALLBACK_RISK_GATED_PLANNING_CN.md) |
 | Paper evaluation protocol | [Matched multi-profile protocol](PAPER_EVALUATION_PROTOCOL.md) | [论文级多 profile 评测协议](PAPER_EVALUATION_PROTOCOL_CN.md) |
 | Dataset | [Dataset card](DATASET_CARD.md) | [数据集卡](DATASET_CARD_CN.md) |
 | Model | [Model card](MODEL_CARD.md) | [模型卡](MODEL_CARD_CN.md) |

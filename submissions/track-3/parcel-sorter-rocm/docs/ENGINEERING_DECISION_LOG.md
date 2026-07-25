@@ -1545,3 +1545,26 @@ The gate reuses a measured causal precursor already available before the first
 policy action, reduces unnecessary planning, and is auditable in telemetry.
 The current screen is development data only; promotion requires new probes,
 execution repeats, and a separately frozen validation namespace.
+
+### 67. Freeze validation before measuring the risk-gated method
+
+**Implementation evidence.** The gate is default off, requires both prerequisite
+features, resolves after the reset collision query, and exposes eligibility,
+satisfaction, activation, avoided work, attempts, and compute time. Local and
+Radeon suites passed 183 and 178 tests. Three mechanism probes preserved two
+non-risk successes with zero planning attempts and retained the intended
+`large_narrow_carton` recovery with one planning attempt and a 9.23 N peak.
+
+**Decision and reason.** Advance to a matched development validation rather
+than replaying all 60 observed screening episodes. Freeze local IDs
+`120000`--`120004` for all 12 supported profiles and compare collision-checked
+reset against reset-risk-gated planning, for 120 episodes total. This namespace
+was generated before viewing any of its physics outcomes. Keep
+`200000`--`200039` untouched for final confirmation.
+
+**Acceptance logic.** The validation is exploratory for method selection. It
+must show no aggregate safety regression, no systematic ordinary-profile
+regression, measurable avoidance of unnecessary planning, and at least one
+repeatable hard-profile recovery before confirmatory evaluation. Because the
+earlier trace audit found execution-level divergence, later confirmation must
+also include 3--5 repeated executions per selected condition.

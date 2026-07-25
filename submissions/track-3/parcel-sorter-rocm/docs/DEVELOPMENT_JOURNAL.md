@@ -824,3 +824,25 @@ collision-free fallback pose. This would have excluded the observed
 `medium_carton` planning regression while retaining the genuinely activated
 `large_narrow_carton` recovery. It must still pass new probes and an independent
 validation namespace before any performance claim.
+
+### Record 63: Integrate and probe the reset-fallback risk gate
+
+The implementation adds a default-off task flag, validates that it cannot be
+used without both collision-checked reset and geometry planning, and resolves
+planner activation only after the reset collision query. Environment telemetry
+now distinguishes static eligibility, gate satisfaction, final activation, and
+avoided planning. The runner reads actual environment activation before choosing
+the stable-contact dwell, so skipped planning preserves baseline timing.
+
+A matched comparison aggregate was added for eligible, gate-satisfied, active,
+and avoided episodes plus planning attempts and compute time. The method has a
+three-case mechanism runner and a separately frozen 12-profile validation
+campaign using new local IDs `120000`--`120004`. Local and Radeon validation
+passed 183 and 178 tests respectively; the campaign fingerprint is
+`046fb98cf08c900df36799c5ffc3d2863a67f1a9a62adc0c7602e9e84af98507`.
+
+Three single-Radeon probes then passed their mechanism contracts. Non-risk
+`4100004` skipped planning and succeeded at 6.05 N. Risk episode `7100002`
+used fallback reset, planned once, and succeeded at 9.23 N. Low-box sentinel
+`1100000` skipped planning and succeeded at 7.18 N. These outcomes permit the
+new validation campaign to run but do not establish an effect size.
