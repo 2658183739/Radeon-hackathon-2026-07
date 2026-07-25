@@ -1,5 +1,21 @@
 # 实施与优化学习记录
 
+### 2026-07-25：冻结实验战役协议
+
+当前主要风险是比较不可比，而不是继续盲目增加未经验证的控制参数。
+因此新增 `configs/campaign_v1.toml` 和 `src/parcel_sorter/campaign.py`。
+校验器会拒绝非 ROCm 设备、多 GPU、不是 35 N 的安全上限、重复回合编号、
+缺失随机种子、未声明开源许可的模型以及不完整的验收门槛。目录哈希已经
+写入；均衡数据分片完成前，数据集和拆分哈希明确保留为 `PENDING`，不会把
+计划伪装成结果。
+
+同一模块增加了按 `box`、`upright_cylinder`、`horizontal_cylinder` 以及末端
+执行器处理类别的交叉汇总。类别报告与总体成功率分开，避免总体数字掩盖某
+一类物理对象失败或使用了未支持夹具。
+
+目标 Radeon 环境已验证：127 项测试和 6 个子测试全部通过。协议指纹为
+`edb3e171b6e68989f70dab9641792659c8a3cba5e50837c872fe3a120681db6f`。
+
 英文配套文档：[IMPLEMENTATION_AND_OPTIMIZATION_RECORD.md](IMPLEMENTATION_AND_OPTIMIZATION_RECORD.md)
 
 ## 用途与边界

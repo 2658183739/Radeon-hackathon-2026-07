@@ -4,6 +4,26 @@ Chinese companion: [IMPLEMENTATION_AND_OPTIMIZATION_RECORD_CN.md](IMPLEMENTATION
 
 ## Purpose and disclosure
 
+### 2026-07-25: Freeze the experiment campaign contract
+
+The next bottleneck is comparability rather than another unverified controller
+knob. We added `configs/campaign_v1.toml` and `src/parcel_sorter/campaign.py`.
+The validator rejects a non-ROCm device, more than one GPU, any safety limit
+other than 35 N, duplicate episode IDs, missing seeds, non-open-source model
+declarations, and incomplete acceptance gates. The catalog hash is checked in;
+dataset and split hashes remain explicitly `PENDING` until the balanced shard
+exists. This keeps a pre-collection plan honest without weakening the future
+evidence requirement.
+
+The same module now aggregates episodes by `box`, `upright_cylinder`, and
+`horizontal_cylinder`, crossed with the end-effector handling class. The
+category report is intentionally separate from the overall success rate so a
+good aggregate cannot hide an unsupported or failing physical category.
+
+Remote verification on the target Radeon environment passed 127 tests and 6
+subtests. The campaign fingerprint was
+`edb3e171b6e68989f70dab9641792659c8a3cba5e50837c872fe3a120681db6f`.
+
 This learning-oriented record explains observable engineering evidence, module
 responsibilities, alternatives, decisions, validation, and the next experiment.
 It does not expose private chain-of-thought or turn a plan into a result.

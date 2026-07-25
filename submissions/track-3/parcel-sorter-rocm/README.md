@@ -451,6 +451,24 @@ profiles remained explicit hard cases.
 
 ## Reproducibility and tests
 
+The frozen experiment contract is `configs/campaign_v1.toml`. Validate it before
+any remote run:
+
+```bash
+python scripts/validate_campaign.py configs/campaign_v1.toml
+```
+
+The contract fixes the ROCm device, one-GPU rule, 35 N safety limit, catalog
+hash, evaluation episode IDs, seeds, training budgets, open-source declarations,
+and acceptance gates. It intentionally leaves future dataset and split hashes
+as `PENDING` until balanced RGB-D collection is complete.
+
+To aggregate an existing expert or policy summary by physical category:
+
+```bash
+python scripts/summarize_categories.py outputs/.../summary.json
+```
+
 ```bash
 source scripts/activate_radeon_env.sh
 python -m unittest discover -s tests -q
