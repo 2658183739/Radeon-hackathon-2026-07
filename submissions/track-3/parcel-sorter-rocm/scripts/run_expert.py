@@ -48,6 +48,13 @@ def main() -> int:
         help="disable domain randomization for deterministic hardware calibration",
     )
     parser.add_argument("--fail-on-unsuccessful", action="store_true")
+    parser.add_argument(
+        "--reset-qpos",
+        type=float,
+        nargs=9,
+        metavar=("J1", "J2", "J3", "J4", "J5", "J6", "J7", "F1", "F2"),
+        help="override the nine-joint reset pose for a controlled diagnostic",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -61,6 +68,11 @@ def main() -> int:
         config = replace(
             config,
             randomization=replace(config.randomization, enabled=False),
+        )
+    if args.reset_qpos is not None:
+        config = replace(
+            config,
+            control=replace(config.control, reset_qpos=tuple(args.reset_qpos)),
         )
     try:
         if args.collection_plan:

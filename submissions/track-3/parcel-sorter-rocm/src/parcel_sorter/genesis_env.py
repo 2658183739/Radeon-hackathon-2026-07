@@ -272,9 +272,7 @@ class GenesisParcelEnv:
             self.np.asarray((87, 87, 87, 87, 12, 12, 12, 100, 100)),
         )
         self.robot.set_qpos(
-            self.np.asarray(
-                (-1.0124, 1.5559, 1.3662, -1.6878, -1.5799, 1.7757, 1.4602, 0.04, 0.04)
-            )
+            self.np.asarray(control.reset_qpos)
         )
 
     def state(self) -> RobotState:

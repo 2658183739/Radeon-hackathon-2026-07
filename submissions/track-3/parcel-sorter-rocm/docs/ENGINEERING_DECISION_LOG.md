@@ -951,3 +951,17 @@ timeouts, or material throughput regression; then run the complete catalog.
 
 **Limit.** The factor table is observational. It prioritizes experiments but
 does not establish that mass, size, pose, or friction caused a failure.
+
+### 47. Keep reset-pose screening separate from Radeon acceptance
+
+**Evidence.** A CPU screen on one fixed `large_narrow_carton` episode rejected
+pose A: it changed a baseline success into a 50.36 N safety abort. Pose C
+completed the same episode with 10.86 N peak force versus 32.24 N for the
+baseline.
+
+**Decision.** Keep pose C as a held candidate and leave the default unchanged
+until the single Radeon device is free. This avoids promoting a CPU-only result
+to competition evidence and makes the next run a clear one-variable A/B test.
+
+**Revisit trigger.** Run identical Radeon episodes with the same 35 N limit,
+then require no success or throughput regression and a full catalog check.

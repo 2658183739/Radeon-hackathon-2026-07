@@ -19,6 +19,7 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(config.sensors.depth)
         self.assertTrue(config.randomization.enabled)
         self.assertEqual(len(config.control.arm_kp), 7)
+        self.assertEqual(len(config.control.reset_qpos), 9)
         self.assertLessEqual(config.control.final_approach_step_m, config.control.max_ee_step_m)
         self.assertEqual(config.task.left_bin_center_m, (0.48, -0.34, 0.025))
 
@@ -41,6 +42,13 @@ class ConfigTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "rolling_friction"):
+            invalid.validate()
+
+    def test_reset_pose_requires_nine_finite_values(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(config, control=replace(config.control, reset_qpos=(0.0,) * 8))
+
+        with self.assertRaisesRegex(ValueError, "reset_qpos"):
             invalid.validate()
 
 

@@ -150,6 +150,19 @@ python scripts/compare_expert_runs.py \
 The comparison rejects mismatched episode sets and reports recovered failures,
 regressions, force-abort changes, throughput retention, and acceptance gates.
 
+For a reset-pose diagnostic, keep the baseline configuration and override only
+the nine-joint home pose. The override is copied into `summary.json`, so the
+run remains auditable. Candidate poses are not accepted until a matched Radeon
+experiment passes the task, safety, and throughput gates:
+
+```bash
+python scripts/run_expert.py \\
+  --config configs/catalog_v2.toml --backend rocm \\
+  --episodes 20 --start-episode 0 --profile large_narrow_carton \\
+  --reset-qpos -1.0124 1.0 1.4 -1.6878 -1.5799 1.7757 1.4602 0.04 0.04 \\
+  --output outputs/diagnostics/large-narrow-home-c
+```
+
 Run one deterministic episode for every training parcel profile:
 
 ```bash

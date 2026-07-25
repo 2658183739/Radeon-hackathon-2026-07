@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from pathlib import Path
 import tomllib
 from typing import Any
+
+
+DEFAULT_RESET_QPOS = (-1.0124, 1.5559, 1.3662, -1.6878, -1.5799, 1.7757, 1.4602, 0.04, 0.04)
 
 
 @dataclass(frozen=True)
@@ -96,6 +100,7 @@ class ControlConfig:
     close_force_ramp_n_per_step: float
     max_ee_step_m: float
     final_approach_step_m: float
+    reset_qpos: tuple[float, ...] = DEFAULT_RESET_QPOS
 
     def validate(self) -> None:
         if len(self.arm_kp) != 7 or len(self.arm_kv) != 7:
@@ -114,6 +119,8 @@ class ControlConfig:
             raise ValueError("Cartesian step limits must be positive")
         if self.final_approach_step_m > self.max_ee_step_m:
             raise ValueError("final_approach_step_m cannot exceed max_ee_step_m")
+        if len(self.reset_qpos) != 9 or any(not math.isfinite(value) for value in self.reset_qpos):
+            raise ValueError("reset_qpos must contain nine finite joint positions")
 
 
 @dataclass(frozen=True)
@@ -299,7 +306,8 @@ class ExperimentConfig:
 def _tuple_values(raw: dict[str, Any], *keys: str) -> dict[str, Any]:
     converted = dict(raw)
     for key in keys:
-        converted[key] = tuple(float(value) for value in converted[key])
+        if key in converted:
+            converted[key] = tuple(float(value) for value in converted[key])
     return converted
 
 
@@ -331,7 +339,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
                 "bin_half_extent_m",
             )
         ),
-        control=ControlConfig(**_tuple_values(raw["control"], "arm_kp", "arm_kv")),
+        control=ControlConfig(**_tuple_values(raw["control"], "arm_kp", "arm_kv", "reset_qpos")),
         output=OutputConfig(**raw["output"]),
         randomization=RandomizationConfig(**raw["randomization"]),
         parcel_profiles=parcel_profiles,

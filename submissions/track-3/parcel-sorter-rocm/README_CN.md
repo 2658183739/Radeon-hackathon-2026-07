@@ -162,6 +162,18 @@ python scripts/compare_expert_runs.py \
 
 该工具会拒绝样本集合不一致的比较，并列出旧失败恢复、旧成功退化、力中止与吞吐变化。
 
+做 reset 姿态诊断时，保持基线配置不变，只通过九个关节参数覆盖 home 姿态。覆盖值会写入
+`summary.json`，因此运行仍可审计。候选姿态必须在 Radeon 上经过匹配的任务、安全和吞吐门禁后，
+才能接收为默认值：
+
+```bash
+python scripts/run_expert.py \\
+  --config configs/catalog_v2.toml --backend rocm \\
+  --episodes 20 --start-episode 0 --profile large_narrow_carton \\
+  --reset-qpos -1.0124 1.0 1.4 -1.6878 -1.5799 1.7757 1.4602 0.04 0.04 \\
+  --output outputs/diagnostics/large-narrow-home-c
+```
+
 ## 采集 120 回合 RGB-D 专家数据
 
 ```bash

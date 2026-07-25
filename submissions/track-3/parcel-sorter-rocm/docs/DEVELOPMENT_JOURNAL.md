@@ -471,3 +471,18 @@ priority, and descriptive geometry/physics factors. **Decision: keep the
 analyzer and start with safe reset/home geometry plus size-aware approach; do
 not raise the 35 N limit.** Any controller candidate still requires a matched
 fixed-episode A/B run and full-catalog regression before acceptance.
+
+### Record 43: screen reset poses without promoting a CPU result
+
+The new `--reset-qpos` diagnostic override makes the reset pose an explicit,
+auditable variable while preserving the historical default. A CPU-only
+kinematic screen on the same `large_narrow_carton` local episode rejected pose
+A (`0,-0.785,0,-2.356,0,1.571,0.785`): it produced a 50.36 N abort where the
+baseline completed. Pose C (`-1.0124,1.0,1.4,-1.6878,-1.5799,1.7757,1.4602`)
+completed that episode with 10.86 N peak force versus the baseline's 32.24 N.
+
+**Decision: hold pose C for a single-GPU Radeon A/B run; do not change the
+default from CPU evidence.** CPU screening only ranks candidates and is not a
+competition result because the task requires AMD Radeon execution. The exact
+Radeon command is documented in the README and the candidate remains subject
+to matched episode, full-catalog, and throughput gates.
