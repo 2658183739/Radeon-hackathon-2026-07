@@ -9,6 +9,7 @@
 | `expert/fixed-10-summary.json` | 固定种子专家回归基线 |
 | `expert/final-approach-001-120-summary.json` | 被拒绝的 0.01 m 候选，同组 120 回合 |
 | `expert/final-approach-001-comparison.json` | 基线/候选逐回合比较与验收决策 |
+| `expert/radeon-dataset-400-v2-failure-analysis.json` | Radeon 400 次专家尝试的轨迹级失败归因 |
 | `act/checkpoint-4000-episodes-10-19.json` | ACT 4000 步闭环评估 |
 | `act/checkpoint-5000-episodes-10-19.json` | ACT 5000 步同种子评估 |
 | `training/act-5000-amp-b32.log` | 正式 5000 步训练日志 |
@@ -29,6 +30,11 @@ SHA-256 见英文 [README.md](README.md)。JSON 包含配置、运行版本、ep
 
 失败候选也被保留，因为可复现性不仅覆盖成功结果；comparison 明确记录了为什么不能
 把它设为默认值。
+
+400 次尝试的失败分析由远端带完整轨迹的 summary 派生；产物内部记录了源路径、字节数和
+SHA-256。为控制仓库体积，它保留逐失败回合归因与聚合统计，不复制每一帧原始轨迹。
+其中各因素对比只是描述性证据，不能解释为因果效应。该文件自身 SHA-256 为
+`12aae22a747759f96edb3a742e17cc6ba54c90480448198bd93f4153eecd7993`。
 
 目录烟雾同样只是小体积回归证据：4 个盒类完成，3 个困难 profile 失败，不构成正式成功率。
 其 SHA-256 记录在 `evidence/catalog/README_CN.md`。

@@ -144,6 +144,31 @@ unready-plan rejection, acknowledgement behavior, profile-specific budgets,
 duplicate profile rejection, and deterministic namespaces. Radeon execution is
 still pending before this becomes a collection result.
 
+### 7. Add trace-level failure attribution before controller tuning
+
+**Question.** Which controller change should be tested first, and which stage
+actually creates the unsafe expert data?
+
+**Observable implementation.** `failure_analysis.py` converts each completed
+trace into one primary outcome, preserves the first force-violation context,
+and aggregates task, safety, phase-reach, force, and profile statistics.
+`analyze_expert_failures.py` records the source summary path, size, and SHA-256
+alongside the derived JSON. Tests exercise force context, non-force failures,
+missing traces, and invalid safety thresholds.
+
+**Radeon result.** 400 attempts, 190 successes, and 161 force violations.
+Approach accounts for 104 violations; 22 exist at initialization. The derived
+artifact is `evidence/expert/radeon-dataset-400-v2-failure-analysis.json`.
+
+**Decision.** Make safe initialization and size-aware approach the next single
+controller intervention. Do not collect the planned 1,775 attempts until the
+blocked expert profiles pass diagnostics. Do not interpret factor medians as
+causal effects.
+
+**Verification.** The focused tests and the complete 86-test suite pass in the
+ROCm environment. The analysis itself is verified; the proposed controller
+change remains planned until a matched Radeon A/B experiment is complete.
+
 ## Immediate Radeon workflow
 
 Run from the project root. The activation script checks the project `.venv`

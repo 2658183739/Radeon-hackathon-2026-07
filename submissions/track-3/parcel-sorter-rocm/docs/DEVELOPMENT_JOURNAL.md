@@ -455,3 +455,19 @@ preflight and `cfg.steps=5000`. **Decision: keep the matrix as an integration
 smoke only.** The project still needs at least 300 balanced successful RGB-D
 episodes before a 30K model comparison or closed-loop ranking can be treated as
 formal evidence.
+
+### Record 42: attribute expert failures before changing the controller
+
+The trace-rich 400-attempt Radeon summary was processed without rewriting its
+historical result. The analyzer reports 190/400 successes and 161/400 force
+safety violations. The inferred last non-abort context is `approach` for 104
+violations and `initial_state` for 22. `large_narrow_carton` is the first
+diagnostic target: it completed 2/20 attempts and triggered 17 force aborts.
+
+The implementation classifies force aborts, approach timeouts, grasp
+verification failures, lift losses, drops, and placement failures. It also
+reports Wilson intervals, phase reach counts, force distributions, profile
+priority, and descriptive geometry/physics factors. **Decision: keep the
+analyzer and start with safe reset/home geometry plus size-aware approach; do
+not raise the 35 N limit.** Any controller candidate still requires a matched
+fixed-episode A/B run and full-catalog regression before acceptance.

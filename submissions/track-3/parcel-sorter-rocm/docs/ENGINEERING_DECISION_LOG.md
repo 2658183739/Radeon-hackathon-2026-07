@@ -927,3 +927,27 @@ the bounded run has started.
 
 **Revisit trigger.** Add a machine-readable resolved-config JSON at every
 run root if the sweep grows beyond its current environment-variable interface.
+
+### 46. Use trace attribution to choose the first controller intervention
+
+**Evidence.** The completed 400-attempt Radeon run contains 190 successes and
+161 force violations. Of those violations, 104 are attributed to the approach
+stage and 22 already exist in the initial state. The worst profile,
+`large_narrow_carton`, has 2/20 success and 17/20 force aborts. Three of its
+initial-state examples reached 95.65 N, 351.76 N, and 2761.74 N.
+
+**Alternatives.** Increase the 35 N limit; tune grasp force; collect more data;
+train a larger policy; or first eliminate reset and approach collisions.
+
+**Decision and reason.** Keep the safety threshold fixed. Test a configurable
+high-clearance home pose and geometry-aware approach as the first controller
+candidate. High force occurs before learning can help in many episodes, so
+collecting or training now would preserve unsafe demonstrations. Grasp-force
+tuning does not target initial or approach-stage contact.
+
+**Acceptance.** Use identical episode IDs, catalog, force limit, runtime, and
+seed. Accept only if force aborts decrease without worse task success, drops,
+timeouts, or material throughput regression; then run the complete catalog.
+
+**Limit.** The factor table is observational. It prioritizes experiments but
+does not establish that mass, size, pose, or friction caused a failure.
