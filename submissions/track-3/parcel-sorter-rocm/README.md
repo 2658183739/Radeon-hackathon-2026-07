@@ -163,6 +163,16 @@ python scripts/run_expert.py \\
   --output outputs/diagnostics/large-narrow-home-c
 ```
 
+The fixed 20-episode Radeon acceptance protocol is also available as one
+command. It refuses to reuse an output root, runs the baseline and pose-C
+candidate with the same profile and randomization, compares both summaries,
+and writes `SHA256SUMS`:
+
+```bash
+bash scripts/run_reset_pose_ab_rocm.sh \
+  configs/catalog_v2.toml outputs/radeon-reset-ab-v1
+```
+
 Run one deterministic episode for every training parcel profile:
 
 ```bash

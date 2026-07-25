@@ -496,3 +496,11 @@ nine `NaN` values through the real CLI path and confirms exit before Genesis
 environment construction. All 88 tests pass on Radeon. Reproduction commands
 must explicitly select the current checkout's `src`, because the shared virtual
 environment retains an editable install pointing to an older workspace.
+
+### Record 45: promote the Radeon reset A/B from commands to a frozen protocol
+
+The new one-command runner fixes 20 `large_narrow_carton` episodes, pose C,
+single-device ROCm preflight, and matched-sample comparison. It refuses an
+existing output root and generates a SHA-256 manifest for both summaries and
+the comparison. The script passes Radeon shell syntax validation but has not
+run yet; it waits for ACT smoke to release the only GPU.

@@ -990,3 +990,26 @@ path mix-up rather than a code regression.
 
 **Revisit trigger.** Any new CLI or environment-based override must preserve
 the sequence: merge all overrides, validate once, then create side effects.
+
+### 49. Freeze reset-pose A/B as a one-command protocol
+
+**Problem.** Manually copying two long commands can omit the profile, episode
+range, backend, or candidate joints. Reusing an old directory can also mix
+artifacts and invalidate the comparison.
+
+**Decision and reason.** Add `run_reset_pose_ab_rocm.sh` with one visible
+Radeon, 20 fixed `large_narrow_carton` episodes, the baseline, pose C, and the
+comparison tool. It rejects non-20-episode budgets and existing output roots,
+then hashes both summaries and the comparison in `SHA256SUMS`. Freezing the
+protocol reduces operator drift; refusing overwrite preserves negative results.
+
+**Code capability.** Single-GPU experiment orchestration, environment
+preflight, deterministic A/B execution, immutable artifact lifecycle, and
+integrity hashes.
+
+**Verification.** The script passes `bash -n` in the Radeon workspace. Its
+formal run waits for the active ACT smoke process to exit so both workloads do
+not contend for the GPU.
+
+**Revisit trigger.** A changed sample count, target profile, or pose requires a
+versioned protocol and output root rather than a silent v1 edit.

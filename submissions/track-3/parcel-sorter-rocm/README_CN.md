@@ -174,6 +174,14 @@ python scripts/run_expert.py \\
   --output outputs/diagnostics/large-narrow-home-c
 ```
 
+固定的 20 episode Radeon 验收协议也已封装为一条命令。脚本会拒绝复用已有输出目录，以相同 profile 和
+随机样本依次运行基线与候选 C，比较两份 summary，并写出 `SHA256SUMS`：
+
+```bash
+bash scripts/run_reset_pose_ab_rocm.sh \
+  configs/catalog_v2.toml outputs/radeon-reset-ab-v1
+```
+
 ## 采集 120 回合 RGB-D 专家数据
 
 ```bash
