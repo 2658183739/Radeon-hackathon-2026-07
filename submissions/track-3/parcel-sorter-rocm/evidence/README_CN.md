@@ -95,3 +95,19 @@ comparison、分析和日志。compact episode 会保留 AABB 安全聚合，并
 ## 竖直屏障恢复负对照
 
 `expert/radeon-approach-barrier-ab-v1-*` 保存 20 回合匹配 Radeon A/B 的压缩 summary、失败归因、日志、comparison 和两级哈希清单。候选只设置 `control.approach_barrier_recovery_step_m=0.120`；它为 0/20 成功、12/20 力中止，基线为 1/20、12/20，候选吞吐为 0，因此默认关闭。核心本地哈希为 baseline summary `5154a5d2...841b3a`、candidate summary `98196889...593c49`、comparison `172236b9...01e886`。完整值见 `expert/radeon-approach-barrier-ab-v1-SHA256SUMS`，远端原始 summary 哈希见 `expert/radeon-approach-barrier-ab-v1-remote-SHA256SUMS`。
+
+## 接近顺应刚度负对照
+
+`expert/radeon-approach-compliance-ab-v1-*` 保存匹配 20 回合、单张 Radeon A/B 的 compact
+summary、轨迹派生失败归因、两侧日志、精确 comparison 和本地/远端 SHA-256 清单。唯一配置变化为
+`control.approach_stiffness_scale` 从基线 1.0 改为 0.50；机械臂 Kv 使用 `sqrt(scale)`，夹爪增益
+保持不变。
+
+两组均为 1/20 成功、0 次掉落和 111.28 N 最大接触力。候选把力中止从 12 次降为 10 次，把逐回合
+峰值力 P95 从 98.12 N 降为 71.07 N，但接近超时从 7 次增为 9 次，吞吐只保留 0.751 倍。它没有
+恢复任何回合，并且未通过绝对成功率、力中止率和吞吐门禁，因此默认值继续为 1.0。
+
+本地 compact 核心哈希为 baseline summary `e552b842...24805f`、candidate summary
+`84f2a585...4749f`、comparison `e47f2573...0be61`。完整值见
+`expert/radeon-approach-compliance-ab-v1-SHA256SUMS`；远端清单保留 6.9 MB 与 9.1 MB 完整轨迹
+summary 及全部派生产物的来源哈希。

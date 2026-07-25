@@ -636,3 +636,27 @@ failure attribution, and local/remote SHA-256 verification. The lesson is that
 a conservative implementation and a functioning trigger do not imply an
 effective safety controller; AABB is too coarse to replace signed distance,
 contact-aware low-level control, or a correct recovery state machine.
+
+### Entry 56: Lower approach gains trade force aborts for tracking timeouts
+
+I implemented command-scoped arm-gain scaling instead of changing the policy
+interface. Kp is multiplied by a configured scale, Kv by its square root, and
+finger gains remain fixed. The environment changes gains only for the delayed
+action actually executed as `MOVE_PREGRASP`; all other commands restore the
+nominal gains. A default of 1.0 therefore reproduces the historical controller.
+
+The probe sequence was deliberately bounded. Scale 0.25 timed out with zero
+contact, proving that excessive compliance lost tracking authority. Scale 0.50
+kept successful episode `7000005`, while a second probe still timed out, so it
+was promoted to one fixed A/B rather than a parameter sweep. On the complete
+Radeon match, force aborts improved from 12 to 10 but timeouts worsened from 7
+to 9; success stayed 1/20, peak force stayed 111.28 N, and throughput retention
+was only 0.751. The candidate is rejected and the default remains 1.0.
+
+The learning point is that a lower joint-space stiffness is not equivalent to
+a contact-aware Cartesian impedance controller. It can reduce some measured
+forces while slowing convergence and moving failures between categories. The
+next design must constrain Cartesian approach velocity/energy near contact and
+define recovery explicitly. Validation included 123 Radeon tests plus 6
+subtests, the exact single-config comparison, failure attribution, compact/full
+hash manifests, and retained run logs.

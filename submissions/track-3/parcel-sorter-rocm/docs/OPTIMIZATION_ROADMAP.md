@@ -334,3 +334,13 @@ iteration will:
    expanding to cylindrical, flat, long-carton, and USPS boundary profiles.
 5. Resume 360 successful RGB-D episodes and ACT, Diffusion, DP3/point-cloud,
    and lightweight VLA comparisons only after the expert safety gate passes.
+
+## 14. Compliance result and next controller boundary
+
+The 0.50 approach-stiffness candidate reduced force aborts from 12/20 to 10/20
+but increased approach timeouts from 7 to 9, retained only 0.751x throughput,
+and did not improve the 1/20 success rate. Keep the default at 1.0 and do not
+run a global stiffness sweep. The next registered candidate must constrain
+Cartesian approach velocity or impedance near measured geometry, preserve the
+35 N hard stop, and include a recovery-state transition. It must first pass the
+same 20-episode machine gates before any data collection or model ranking.

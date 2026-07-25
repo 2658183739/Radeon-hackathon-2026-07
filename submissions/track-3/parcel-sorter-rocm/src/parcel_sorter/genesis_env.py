@@ -37,6 +37,21 @@ def aabb_gap_m(first_aabb: Any, second_aabb: Any) -> float:
     return math.sqrt(sum(value * value for value in gap))
 
 
+def scaled_robot_gains(
+    arm_kp: tuple[float, ...],
+    arm_kv: tuple[float, ...],
+    finger_kp: float,
+    finger_kv: float,
+    stiffness_scale: float,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """Scale arm stiffness while preserving its nominal damping relationship."""
+    velocity_scale = math.sqrt(stiffness_scale)
+    return (
+        (*tuple(value * stiffness_scale for value in arm_kp), finger_kp, finger_kp),
+        (*tuple(value * velocity_scale for value in arm_kv), finger_kv, finger_kv),
+    )
+
+
 @dataclass(frozen=True)
 class ParcelSpawnSpec:
     shape: str
@@ -295,10 +310,18 @@ class GenesisParcelEnv:
 
     def _configure_robot(self) -> None:
         control = self.config.control
-        gains_kp = self.np.asarray((*control.arm_kp, control.finger_kp, control.finger_kp))
-        gains_kv = self.np.asarray((*control.arm_kv, control.finger_kv, control.finger_kv))
+        gains_kp, gains_kv = scaled_robot_gains(
+            control.arm_kp,
+            control.arm_kv,
+            control.finger_kp,
+            control.finger_kv,
+            1.0,
+        )
+        gains_kp = self.np.asarray(gains_kp)
+        gains_kv = self.np.asarray(gains_kv)
         self.robot.set_dofs_kp(gains_kp)
         self.robot.set_dofs_kv(gains_kv)
+        self._active_arm_stiffness_scale = 1.0
         self.robot.set_dofs_force_range(
             self.np.asarray((-87, -87, -87, -87, -12, -12, -12, -100, -100)),
             self.np.asarray((87, 87, 87, 87, 12, 12, 12, 100, 100)),
@@ -437,6 +460,7 @@ class GenesisParcelEnv:
 
     def _apply_action(self, action: CartesianAction) -> None:
         action = self._filter_precontact_action(action)
+        self._set_arm_stiffness_for_command(action.command)
         qpos = self.robot.inverse_kinematics(
             link=self.end_effector,
             pos=self.np.asarray(action.target_position),
@@ -457,6 +481,26 @@ class GenesisParcelEnv:
             )
             force = self._gripper_force_n
             self.robot.control_dofs_force(self.np.asarray((-force, -force)), self.finger_dofs)
+
+    def _set_arm_stiffness_for_command(self, command: str) -> None:
+        scale = (
+            self.config.control.approach_stiffness_scale
+            if command == "move_pregrasp"
+            else 1.0
+        )
+        if math.isclose(scale, self._active_arm_stiffness_scale, rel_tol=0.0, abs_tol=1e-12):
+            return
+        control = self.config.control
+        gains_kp, gains_kv = scaled_robot_gains(
+            control.arm_kp,
+            control.arm_kv,
+            control.finger_kp,
+            control.finger_kv,
+            scale,
+        )
+        self.robot.set_dofs_kp(self.np.asarray(gains_kp))
+        self.robot.set_dofs_kv(self.np.asarray(gains_kv))
+        self._active_arm_stiffness_scale = scale
 
     def _filter_precontact_action(self, action: CartesianAction) -> CartesianAction:
         """Apply a geometry guard before IK while preserving the 8-D action contract."""

@@ -204,3 +204,19 @@ geometry-aware compliant/impedance layer or a redesigned recovery state machine,
 followed by a new pre-registered Radeon A/B. Balanced 360-success collection,
 formal ACT/Diffusion ranking, VLA integration, and ROS 2 packaging remain
 blocked by the expert safety gate.
+
+## Latest controlled experiment: approach compliance A/B
+
+The candidate scaled arm Kp to 0.50 and arm Kv to `sqrt(0.50)` only while
+executing `MOVE_PREGRASP`; finger gains and the default 1.0 path were unchanged.
+On the fixed single-Radeon `large_narrow_carton` episodes `7000000`--`7000019`,
+baseline and candidate both achieved 1/20 successes and zero drops. Candidate
+force aborts fell from 12/20 to 10/20 and P95 peak force fell from 98.12 N to
+71.07 N, but approach timeouts rose from 7 to 9, throughput fell to 0.751x, and
+maximum force stayed 111.28 N. The machine comparison rejected it; the default
+remains `approach_stiffness_scale=1.0`.
+
+Evidence is indexed under `evidence/expert/radeon-approach-compliance-ab-v1-*`.
+The next controller target is contact-near Cartesian velocity/impedance with an
+explicit recovery state. Balanced RGB-D collection and learned-policy ranking
+remain blocked until the expert safety gates pass.

@@ -1285,3 +1285,42 @@ Evidence is indexed under `evidence/expert/radeon-approach-aabb-ab-v1-*`.
 Complete remote summaries remain the provenance source; compact summaries
 preserve the safety aggregate and source SHA-256. Validation reached 121 local
 tests and 116 tests on Radeon, plus shell syntax checks.
+
+### 60. Reject global approach-stiffness scaling after matched Radeon A/B
+
+**Hypothesis.** The preceding geometric guards could not limit the first
+collision impulse. Reducing arm proportional gains during `MOVE_PREGRASP` might
+make contact less energetic without changing the 8-D policy action, gripper
+gains, final grasp, or the 35 N hard abort. The candidate used 0.50 arm Kp and
+`sqrt(0.50)` arm Kv so the nominal damping relationship was preserved. All
+other commands restored the original gains, and the default scale remained
+1.0.
+
+**Protocol.** The single-Radeon A/B fixed `large_narrow_carton`, episodes
+`7000000`--`7000019`, seed, reset pose, physics, runtime, and safety limit.
+The comparison accepted exactly one difference:
+`control.approach_stiffness_scale`. Probes eliminated 0.25 because it timed out
+without contact; 0.50 preserved successful probe `7000005` and therefore
+became the sole registered candidate.
+
+**Evidence.** Baseline and candidate both achieved 1/20 successes with zero
+drops and the same 111.28 N maximum contact force. Force aborts decreased from
+12/20 to 10/20, mean episode peak force from 34.02 N to 28.53 N, and P95 from
+98.12 N to 71.07 N. These were not task recoveries: approach timeouts increased
+from 7 to 9, there were no recovered or regressed successful episodes, and
+throughput fell from 17.80 to 13.36 successful parcels/hour (0.751x). The
+candidate failed the 90% success, 5% force-abort, and 85% throughput gates.
+
+**Decision.** Reject 0.50 as a default and keep `approach_stiffness_scale=1.0`.
+Retain the typed setting, CLI, gain-switching implementation, tests, and runner
+as an auditable negative control. Uniform joint-gain scaling trades force
+aborts for tracking timeouts and cannot solve geometry, IK, and recovery
+together. The next controller design should use Cartesian/operational-space
+velocity or impedance limits near contact, with an explicit recovery state and
+the same hard safety boundary, rather than sweep a global stiffness scalar.
+
+Evidence is indexed under
+`evidence/expert/radeon-approach-compliance-ab-v1-*`. Full trace summaries stay
+on the Radeon host; Git contains compact summaries, comparison, failure
+analyses, logs, and local/remote SHA-256 manifests. Remote validation passed
+123 tests plus 6 subtests; the fixed A/B and both post-run analyses completed.

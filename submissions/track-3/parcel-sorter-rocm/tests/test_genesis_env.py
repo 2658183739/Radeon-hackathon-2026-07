@@ -7,7 +7,12 @@ import numpy as np
 
 from parcel_sorter.config import load_config
 from parcel_sorter.contracts import CartesianAction
-from parcel_sorter.genesis_env import GenesisParcelEnv, aabb_gap_m, genesis_depth_to_meters
+from parcel_sorter.genesis_env import (
+    GenesisParcelEnv,
+    aabb_gap_m,
+    genesis_depth_to_meters,
+    scaled_robot_gains,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -103,6 +108,61 @@ class PrecontactAabbGuardTests(unittest.TestCase):
 
         self.assertEqual(filtered, action)
         self.assertEqual(env._aabb_guard_filter_count, 0)
+
+
+class ApproachComplianceTests(unittest.TestCase):
+    def test_scales_only_arm_gains_and_preserves_damping_relationship(self) -> None:
+        kp, kv = scaled_robot_gains(
+            (400.0,) * 7,
+            (40.0,) * 7,
+            100.0,
+            10.0,
+            0.25,
+        )
+
+        self.assertEqual(kp[:7], (100.0,) * 7)
+        self.assertEqual(kv[:7], (20.0,) * 7)
+        self.assertEqual(kp[7:], (100.0, 100.0))
+        self.assertEqual(kv[7:], (10.0, 10.0))
+
+    def test_switches_gains_only_on_command_transition(self) -> None:
+        class FakeRobot:
+            def __init__(self) -> None:
+                self.kp_calls: list[np.ndarray] = []
+                self.kv_calls: list[np.ndarray] = []
+
+            def set_dofs_kp(self, gains: np.ndarray) -> None:
+                self.kp_calls.append(gains.copy())
+
+            def set_dofs_kv(self, gains: np.ndarray) -> None:
+                self.kv_calls.append(gains.copy())
+
+        env = GenesisParcelEnv.__new__(GenesisParcelEnv)
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        env.config = replace(
+            config,
+            control=replace(config.control, approach_stiffness_scale=0.5),
+        )
+        env.robot = FakeRobot()
+        env.np = np
+        env._active_arm_stiffness_scale = 1.0
+
+        env._set_arm_stiffness_for_command("move_pregrasp")
+        self.assertEqual(len(env.robot.kp_calls), 1)
+        self.assertEqual(len(env.robot.kv_calls), 1)
+        np.testing.assert_allclose(
+            env.robot.kp_calls[-1][:7], np.asarray(config.control.arm_kp) * 0.5
+        )
+        np.testing.assert_allclose(
+            env.robot.kv_calls[-1][:7], np.asarray(config.control.arm_kv) * np.sqrt(0.5)
+        )
+
+        env._set_arm_stiffness_for_command("move_pregrasp")
+        self.assertEqual(len(env.robot.kp_calls), 1)
+
+        env._set_arm_stiffness_for_command("grasp")
+        self.assertEqual(len(env.robot.kp_calls), 2)
+        np.testing.assert_allclose(env.robot.kp_calls[-1][:7], np.asarray(config.control.arm_kp))
 
 
 if __name__ == "__main__":

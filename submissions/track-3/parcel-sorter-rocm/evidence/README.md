@@ -133,3 +133,24 @@ in `expert/radeon-approach-aabb-ab-v1-SHA256SUMS`; the remote manifest records
 the trace-rich source summaries, comparison, analyses, and logs. Compact
 episode records preserve the AABB safety aggregate while explicitly omitting
 per-frame traces.
+
+## Approach-compliance negative control
+
+`expert/radeon-approach-compliance-ab-v1-*` contains compact summaries,
+trace-derived failure analyses, both run logs, the exact comparison, and
+local/remote SHA-256 manifests for a matched 20-episode single-Radeon A/B.
+Only `control.approach_stiffness_scale` changed, from the 1.0 baseline to 0.50;
+arm Kv used `sqrt(scale)` and finger gains stayed fixed.
+
+Both runs achieved 1/20 successes, zero drops, and a 111.28 N maximum contact
+force. The candidate reduced force aborts from 12 to 10 and P95 episode peak
+force from 98.12 N to 71.07 N, but increased approach timeouts from 7 to 9 and
+retained only 0.751x throughput. It recovered no episode and failed the
+absolute success, force-abort, and throughput gates, so the default remains
+1.0.
+
+Local compact hashes include baseline summary `e552b842...24805f`, candidate
+summary `84f2a585...4749f`, and comparison `e47f2573...0be61`. Full values are
+in `expert/radeon-approach-compliance-ab-v1-SHA256SUMS`; the remote manifest
+preserves hashes for the 6.9 MB and 9.1 MB trace-rich source summaries and all
+derived artifacts.

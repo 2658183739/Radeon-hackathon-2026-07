@@ -102,6 +102,12 @@ def main() -> int:
         default=None,
         help="enable the Genesis finger/parcel AABB pre-contact guard at this distance",
     )
+    parser.add_argument(
+        "--approach-stiffness-scale",
+        type=float,
+        default=None,
+        help="scale approach arm Kp and preserve damping ratio by scaling Kv by sqrt(scale)",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -130,6 +136,7 @@ def main() -> int:
         or args.approach_contact_brake_step is not None
         or args.approach_barrier_recovery_step is not None
         or args.precontact_aabb_guard_distance is not None
+        or args.approach_stiffness_scale is not None
     ):
         config = replace(
             config,
@@ -170,6 +177,11 @@ def main() -> int:
                     config.control.precontact_aabb_guard_distance_m
                     if args.precontact_aabb_guard_distance is None
                     else args.precontact_aabb_guard_distance
+                ),
+                approach_stiffness_scale=(
+                    config.control.approach_stiffness_scale
+                    if args.approach_stiffness_scale is None
+                    else args.approach_stiffness_scale
                 ),
             ),
         )
