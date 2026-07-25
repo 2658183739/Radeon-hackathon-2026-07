@@ -1516,3 +1516,32 @@ artifacts must pass before launch. The method advances only if aggregate safety
 does not regress and no profile loses more than one matched success. A formal
 claim requires the untouched reserved namespace and a separately frozen primary
 hypothesis.
+
+### 66. Reject universal planning and develop a reset-risk gate
+
+**Observed evidence.** The frozen 180-episode Radeon screen produced 38/60
+successes and 15/60 force aborts for both collision-checked reset and complete
+planning. Success and force-abort McNemar p-values were both 1.0. Planning added
+1.65 N to mean episode peak force with a paired bootstrap 95% interval of
+-1.67 to +5.99 N, and one planning attempt averaged 5.57 s. The complete method
+therefore failed the preregistered aggregate safety and utility test.
+
+**Failure attribution.** Of four success changes, only two episodes actually
+ran the planner. Planning regressed `4100004 medium_carton` from a 6.05 N
+success to a 54.78 N abort, while it recovered `7100002
+large_narrow_carton` from a 36.59 N abort to a 9.23 N success. Two other changed
+episodes never planned and showed state divergence before action divergence,
+which requires execution-repeat analysis rather than a causal method label.
+
+**Alternatives.** Enabling planning for every geometry-eligible box is rejected.
+Fitting another height, length, or aspect-ratio threshold to five samples per
+profile would be post-hoc overfitting. Removing planning would also discard the
+measured recovery for an initially colliding narrow carton.
+
+**Decision and reason.** Add a default-off reset-fallback risk gate. Planning
+may activate only when geometry eligibility holds and collision-checked reset
+actually detected an initial intersection and selected its verified fallback.
+The gate reuses a measured causal precursor already available before the first
+policy action, reduces unnecessary planning, and is auditable in telemetry.
+The current screen is development data only; promotion requires new probes,
+execution repeats, and a separately frozen validation namespace.

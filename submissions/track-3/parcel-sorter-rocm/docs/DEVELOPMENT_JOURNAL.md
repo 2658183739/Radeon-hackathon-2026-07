@@ -791,3 +791,36 @@ tests, Python compilation, shell syntax, and campaign fingerprint validation.
 The analyzer also replayed the existing 20+20 geometry artifacts and recovered
 the expected 5/20 and 15/20 summaries. This validates evidence plumbing only;
 the 12-profile campaign result remains unknown until execution finishes.
+
+### Record 62: Reject universal planning after the balanced Radeon screen
+
+The frozen campaign completed 180 closed-loop episodes on one Radeon GPU: 12
+parallel-jaw profiles, five matched episodes per profile, and historical,
+collision-checked-reset, and complete-planner groups. Historical control
+reached 36/60 successes and 16/60 force aborts. Collision-checked reset reached
+38/60 and 15/60. Complete geometry planning also reached 38/60 and 15/60, with
+zero drops in every group.
+
+Relative to reset alone, complete planning changed mean episode peak force by
++1.65 N (paired bootstrap 95% CI -1.67 to +5.99 N). Exact McNemar tests for
+both success and force abort returned p=1.0. Each planning attempt cost 5.57 s
+on average. Profile inspection showed one recovery in `large_narrow_carton`,
+one apparent recovery in `shoe_box_proxy`, and two regressions in
+`medium_carton`; the aggregate method therefore failed the frozen advancement
+gate and must not become the default controller.
+
+Full trace replay exposed an important execution limitation. Two changed
+episodes never activated the planner, yet their floating-point state diverged
+before their control actions diverged. Genesis/GPU closed-loop execution is
+therefore not bitwise deterministic under these runs. Discordant pairs cannot
+all be attributed to the method without execution repeats. The evidence is
+archived under `evidence/expert/radeon-geometry-screen-v1`, while local episode
+IDs `200000`--`200039` remain untouched for later confirmation.
+
+The next development-only hypothesis uses an existing causal risk signal rather
+than another fitted size threshold: permit planning only when collision-checked
+reset detected an initial robot/parcel intersection and actually selected the
+collision-free fallback pose. This would have excluded the observed
+`medium_carton` planning regression while retaining the genuinely activated
+`large_narrow_carton` recovery. It must still pass new probes and an independent
+validation namespace before any performance claim.

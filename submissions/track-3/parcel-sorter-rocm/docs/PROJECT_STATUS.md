@@ -297,3 +297,19 @@ Five failures remain: approach-force aborts `7000006/15/19`, lift-force abort
 `7000014`, and lost-grasp timeout `7000017`. Balanced collection and formal
 learned-policy ranking remain blocked. Method, probes, formal protocol, and
 limitations are documented in `docs/GEOMETRY_AWARE_GRASP_PLANNING.md`.
+
+## Latest balanced screen: complete planner rejected
+
+The frozen single-Radeon campaign completed 180 episodes across 12 supported
+profiles. Collision-checked reset and complete planning both achieved 38/60
+successes, 15/60 force aborts, and zero drops. Complete planning increased mean
+episode peak force by 1.65 N (paired bootstrap 95% CI -1.67 to +5.99 N), while
+one planning attempt averaged 5.57 seconds. The method does not improve the
+balanced aggregate and remains disabled.
+
+Two changed outcomes occurred without planner activation, and trace replay
+showed state divergence before action divergence. Future claims must therefore
+include repeated executions in addition to matched episode IDs. The next
+development candidate gates planning on an observed initial robot/parcel
+collision that actually triggered the verified fallback reset. Reserved local
+episodes `200000`--`200039` remain untouched for confirmatory evaluation.
