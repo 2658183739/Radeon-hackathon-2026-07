@@ -1895,3 +1895,47 @@ became a safety abort. Do not scan density or extension on this observation.
 diagnostic before executing it. Resume paired evaluation only after that
 mechanism is understood and a candidate passes both mechanism and sentinel
 gates without changing the independent 35 N supervisor.
+
+### 80. Retain high-rate contact-branch diagnostics and reject the constraint-time candidate
+
+**Question.** Did the mass-aware `+45 mm` regression originate in adapter
+collision, high-level control, finger actuation, or the discrete rigid-contact
+solve?
+
+**Code capability.** Add default-off 240 Hz telemetry for every active robot
+contact, including entity/geom/link identity, force on both bodies, position,
+normal, penetration, finger position/velocity, actual force, controller force,
+task command, and pose. A pure module summarizes the branch and compares two
+aligned traces with preregistered identity, force, position, and velocity
+thresholds. It rejects duplicate sample keys and treats complete contact loss
+after established bilateral support as support loss. The diagnostic runner can
+retain adapter geometry while explicitly ablating only added inertia.
+
+**Differential evidence.** Stock-inertia geometry and combined-inertia traces
+first differed in contact identity/count at 197/2, force at 197/4, finger
+position at 202/0, and finger velocity/actual force at 203/4. Controller force
+never diverged. At 203/4 the mass-aware trace produced 115.5 mm penetration,
+162.19 N at a stock fingertip collision, about 2.5 m/s finger speed, and
+78.01/72.13 N actual finger force. The adapter geometry did not create the
+peak. The unchanged monitor then aborted at frame 204.
+
+**Experiment-integrity correction.** The first constraint-time setup changed a
+generated MJCF that environment construction immediately regenerated from the
+unchanged source. Code review caught the overwrite; the value-identical run is
+explicitly excluded as a no-op rather than reported as a negative candidate.
+The valid command-scoped run changed the source before generation, verified
+`solref="0.010 1"` in both assets, and removed the Genesis time-constant
+warning.
+
+**Candidate evidence.** The verified 0.010 s candidate was worse: it aborted
+at frame 134 during `raise` with 105.85 N, before the frozen 196--204 telemetry
+window. The absence of high-rate samples is reported rather than imputed.
+Source and generated assets were restored after execution.
+
+**Decision and revisit trigger.** Keep the telemetry, comparator, inertia
+ablation, tests, bilingual protocol, and hashed evidence. Reject the
+constraint-time candidate and do not scan adjacent values, rates, densities,
+lengths, gains, or thresholds. No new episode or holdout was opened. Next work
+requires a minimal upstream Genesis reproduction and a newly preregistered,
+documented solver intervention; VLA or visual training cannot precede a stable
+physical baseline. The synchronized Radeon tree compiled and passed 264 tests.

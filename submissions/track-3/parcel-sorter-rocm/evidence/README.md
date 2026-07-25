@@ -397,3 +397,20 @@ matching runs. The preregistered stop rule cancelled the `7130001` expansion
 and any new paired campaign. The implementation is retained default off as a
 physical-model capability, but the candidate failed promotion; no holdout or
 new episode was opened.
+
+## Parcel adapter contact-branch attribution
+
+`expert/parcel-adapter-contact-branch-development-v1.json` binds the frozen
+lightweight and mass-aware raw traces, their recomputed comparison, and the
+single applied constraint-time candidate by byte count and SHA-256. The paired
+240 Hz diagnostic localized the first identity/count difference to 197/2,
+force separation to 197/4, position separation to 202/0, and the numerical
+impulse to 203/4 under unchanged controller forces.
+
+The mass-aware impulse reached 162.19 N with 115.5 mm reported penetration at
+a stock fingertip collision. A preregistered 0.010 s finger-equality candidate
+was verified in both source and generated MJCF, removed the Genesis warning,
+and failed earlier at frame 134 with 105.85 N. An earlier generated-file-only
+run is explicitly excluded because environment construction overwrote the
+setting. No adjacent value, rate, task parameter, episode, or holdout was
+opened. The synchronized Radeon tree compiled and passed 264 tests.

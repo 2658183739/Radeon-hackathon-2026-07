@@ -403,3 +403,23 @@ change the contact branch and invalidate an earlier geometric result. No
 parameter scan, larger campaign, or model training was allowed to hide that
 failure. Detailed equations, commands, hashes, and the next admissible
 diagnostic are in `docs/PARCEL_GRIPPER_ADAPTER_INERTIA.md`.
+
+## Implemented contact-branch diagnostic boundary
+
+The default-off diagnostic records every active robot contact and both finger
+actuator states at the 240 Hz physics rate inside an explicit control-frame
+window. Pure functions summarize traces, reject duplicate sample keys, and
+compare identity, force, position, velocity, actual-force, and controller-force
+divergence without changing actions, ranking, or the 35 N supervisor.
+
+The frozen comparison showed that stock-fingertip contact and force diverged
+before finger position, while controller force never diverged. The mass-aware
+trace then produced 115.5 mm numerical penetration and a 162.19 N impulse at
+203/4. A single preregistered 0.010 s equality-constraint candidate was applied
+and verified but aborted earlier at frame 134 with 105.85 N. The candidate was
+rejected and no scan followed. Detailed bilingual protocols, the setup
+correction, results, and artifact hashes are in
+`docs/CONTACT_BRANCH_DIAGNOSTIC_PROTOCOL.md`,
+`docs/PARCEL_FINGER_CONSTRAINT_STABILITY_PROTOCOL.md`, and
+`docs/PARCEL_ADAPTER_CONTACT_BRANCH_RESULT.md`. The synchronized Radeon tree
+compiled and passed 264 tests.

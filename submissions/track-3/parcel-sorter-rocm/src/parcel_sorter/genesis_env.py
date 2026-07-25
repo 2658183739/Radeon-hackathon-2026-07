@@ -9,6 +9,7 @@ from typing import Any, Mapping
 import xml.etree.ElementTree as ET
 
 from .config import ExperimentConfig
+from .contact_branch import summarize_contact_branch_events
 from .contact_wrench import (
     ContactPoint,
     ContactWrenchConfig,
@@ -149,6 +150,7 @@ def build_parcel_gripper_mjcf(
     output_path: str | Path,
     extension_m: float,
     density_kg_m3: float = 1240.0,
+    combine_adapter_inertia: bool = True,
 ) -> Path:
     """Generate a Panda MJCF with explicit, versioned parcel finger adapters."""
     if not math.isfinite(extension_m) or not 0.005 <= extension_m <= 0.060:
@@ -179,39 +181,40 @@ def build_parcel_gripper_mjcf(
         finger = root.find(f".//body[@name='{finger_name}']")
         if finger is None:
             raise ValueError(f"Panda MJCF is missing {finger_name}")
-        inertial = finger.find("inertial")
-        if inertial is None:
-            raise ValueError(f"Panda MJCF {finger_name} is missing inertial data")
-        if "diaginertia" not in inertial.attrib:
-            raise ValueError(
-                f"Panda MJCF {finger_name} must use explicit diaginertia"
+        if combine_adapter_inertia:
+            inertial = finger.find("inertial")
+            if inertial is None:
+                raise ValueError(f"Panda MJCF {finger_name} is missing inertial data")
+            if "diaginertia" not in inertial.attrib:
+                raise ValueError(
+                    f"Panda MJCF {finger_name} must use explicit diaginertia"
+                )
+            base_mass_kg = float(inertial.attrib["mass"])
+            base_center_m = _float_triplet(inertial.attrib["pos"], "inertial pos")
+            diagonal = _float_triplet(
+                inertial.attrib["diaginertia"],
+                "inertial diaginertia",
             )
-        base_mass_kg = float(inertial.attrib["mass"])
-        base_center_m = _float_triplet(inertial.attrib["pos"], "inertial pos")
-        diagonal = _float_triplet(
-            inertial.attrib["diaginertia"],
-            "inertial diaginertia",
-        )
-        combined_mass_kg, combined_center_m, combined_inertia = (
-            combine_rigid_body_with_box_inertia(
-                base_mass_kg,
-                base_center_m,
-                (*diagonal, 0.0, 0.0, 0.0),
-                density_kg_m3,
-                (0.010, 0.004, half_extension),
-                (0.0, 0.0055, center_z_m),
+            combined_mass_kg, combined_center_m, combined_inertia = (
+                combine_rigid_body_with_box_inertia(
+                    base_mass_kg,
+                    base_center_m,
+                    (*diagonal, 0.0, 0.0, 0.0),
+                    density_kg_m3,
+                    (0.010, 0.004, half_extension),
+                    (0.0, 0.0055, center_z_m),
+                )
             )
-        )
-        inertial.set("mass", f"{combined_mass_kg:.12g}")
-        inertial.set(
-            "pos",
-            " ".join(f"{value:.12g}" for value in combined_center_m),
-        )
-        inertial.attrib.pop("diaginertia")
-        inertial.set(
-            "fullinertia",
-            " ".join(f"{value:.12g}" for value in combined_inertia),
-        )
+            inertial.set("mass", f"{combined_mass_kg:.12g}")
+            inertial.set(
+                "pos",
+                " ".join(f"{value:.12g}" for value in combined_center_m),
+            )
+            inertial.attrib.pop("diaginertia")
+            inertial.set(
+                "fullinertia",
+                " ".join(f"{value:.12g}" for value in combined_inertia),
+            )
         ET.SubElement(
             finger,
             "geom",
@@ -583,6 +586,7 @@ class GenesisParcelEnv:
         capture_sensors: bool = False,
         capture_contact_wrench_telemetry: bool = False,
         contact_wrench_telemetry_backend: str = "cpu",
+        contact_branch_control_window: tuple[int, int] | None = None,
         defer_initialization_settle: bool = False,
     ) -> None:
         self.config = config
@@ -617,23 +621,29 @@ class GenesisParcelEnv:
                 .rstrip(".")
                 .replace(".", "p")
             )
+            inertia_enabled = config.task.parcel_gripper_adapter_inertia_enabled
+            physical_tag = (
+                f"{density_tag}kgm3" if inertia_enabled else "stockinertia"
+            )
             generated_mjcf = (
                 Path(config.output.root_dir)
                 / "generated_assets"
-                / f"panda_parcel_adapter_{extension_tag}mm_{density_tag}kgm3.xml"
+                / f"panda_parcel_adapter_{extension_tag}mm_{physical_tag}.xml"
             )
-            self._robot_adapter_mass_per_finger_kg = (
-                config.task.parcel_gripper_adapter_density_kg_m3
-                * 0.020
-                * 0.008
-                * config.task.parcel_gripper_adapter_extension_m
-            )
+            if inertia_enabled:
+                self._robot_adapter_mass_per_finger_kg = (
+                    config.task.parcel_gripper_adapter_density_kg_m3
+                    * 0.020
+                    * 0.008
+                    * config.task.parcel_gripper_adapter_extension_m
+                )
             self._robot_mjcf_path = str(
                 build_parcel_gripper_mjcf(
                     source_mjcf,
                     generated_mjcf,
                     config.task.parcel_gripper_adapter_extension_m,
                     config.task.parcel_gripper_adapter_density_kg_m3,
+                    combine_adapter_inertia=inertia_enabled,
                 )
             )
         self.expert = ScriptedPickPlaceExpert(config, sample)
@@ -659,6 +669,22 @@ class GenesisParcelEnv:
         if contact_wrench_telemetry_backend not in {"cpu", "rocm"}:
             raise ValueError("contact_wrench_telemetry_backend must be cpu or rocm")
         self._contact_wrench_telemetry_backend = contact_wrench_telemetry_backend
+        if contact_branch_control_window is not None:
+            if (
+                len(contact_branch_control_window) != 2
+                or any(
+                    not isinstance(value, int)
+                    for value in contact_branch_control_window
+                )
+                or contact_branch_control_window[0] < 0
+                or contact_branch_control_window[1]
+                < contact_branch_control_window[0]
+            ):
+                raise ValueError(
+                    "contact_branch_control_window must be two ordered "
+                    "non-negative integers"
+                )
+        self._contact_branch_control_window = contact_branch_control_window
         self._latest_rgb: Any | None = None
         self._latest_depth: Any | None = None
         self._video_path = Path(video_path) if video_path else None
@@ -721,6 +747,9 @@ class GenesisParcelEnv:
         self._contact_wrench_compute_ms_total = 0.0
         self._contact_wrench_device: str | None = None
         self._contact_wrench_last: dict[str, Any] | None = None
+        self._contact_branch_events: list[dict[str, Any]] = []
+        self._contact_branch_device: str | None = None
+        self._contact_branch_compute_ms_total = 0.0
 
         physics_dt = 1.0 / config.simulation.physics_hz
         rolling_friction = needs_rolling_friction(sample)
@@ -742,7 +771,7 @@ class GenesisParcelEnv:
             profiling_options=self.gs.options.ProfilingOptions(show_FPS=False),
             show_viewer=show_viewer,
         )
-        self.scene.add_entity(self.gs.morphs.Plane())
+        self.plane = self.scene.add_entity(self.gs.morphs.Plane())
         self._add_sorting_targets()
         self.robot = self.scene.add_entity(
             self.gs.morphs.MJCF(file=self._robot_mjcf_path),
@@ -834,11 +863,12 @@ class GenesisParcelEnv:
         return self._geometry_grasp_planning_active
 
     def _add_sorting_targets(self) -> None:
+        targets = []
         for center, color in (
             (self.config.task.left_bin_center_m, (0.08, 0.55, 0.92)),
             (self.config.task.right_bin_center_m, (0.96, 0.50, 0.08)),
         ):
-            self.scene.add_entity(
+            targets.append(self.scene.add_entity(
                 self.gs.morphs.Box(
                     size=(
                         self.config.task.bin_half_extent_m[0] * 2,
@@ -851,7 +881,8 @@ class GenesisParcelEnv:
                 surface=self.gs.surfaces.Rough(
                     diffuse_texture=self.gs.textures.ColorTexture(color=color)
                 ),
-            )
+            ))
+        self.sorting_targets = tuple(targets)
 
     def _configure_robot(self) -> None:
         control = self.config.control
@@ -1324,6 +1355,13 @@ class GenesisParcelEnv:
         for physics_substep in range(physics_steps):
             self.scene.step()
             if (
+                self._contact_branch_control_window is not None
+                and self._contact_branch_control_window[0]
+                <= self.control_step
+                <= self._contact_branch_control_window[1]
+            ):
+                self._record_contact_branch(physics_substep)
+            if (
                 self._capture_contact_wrench_telemetry
                 and physics_substep == physics_steps - 1
             ):
@@ -1434,6 +1472,10 @@ class GenesisParcelEnv:
                 1,
                 round(self.config.simulation.control_hz * 0.1),
             ),
+        )
+        contact_branch_summary = summarize_contact_branch_events(
+            self._contact_branch_events,
+            self.config.task.max_contact_force_n,
         )
         return {
             "precontact_aabb_guard_enabled": (
@@ -1611,13 +1653,23 @@ class GenesisParcelEnv:
             "parcel_gripper_adapter_density_kg_m3": (
                 self.config.task.parcel_gripper_adapter_density_kg_m3
             ),
+            "parcel_gripper_adapter_inertia_enabled": (
+                self.config.task.parcel_gripper_adapter_inertia_enabled
+            ),
             "parcel_gripper_adapter_mass_per_finger_kg": (
                 self._robot_adapter_mass_per_finger_kg
             ),
             "parcel_gripper_adapter_inertia_model": (
                 "combined_rigid_body"
-                if self.config.task.parcel_gripper_adapter_enabled
-                else "stock_explicit_inertia"
+                if (
+                    self.config.task.parcel_gripper_adapter_enabled
+                    and self.config.task.parcel_gripper_adapter_inertia_enabled
+                )
+                else (
+                    "stock_explicit_inertia_ablation"
+                    if self.config.task.parcel_gripper_adapter_enabled
+                    else "stock_explicit_inertia"
+                )
             ),
             "robot_mjcf_path": self._robot_mjcf_path,
             "robot_asset_source": self._robot_asset_source,
@@ -1656,6 +1708,14 @@ class GenesisParcelEnv:
             ),
             "contact_wrench_summary": contact_wrench_summary,
             "contact_wrench_events": tuple(self._contact_wrench_events),
+            "contact_branch_control_window": self._contact_branch_control_window,
+            "contact_branch_device": self._contact_branch_device,
+            "contact_branch_sample_hz": self.config.simulation.physics_hz,
+            "contact_branch_compute_ms_total": (
+                self._contact_branch_compute_ms_total
+            ),
+            "contact_branch_summary": contact_branch_summary,
+            "contact_branch_events": tuple(self._contact_branch_events),
         }
 
     def close(self) -> None:
@@ -2174,6 +2234,185 @@ class GenesisParcelEnv:
         self._contact_wrench_compute_ms_total += compute_ms
         self._contact_wrench_last = event
         self._contact_wrench_events.append(event)
+
+    def _record_contact_branch(self, physics_substep: int) -> None:
+        """Record high-rate contact identities and finger dynamics read-only."""
+        started = time.perf_counter_ns()
+        contacts = self.robot.get_contacts()
+        required = {
+            "geom_a",
+            "geom_b",
+            "link_a",
+            "link_b",
+            "position",
+            "normal",
+            "penetration",
+            "force_a",
+            "force_b",
+        }
+        missing = sorted(required - set(contacts))
+        if missing:
+            raise RuntimeError(
+                "Genesis contact-branch telemetry is missing fields: "
+                + ", ".join(missing)
+            )
+        force_a = contacts["force_a"]
+        self._contact_branch_device = str(force_a.device)
+        magnitudes = self.torch.linalg.vector_norm(force_a, dim=-1)
+        mask = magnitudes >= self._contact_wrench_config.minimum_active_force_n
+        if "valid_mask" in contacts:
+            mask &= contacts["valid_mask"]
+        indices = self.torch.nonzero(mask, as_tuple=False).reshape(-1)
+
+        geom_a_values = contacts["geom_a"].detach().cpu().tolist()
+        geom_b_values = contacts["geom_b"].detach().cpu().tolist()
+        link_a_values = contacts["link_a"].detach().cpu().tolist()
+        link_b_values = contacts["link_b"].detach().cpu().tolist()
+        position_values = contacts["position"].detach().cpu().tolist()
+        normal_values = contacts["normal"].detach().cpu().tolist()
+        penetration_values = contacts["penetration"].detach().cpu().tolist()
+        force_a_values = force_a.detach().cpu().tolist()
+        force_b_values = contacts["force_b"].detach().cpu().tolist()
+        magnitude_values = magnitudes.detach().cpu().tolist()
+
+        rows = []
+        parcel_fingers: set[str] = set()
+        peak_parcel_force_n = 0.0
+        for tensor_index in indices.detach().cpu().tolist():
+            index = int(tensor_index)
+            geom_a = self._contact_geom_descriptor(int(geom_a_values[index]))
+            geom_b = self._contact_geom_descriptor(int(geom_b_values[index]))
+            if int(link_a_values[index]) != geom_a["link_index"]:
+                raise RuntimeError("contact geom/link A identity mismatch")
+            if int(link_b_values[index]) != geom_b["link_index"]:
+                raise RuntimeError("contact geom/link B identity mismatch")
+            force_magnitude_n = float(magnitude_values[index])
+            roles = {geom_a["entity_role"], geom_b["entity_role"]}
+            parcel_contact = roles == {"robot", "parcel"}
+            finger_parcel_contact = False
+            if parcel_contact:
+                robot_geom = geom_a if geom_a["entity_role"] == "robot" else geom_b
+                if robot_geom["link_name"] in {"left_finger", "right_finger"}:
+                    finger_parcel_contact = True
+                    parcel_fingers.add(str(robot_geom["link_name"]))
+                    peak_parcel_force_n = max(
+                        peak_parcel_force_n,
+                        force_magnitude_n,
+                    )
+            rows.append(
+                {
+                    "geom_a": geom_a,
+                    "geom_b": geom_b,
+                    "position_m": [float(value) for value in position_values[index]],
+                    "normal": [float(value) for value in normal_values[index]],
+                    "penetration_m": float(penetration_values[index]),
+                    "force_a_n": [float(value) for value in force_a_values[index]],
+                    "force_b_n": [float(value) for value in force_b_values[index]],
+                    "force_magnitude_n": force_magnitude_n,
+                    "finger_parcel_contact": finger_parcel_contact,
+                }
+            )
+
+        event = {
+            "control_step": self.control_step,
+            "physics_substep": int(physics_substep),
+            "command": self._last_applied_command,
+            "transport_phase": self.expert.transport_phase,
+            "end_effector_pose": [
+                *self._flat_tuple(self.end_effector.get_pos()),
+                *self._flat_tuple(self.end_effector.get_quat()),
+            ],
+            "parcel_pose": [
+                *self._flat_tuple(self.parcel.get_pos()),
+                *self._flat_tuple(self.parcel.get_quat()),
+            ],
+            "finger_dof_position_m": list(
+                self._flat_tuple(self.robot.get_dofs_position(self.finger_dofs))
+            ),
+            "finger_dof_velocity_m_s": list(
+                self._flat_tuple(self.robot.get_dofs_velocity(self.finger_dofs))
+            ),
+            "finger_actual_force_n": list(
+                self._flat_tuple(self.robot.get_dofs_force(self.finger_dofs))
+            ),
+            "finger_control_force_n": list(
+                self._flat_tuple(
+                    self.robot.get_dofs_control_force(self.finger_dofs)
+                )
+            ),
+            "contact_count": len(rows),
+            "parcel_contact_count": sum(
+                bool(row["finger_parcel_contact"]) for row in rows
+            ),
+            "bilateral_parcel_contact": parcel_fingers
+            == {"left_finger", "right_finger"},
+            "peak_robot_contact_force_n": max(
+                (float(row["force_magnitude_n"]) for row in rows),
+                default=0.0,
+            ),
+            "peak_parcel_contact_force_n": peak_parcel_force_n,
+            "contacts": rows,
+        }
+        self._contact_branch_compute_ms_total += (
+            time.perf_counter_ns() - started
+        ) / 1_000_000
+        self._contact_branch_events.append(event)
+
+    def _contact_geom_descriptor(self, geom_index: int) -> dict[str, Any]:
+        geom = self.scene.rigid_solver.geoms[geom_index]
+        entity = geom.entity
+        link = geom.link
+        link_geoms = list(link.geoms)
+        link_local_index = next(
+            (
+                index
+                for index, candidate in enumerate(link_geoms)
+                if int(candidate.idx) == geom_index
+            ),
+            None,
+        )
+        if link_local_index is None:
+            raise RuntimeError(f"geom {geom_index} is not owned by its reported link")
+
+        entity_role = self._contact_entity_role(entity)
+        geom_role = f"collision_{link_local_index}"
+        if (
+            entity is self.robot
+            and str(link.name) in {"left_finger", "right_finger"}
+        ):
+            adapter_index = len(link_geoms) - 1
+            if (
+                self.config.task.parcel_gripper_adapter_enabled
+                and link_local_index == adapter_index
+            ):
+                geom_role = "parcel_adapter_collision"
+            else:
+                geom_role = f"stock_finger_collision_{link_local_index}"
+        return {
+            "entity_index": int(entity.idx),
+            "entity_role": entity_role,
+            "geom_index": geom_index,
+            "geom_role": geom_role,
+            "link_index": int(link.idx),
+            "link_name": str(link.name),
+            "link_local_geom_index": link_local_index,
+        }
+
+    def _contact_entity_role(self, entity: Any) -> str:
+        if entity is self.robot:
+            return "robot"
+        if entity is self.parcel:
+            return "parcel"
+        if entity is self.plane:
+            return "plane"
+        for role, target in zip(
+            ("left_bin", "right_bin"),
+            self.sorting_targets,
+            strict=True,
+        ):
+            if entity is target:
+                return role
+        return f"entity_{int(entity.idx)}"
 
     def _finger_contact(self) -> tuple[bool, float]:
         contacts = self.robot.get_contacts(with_entity=self.parcel)

@@ -94,6 +94,7 @@ class TaskConfig:
     parcel_gripper_adapter_enabled: bool = False
     parcel_gripper_adapter_extension_m: float = 0.030
     parcel_gripper_adapter_density_kg_m3: float = 1240.0
+    parcel_gripper_adapter_inertia_enabled: bool = True
 
     def validate(self) -> None:
         if self.max_grasp_retries < 0:

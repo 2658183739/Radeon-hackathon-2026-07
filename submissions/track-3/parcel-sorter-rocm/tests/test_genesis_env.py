@@ -67,6 +67,20 @@ class ParcelGripperAssetTests(unittest.TestCase):
                 self.assertNotIn("diaginertia", inertial.attrib)
                 self.assertEqual(len(inertial.attrib["fullinertia"].split()), 6)
 
+            stock_output = root / "generated" / "panda_adapter_stock_inertia.xml"
+            build_parcel_gripper_mjcf(
+                source,
+                stock_output,
+                0.030,
+                combine_adapter_inertia=False,
+            )
+            stock_inertial = ET.parse(stock_output).getroot().find(
+                ".//body[@name='left_finger']/inertial"
+            )
+            self.assertEqual(stock_inertial.attrib["mass"], "0.015")
+            self.assertIn("diaginertia", stock_inertial.attrib)
+            self.assertNotIn("fullinertia", stock_inertial.attrib)
+
     def test_rejects_unbounded_extension_before_reading_source(self) -> None:
         with self.assertRaisesRegex(ValueError, "extension"):
             build_parcel_gripper_mjcf("missing.xml", "output.xml", 0.061)

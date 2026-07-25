@@ -1143,3 +1143,35 @@ useful as a default-off physical-model capability, but the mass-aware candidate
 failed promotion. The next admissible diagnostic must independently specify
 which contact-pair and finger-actuator signals to inspect around frames
 202--204; it may not optimize against the observed sentinel.
+
+### Record 76: Instrument the contact branch, catch a no-op experiment, and stop
+
+A preregistered differential diagnostic captured all robot contacts and both
+finger actuator states on every 240 Hz physics step over frames 196--204. The
+stock-inertia geometry ablation completed at 12.55 N; the mass-aware condition
+reproduced the frame-204 38.3364 N abort. Their first contact identity/count
+difference occurred at 197/2, force separated at 197/4, finger position did
+not exceed 0.1 mm difference until 202/0, and actual force/velocity exploded at
+203/4 while the controller command remained identical.
+
+The mass-aware peak was a 162.19 N stock-fingertip contact with 115.5 mm
+reported penetration. The adapter collision appeared only after instability.
+This orders the mechanism below high-level control and invalidates VLA or
+visual-model tuning as a response to the failure.
+
+The first 0.010 s equality-constraint command modified a generated asset, but
+the environment regenerates that file from Genesis source at construction.
+Review of the generation path caught the overwrite. That run is recorded as
+an excluded no-op setup check, not interpreted as evidence. The corrected
+command changed the source within a restoration trap, verified both source and
+generated values, and removed the prior time-constant warning. It aborted even
+earlier at frame 134 during raise with 105.85 N, before the frozen telemetry
+window.
+
+The candidate is rejected and adjacent time constants are not scanned. The
+source and generated files were restored, no new episode or holdout was opened,
+and the 35 N safety boundary remains unchanged. The diagnostic implementation
+is retained with duplicate-key validation and correct complete-support-loss
+semantics. Next work is a minimal upstream Genesis reproduction under a new
+protocol, not model training. The synchronized Radeon tree compiled and passed
+264 tests.

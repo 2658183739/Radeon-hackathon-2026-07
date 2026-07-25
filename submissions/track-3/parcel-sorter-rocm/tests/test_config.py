@@ -28,6 +28,7 @@ class ConfigTests(unittest.TestCase):
         self.assertFalse(config.task.parcel_gripper_adapter_enabled)
         self.assertEqual(config.task.parcel_gripper_adapter_extension_m, 0.030)
         self.assertEqual(config.task.parcel_gripper_adapter_density_kg_m3, 1240.0)
+        self.assertTrue(config.task.parcel_gripper_adapter_inertia_enabled)
         self.assertFalse(config.control.transport_slip_recovery_enabled)
         self.assertFalse(config.control.transport_slip_setdown_regrasp_enabled)
         self.assertEqual(config.control.transport_slip_setdown_step_m, 0.010)

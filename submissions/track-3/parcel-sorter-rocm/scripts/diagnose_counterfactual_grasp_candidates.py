@@ -73,6 +73,21 @@ def parse_args() -> argparse.Namespace:
         help="override the effective adapter density used for finger inertia",
     )
     parser.add_argument(
+        "--parcel-gripper-stock-inertia",
+        action="store_true",
+        help=(
+            "diagnostic ablation: keep stock finger inertia while retaining "
+            "adapter collision geometry"
+        ),
+    )
+    parser.add_argument(
+        "--contact-branch-telemetry",
+        action="store_true",
+        help="capture all robot contacts and finger dynamics at physics rate",
+    )
+    parser.add_argument("--contact-branch-frame-start", type=int, default=196)
+    parser.add_argument("--contact-branch-frame-end", type=int, default=204)
+    parser.add_argument(
         "--inactive-gate",
         choices=("error", "skip"),
         default="error",
@@ -154,6 +169,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("episode must be non-negative and budgets must be positive")
     if args.all_candidates == bool(args.candidate_id):
         raise ValueError("choose exactly one of --all-candidates or --candidate-id")
+    if args.parcel_gripper_stock_inertia and not args.parcel_gripper_adapter:
+        raise ValueError("stock-inertia ablation requires --parcel-gripper-adapter")
 
     config = load_config(args.config)
     config = replace(
@@ -175,6 +192,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 config.task.parcel_gripper_adapter_density_kg_m3
                 if args.parcel_gripper_density_kg_m3 is None
                 else args.parcel_gripper_density_kg_m3
+            ),
+            parcel_gripper_adapter_inertia_enabled=(
+                not args.parcel_gripper_stock_inertia
             ),
         ),
         control=replace(
@@ -240,6 +260,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 backend=args.backend,
                 capture_contact_wrench_telemetry=args.contact_wrench_telemetry,
                 contact_wrench_telemetry_backend=args.contact_wrench_backend,
+                contact_branch_control_window=(
+                    (
+                        args.contact_branch_frame_start,
+                        args.contact_branch_frame_end,
+                    )
+                    if args.contact_branch_telemetry
+                    else None
+                ),
             ) as env:
                 env.set_diagnostic_grasp_candidate_allowlist(
                     frozenset({candidate_id})
@@ -289,6 +317,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     "contact_wrench_telemetry_backend": report.safety_summary[
                         "contact_wrench_telemetry_backend"
                     ],
+                    "contact_branch_summary": report.safety_summary[
+                        "contact_branch_summary"
+                    ],
+                    "contact_branch_device": report.safety_summary[
+                        "contact_branch_device"
+                    ],
                     "report": report.to_dict(),
                 }
             )
@@ -323,6 +357,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "parcel_gripper_adapter_density_kg_m3": (
                 config.task.parcel_gripper_adapter_density_kg_m3
             ),
+            "parcel_gripper_adapter_inertia_enabled": (
+                config.task.parcel_gripper_adapter_inertia_enabled
+            ),
             "parcel_gripper_adapter_mass_per_finger_kg": (
                 (
                     0.020
@@ -330,14 +367,31 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     * config.task.parcel_gripper_adapter_extension_m
                     * config.task.parcel_gripper_adapter_density_kg_m3
                 )
-                if config.task.parcel_gripper_adapter_enabled
+                if (
+                    config.task.parcel_gripper_adapter_enabled
+                    and config.task.parcel_gripper_adapter_inertia_enabled
+                )
                 else 0.0
             ),
             "parcel_gripper_adapter_inertia_model": (
                 "combined_rigid_body"
-                if config.task.parcel_gripper_adapter_enabled
-                else "stock_explicit_inertia"
+                if (
+                    config.task.parcel_gripper_adapter_enabled
+                    and config.task.parcel_gripper_adapter_inertia_enabled
+                )
+                else (
+                    "stock_explicit_inertia_ablation"
+                    if config.task.parcel_gripper_adapter_enabled
+                    else "stock_explicit_inertia"
+                )
             ),
+            "contact_branch_telemetry_enabled": args.contact_branch_telemetry,
+            "contact_branch_control_window": (
+                [args.contact_branch_frame_start, args.contact_branch_frame_end]
+                if args.contact_branch_telemetry
+                else None
+            ),
+            "contact_branch_changes_controller": False,
             "contact_wrench_changes_controller": False,
             "contact_wrench_changes_ranking": False,
             "only_intervention": "reject every generated candidate ID except the target",
