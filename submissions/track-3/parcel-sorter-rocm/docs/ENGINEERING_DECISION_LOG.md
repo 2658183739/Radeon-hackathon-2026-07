@@ -1217,3 +1217,34 @@ tests, and fixed A/B runner as a reproducible experiment component. Fix the
 runner's exact difference contract to list only the field that actually changed.
 Full summaries remain on the Radeon host; Git stores compact summaries, failure
 analyses, logs, comparison, and local/remote SHA-256 manifests.
+
+### 58. Reject the larger vertical recovery-step barrier candidate
+
+**Diagnosis.** Baseline traces showed the end effector falling below
+`parcel_z + approach_clearance_m` during horizontal approach even though the
+nominal Cartesian target stayed at the transit height. The candidate borrowed
+the safety-set idea from CBFs: while still away from the grasp center and below
+that height, freeze horizontal motion and allow one vertical recovery step up
+to 120 mm. It is disabled by default and does not affect final descent or retry
+retreat.
+
+**Evidence.** On matched Radeon episodes, candidate success fell from 1/20 to
+0/20, force aborts remained 12/20, and both arms had zero drops. Candidate
+episode `7000007` improved peak force from 56.76 N to 32.99 N but became an
+approach timeout; more importantly, successful baseline episode `7000005`
+regressed to a 42.43 N force abort. Approach timeouts rose from 7 to 8 and the
+candidate failed the absolute success, safety, and throughput gates.
+
+**Decision.** Reject and keep disabled. Enlarging a vertical recovery step can
+change an individual impulse but breaks successful trajectories; it does not
+replace a pre-contact constraint on finger geometry and IK/PD tracking. The
+next candidate will use Genesis `get_AABB()` to estimate finger-to-parcel axis-
+aligned clearance and filter horizontal motion only near the threshold. This is
+an engineering safety filter, not a claim of formal CBF proof.
+
+**Research basis.** The design was informed by arXiv:2503.06736 (Operational
+Space CBF, MIT-licensed OSCBF), arXiv:2503.00623 (collision-cone CBF with
+Cartesian impedance), and arXiv:2211.11391 (RL-enhanced CBF parameterization).
+OSCBF depends on URDF/JAX and a hand-authored collision model, so it is not
+directly imported into this Genesis/ROCm stack; only the auditable principle of
+filtering a nominal controller through a safety constraint is retained.

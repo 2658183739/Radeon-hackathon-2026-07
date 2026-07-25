@@ -184,6 +184,27 @@ class ScriptedExpertTests(unittest.TestCase):
         self.assertGreater(action.target_position[2], state.end_effector_pose[2])
         self.assertLessEqual(distance, 0.01 + 1e-9)
 
+    def test_approach_barrier_allows_vertical_recovery_without_horizontal_motion(self) -> None:
+        decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)
+        candidate_config = replace(
+            self.config,
+            control=replace(
+                self.config.control,
+                approach_barrier_recovery_step_m=0.12,
+            ),
+        )
+        expert = ScriptedPickPlaceExpert(candidate_config, self.sample)
+        state = replace(
+            self.state,
+            end_effector_pose=(0.35, 0.0, 0.10, 1.0, 0.0, 0.0, 0.0),
+        )
+        action = expert.action(decision, state)
+
+        self.assertAlmostEqual(action.target_position[0], state.end_effector_pose[0])
+        self.assertAlmostEqual(action.target_position[1], state.end_effector_pose[1])
+        self.assertGreater(action.target_position[2], state.end_effector_pose[2])
+        self.assertLessEqual(math.dist(action.target_position, state.end_effector_pose[:3]), 0.12 + 1e-9)
+
     def test_profile_can_reduce_final_approach_step(self) -> None:
         sample = replace(self.sample, final_approach_step_m=0.005)
         expert = ScriptedPickPlaceExpert(self.config, sample)

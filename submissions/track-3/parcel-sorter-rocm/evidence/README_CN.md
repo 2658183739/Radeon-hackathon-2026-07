@@ -78,3 +78,7 @@ Catalog v2 同样只记录每类一个确定性回合以及同 episode 的物理
 `b35298cf...4e11d`、comparison `5b8ead9a...40290`。完整值见
 `expert/radeon-contact-brake-ab-v1-SHA256SUMS`，远端原始 summary 哈希见
 `expert/radeon-contact-brake-ab-v1-remote-SHA256SUMS`。
+
+## 竖直屏障恢复负对照
+
+`expert/radeon-approach-barrier-ab-v1-*` 保存 20 回合匹配 Radeon A/B 的压缩 summary、失败归因、日志、comparison 和两级哈希清单。候选只设置 `control.approach_barrier_recovery_step_m=0.120`；它为 0/20 成功、12/20 力中止，基线为 1/20、12/20，候选吞吐为 0，因此默认关闭。核心本地哈希为 baseline summary `5154a5d2...841b3a`、candidate summary `98196889...593c49`、comparison `172236b9...01e886`。完整值见 `expert/radeon-approach-barrier-ab-v1-SHA256SUMS`，远端原始 summary 哈希见 `expert/radeon-approach-barrier-ab-v1-remote-SHA256SUMS`。

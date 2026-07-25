@@ -316,3 +316,21 @@ in this order:
    lightweight VLA on the same closed-loop split.
 5. Continue recording the exact config difference, episode set, seeds, runtime,
    logs, failure attribution, and SHA-256 for every candidate.
+
+## 13. Geometric safety-filter priority after the vertical-barrier experiment
+
+The 120 mm vertical-recovery candidate reduced one impulse but regressed a
+successful episode, so it cannot become the default controller. The next
+iteration will:
+
+1. Use Genesis `get_AABB()` for both fingertips and the parcel, computing
+   per-axis gaps and the minimum Euclidean gap in world coordinates.
+2. Filter the nominal horizontal target only during `MOVE_PREGRASP` when the
+   gap approaches a threshold; preserve vertical/away motion and let the hard
+   abort take precedence.
+3. Log per-frame gap, filter count, added latency, and GPU synchronization cost
+   so safety cannot hide a throughput regression.
+4. Eliminate candidates on the fixed 20 `large_narrow_carton` protocol before
+   expanding to cylindrical, flat, long-carton, and USPS boundary profiles.
+5. Resume 360 successful RGB-D episodes and ACT, Diffusion, DP3/point-cloud,
+   and lightweight VLA comparisons only after the expert safety gate passes.

@@ -102,6 +102,21 @@ class ScriptedPickPlaceExpert:
                 step_limit = min(step_limit, self.config.control.final_approach_step_m)
                 if self.sample.final_approach_step_m is not None:
                     step_limit = min(step_limit, self.sample.final_approach_step_m)
+            barrier_step = self.config.control.approach_barrier_recovery_step_m
+            if barrier_step is not None and not self._retry_retreat_pending:
+                transit_z = parcel[2] + self.approach_clearance_m()
+                horizontal_distance = math.hypot(
+                    current[0] - parcel[0], current[1] - parcel[1]
+                )
+                vertical_deficit = transit_z - current[2]
+                if (
+                    horizontal_distance > self.config.task.position_tolerance_m
+                    and vertical_deficit > self.config.task.position_tolerance_m
+                ):
+                    # The nominal target is already the transit height. Increase
+                    # only this vertical recovery step so lag cannot preserve a
+                    # low, collision-prone end-effector state while translating.
+                    step_limit = max(step_limit, min(barrier_step, vertical_deficit))
         elif command == Command.MOVE_LIFT and self.sample.lift_step_m is not None:
             step_limit = min(step_limit, self.sample.lift_step_m)
         target = self._bounded_step(current, desired, step_limit)

@@ -593,3 +593,16 @@ GPU experiment.
 
 Validation: 104 unit tests in the Radeon environment, runner shell syntax,
 Python compilation, both failure analyses, and local evidence hashes passed.
+
+### Entry 54: The vertical-barrier candidate changed impulses but broke success
+
+Added disabled-by-default `approach_barrier_recovery_step_m`: when the end
+effector is below the transit height but still away from the parcel, freeze
+horizontal motion and allow a 120 mm vertical recovery step. The fixed Radeon
+A/B produced 0/20 successes and 12/20 force aborts for the candidate versus
+1/20 and 12/20 for baseline. Episode `7000007` improved to 32.99 N peak force,
+but baseline success `7000005` regressed to a 42.43 N force abort. The barrier
+therefore needs geometric clearance and low-level tracking constraints together;
+enlarging one step is not sufficient. The candidate stays disabled, with full
+summaries, failure analyses, logs, and SHA-256 archived. Radeon validation now
+passes 107 tests.

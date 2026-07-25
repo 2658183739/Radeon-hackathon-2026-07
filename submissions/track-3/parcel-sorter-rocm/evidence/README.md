@@ -102,3 +102,16 @@ disabled. Local SHA-256 values include baseline summary
 `5b8ead9a...40290`. Full digests are in
 `expert/radeon-contact-brake-ab-v1-SHA256SUMS`; the remote manifest preserves
 the full-summary provenance hashes.
+
+## Vertical-barrier recovery negative control
+
+`expert/radeon-approach-barrier-ab-v1-*` contains compact summaries, failure
+analyses, logs, comparison, and two hash manifests for a matched 20-episode
+Radeon A/B. The candidate set only
+`control.approach_barrier_recovery_step_m=0.120`; it achieved 0/20 successes
+and 12/20 force aborts versus baseline 1/20 and 12/20, with zero candidate
+throughput, so it remains disabled. Local hashes include baseline summary
+`5154a5d2...841b3a`, candidate summary `98196889...593c49`, and comparison
+`172236b9...01e886`. Full digests are in
+`expert/radeon-approach-barrier-ab-v1-SHA256SUMS`; the remote manifest preserves
+the raw-summary provenance hashes.

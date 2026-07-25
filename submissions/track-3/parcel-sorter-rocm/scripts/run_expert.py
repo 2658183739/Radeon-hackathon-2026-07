@@ -90,6 +90,12 @@ def main() -> int:
         default=None,
         help="maximum Cartesian retreat step used by approach contact braking",
     )
+    parser.add_argument(
+        "--approach-barrier-recovery-step",
+        type=float,
+        default=None,
+        help="allow a larger vertical-only recovery step below the approach barrier",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -116,6 +122,7 @@ def main() -> int:
         or args.approach_step is not None
         or args.approach_contact_brake_force is not None
         or args.approach_contact_brake_step is not None
+        or args.approach_barrier_recovery_step is not None
     ):
         config = replace(
             config,
@@ -146,6 +153,11 @@ def main() -> int:
                     config.control.approach_contact_brake_step_m
                     if args.approach_contact_brake_step is None
                     else args.approach_contact_brake_step
+                ),
+                approach_barrier_recovery_step_m=(
+                    config.control.approach_barrier_recovery_step_m
+                    if args.approach_barrier_recovery_step is None
+                    else args.approach_barrier_recovery_step
                 ),
             ),
         )

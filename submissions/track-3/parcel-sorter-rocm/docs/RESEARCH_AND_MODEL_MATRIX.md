@@ -189,3 +189,17 @@ then ranks by:
 
 This is an evaluation improvement, not a model-performance claim. New results
 remain pending until Radeon collection, training, and held-out execution finish.
+
+## Approach-safety research and current tradeoffs
+
+| Source | Reusable idea | Current project choice |
+| --- | --- | --- |
+| OSCBF, arXiv `2503.06736`, StanfordASL, MIT | Add an operational-space CBF safety filter around a nominal controller at high rate | Do not import its JAX/URDF stack; retain the principle that safety filtering preserves the policy interface |
+| Collision Cone CBF, arXiv `2503.00623` | Combine relative-motion collision-cone constraints with Cartesian impedance | Start with Genesis fingertip AABB clearance, then add velocity terms |
+| RL-enhanced CBF, arXiv `2211.11391` | Tune barrier parameters from data rather than learning unconstrained actions | Freeze thresholds for matched A/B first; no tuning before the expert safety gate |
+
+The two negative controls show that frame-level force braking is too late and
+that enlarging vertical recovery steps can break successful trajectories. The
+next candidate is a Genesis fingertip-AABB pre-contact filter that logs gap,
+filter count, latency, and GPU synchronization cost. It is an engineering
+filter, not a formal safety proof, and does not replace the 35 N hard abort.

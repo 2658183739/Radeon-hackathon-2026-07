@@ -170,3 +170,16 @@ The candidate is rejected and disabled. Evidence is indexed under
 is a pre-contact geometric-distance guard or a higher-rate compliant/impedance
 controller. The 35 N hard limit, balanced-data gate, and formal model-ranking
 block remain unchanged.
+
+## Latest controlled experiment: vertical-barrier recovery A/B
+
+The candidate froze horizontal motion below the transit height and allowed a
+120 mm vertical recovery step. It reduced one dangerous episode from 56.76 N
+to 32.99 N peak force, but regressed successful episode `7000005` to a 42.43 N
+force abort. Overall candidate results were 0/20 successes, 12/20 force
+aborts, and zero drops versus baseline 1/20, 12/20, and zero drops. Candidate
+throughput was zero, so it is rejected and disabled.
+
+Evidence is indexed under `evidence/expert/radeon-approach-barrier-ab-v1-*`.
+The next engineering step is a pre-contact geometric filter using Genesis
+finger `get_AABB()`; balanced collection and model ranking remain blocked.
