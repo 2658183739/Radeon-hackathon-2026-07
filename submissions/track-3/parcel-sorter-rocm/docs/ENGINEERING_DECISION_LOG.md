@@ -1439,3 +1439,44 @@ Evidence is under `evidence/expert/radeon-surface-aware-pregrasp-probes-v1-*`.
 Radeon validation passed 140 tests plus 6 subtests; source and derived hashes
 were verified. No formal success-rate claim is made from three single-episode
 probes.
+
+### 64. Retain geometry-aware grasp planning as the leading experimental path
+
+**Observation.** Collision-checked reset removed initial intersections but left
+high cartons without a shared, reachable grasp pose. Surface-aware completion
+tolerance changed event timing and created unsafe closure. The controller needed
+pose generation, feasibility checks, and consistent execution semantics.
+
+**Hypothesis and implementation.** Generate box-relative pose candidates,
+evaluate them with Radeon IK/FK, collision, Jacobian, state-restoration, and
+clearance evidence, then bind one pose across approach, capture, grasp, and
+lift. Scope the change to boxes at least 125 mm high so known lower-box success
+paths remain byte-for-byte equivalent at the action level. Replan after retry.
+
+**Alternatives considered.** Loosen pregrasp tolerance was already unsafe.
+Raising the 35 N abort would hide rather than solve the failure. A swept
+0.025-rad joint collision gate was implemented and measured, but it rejected
+zero challenge waypoints, did not prevent six force aborts, and added up to
+7.76 seconds per episode; keep it opt-in only. One global 5 mm or 2.5 mm
+approach step was rejected because contact response was non-monotonic across
+medium and tall boxes.
+
+**Decision and reason.** Keep a two-stage planned approach: 5 mm for the active
+125--160 mm band and 2.5 mm for boxes at least 160 mm high. The boundary is tied
+to the 105 mm palm clearance plus 55 mm maximum vertical candidate offset. Keep
+the entire planner disabled by default because the formal candidate reached
+15/20 success and 4/20 force aborts, not the required 18/20 and at most 1/20.
+This is the leading experimental controller and a valid competition result,
+but not a deployable default.
+
+**Evidence.** The exact-config, fixed-episode Radeon A/B recovered ten failures,
+regressed none, kept zero drops, improved throughput by 3.66x, and reduced peak
+force from 111.30 N to 46.99 N. Remaining failures are three approach-force
+aborts, one lift-force abort, and one lost-grasp approach timeout. Evidence and
+SHA-256 manifests are under
+`evidence/expert/radeon-geometry-aware-grasp-planning-ab-v2-tiered-*`.
+
+**Next decision gate.** Target low-box contact prediction, collision-free retry,
+and lift retention on new preregistered probes. Do not fit more height thresholds
+to the same 20 episodes. Expand to held-out shapes only after reaching 18/20
+success and at most 1/20 force abort.

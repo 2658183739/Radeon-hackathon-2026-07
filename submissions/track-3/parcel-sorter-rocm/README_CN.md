@@ -26,6 +26,9 @@ RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 
 当前能力、未实现边界和推荐复现顺序见[项目状态与复现协议](docs/PROJECT_STATUS_CN.md)，
 英文评审入口为 [PROJECT_STATUS.md](docs/PROJECT_STATUS.md)。
+最新 Radeon 几何规划方法、顺序探针、正式 20+20 结果和剩余边界见
+[几何感知抓取规划](docs/GEOMETRY_AWARE_GRASP_PLANNING_CN.md)；英文版见
+[Geometry-Aware Grasp Planning](docs/GEOMETRY_AWARE_GRASP_PLANNING.md)。
 
 ## 系统组成
 
@@ -81,7 +84,8 @@ HIP/ROCm 设备，不代表使用了 NVIDIA CUDA。预检脚本会检查 `torch.
 | ACT AMP/batch32 训练吞吐 | 80 samples/s |
 | 目录烟雾回归 | 7 类中 4 类单回合完成；仅用于回归，不是成功率 |
 | 轻量 Diffusion 单步烟雾 | 76.6M 参数，Radeon 单步约 23.6 秒；不是成功率 |
-| 当前测试套件 | Radeon 上 71 项通过 |
+| 大纸箱几何规划困难集 | 基线 5/20，候选 15/20；实验能力，未通过发布门禁 |
+| 当前测试套件 | Radeon 上 162 项通过 |
 
 正式专家 120 回合结果是当前机器人能力主指标。固定 10 种子结果只用于回归基线。
 ACT 已经证明数据、训练、保存、重载、ROCm 推理和 Genesis 闭环全部跑通，但成功率

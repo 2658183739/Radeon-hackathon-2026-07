@@ -1,10 +1,11 @@
+from dataclasses import replace
 from pathlib import Path
 import unittest
 
 from parcel_sorter.config import load_config
 from parcel_sorter.contracts import Observation, RobotState
 from parcel_sorter.randomization import DomainRandomizer
-from parcel_sorter.runner import run_expert_episode
+from parcel_sorter.runner import resolve_grasp_stability_steps, run_expert_episode
 from parcel_sorter.state_machine import Command
 
 
@@ -14,6 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 class FakeEnvironment:
     def __init__(self) -> None:
         self.control_step = 0
+        self.prepared_decisions = []
         self.observations = (
             Observation(parcel_visible=True),
             Observation(at_pregrasp=True),
@@ -39,6 +41,9 @@ class FakeEnvironment:
     def step(self, action):
         self.control_step += 1
 
+    def prepare_action(self, decision, state):
+        self.prepared_decisions.append((decision.command, state.parcel_pose))
+
     def sensor_frame(self):
         return None, None
 
@@ -47,14 +52,34 @@ class FakeEnvironment:
 
 
 class ExpertRunnerTests(unittest.TestCase):
+    def test_planned_grasp_requires_configured_stable_contact_dwell(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        config = replace(
+            config,
+            task=replace(
+                config.task,
+                geometry_aware_grasp_planning_enabled=True,
+                grasp_planning_stability_steps=10,
+            ),
+        )
+        sample = replace(
+            DomainRandomizer(config.randomization, config.seed).sample(0),
+            shape="box",
+            dimensions_m=(0.30, 0.07, 0.16),
+        )
+
+        self.assertEqual(resolve_grasp_stability_steps(config, sample), 10)
+
     def test_runs_complete_closed_loop(self) -> None:
         config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
         sample = DomainRandomizer(config.randomization, config.seed).sample(0)
-        report = run_expert_episode(FakeEnvironment(), config, sample, 0)
+        environment = FakeEnvironment()
+        report = run_expert_episode(environment, config, sample, 0)
 
         self.assertTrue(report.result.success)
         self.assertEqual(report.terminal_stage, "complete")
         self.assertIn(Command.MOVE_LIFT.value, [item["command"] for item in report.trace])
+        self.assertEqual(len(report.trace), len(environment.prepared_decisions))
 
 
 if __name__ == "__main__":

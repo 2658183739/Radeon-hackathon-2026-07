@@ -405,3 +405,22 @@ The next implementation must:
    stale grasp state.
 5. Probe preservation, timeout recovery, and force challenge in that order;
    only then register the fixed 20+20 Radeon A/B.
+
+## 18. Geometry-planning result and remaining safety work
+
+The pose-generation branch is the first hard-carton intervention to produce a
+large task gain without regressions: 5/20 to 15/20 success, 8/20 to 4/20 force
+aborts, and 3.66x successful throughput. Keep it as the leading experimental
+path, but do not promote it while five failures remain.
+
+Proceed in this order:
+
+1. Diagnose low-box approach aborts `7000006/15/19` with link distance and
+   command tracking; they are below or near the planner scope boundary.
+2. Add a verified retreat state for lift failure `7000014`; no re-approach may
+   begin until the robot is collision-free relative to the moved parcel.
+3. Separate grasp-retention recovery from approach timeout for `7000017`.
+4. Freeze the current 20 episodes as development evidence and preregister new
+   adjacent seeds for confirmation rather than fitting another height split.
+5. Require at least 18/20 success, at most 1/20 force abort, zero added drops,
+   and at least 85% throughput retention before expanded catalog evaluation.

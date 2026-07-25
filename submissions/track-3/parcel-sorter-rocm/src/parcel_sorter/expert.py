@@ -41,7 +41,8 @@ class ScriptedPickPlaceExpert:
             else config.task.parcel_base_size_m[2] * sample.size_scale_xyz[2]
         )
         self._initial_parcel_z = size_z / 2
-        self._grasp_origin_xy: tuple[float, float] | None = None
+        self._grasp_origin_xyz: tuple[float, float, float] | None = None
+        self._planned_grasp_position: tuple[float, float, float] | None = None
         self._descent_committed = False
         self._drop_descent_committed = False
         self._retry_retreat_pending = False
@@ -59,7 +60,7 @@ class ScriptedPickPlaceExpert:
         if decision.retry_count != self._last_retry_count:
             self._descent_committed = False
             self._drop_descent_committed = False
-            self._grasp_origin_xy = None
+            self._grasp_origin_xyz = None
             self._retry_retreat_pending = (
                 decision.retry_count > 0
                 and self.config.task.retry_retreat_distance_m > 0
@@ -72,20 +73,20 @@ class ScriptedPickPlaceExpert:
         if command == Command.MOVE_PREGRASP:
             desired = self._retry_or_safe_approach_position(current, parcel)
         elif command == Command.MOVE_LIFT:
-            grasp_xy = self._grasp_origin_xy or (parcel[0], parcel[1])
+            grasp_origin = self._grasp_origin_xyz or self.pregrasp_position(
+                state.parcel_pose
+            )
             desired = (
-                grasp_xy[0],
-                grasp_xy[1],
-                self._initial_parcel_z
-                + self.grasp_hand_clearance_m()
-                + self.config.task.lift_height_m,
+                grasp_origin[0],
+                grasp_origin[1],
+                grasp_origin[2] + self.config.task.lift_height_m,
             )
         elif command == Command.MOVE_DROP:
             desired = self._safe_drop_position(current)
         else:
             desired = tuple(float(value) for value in current)
         if command == Command.CLOSE_GRIPPER:
-            self._grasp_origin_xy = (parcel[0], parcel[1])
+            self._grasp_origin_xyz = self.pregrasp_position(state.parcel_pose)
 
         step_limit = self.config.control.max_ee_step_m
         if command == Command.MOVE_PREGRASP:
@@ -102,11 +103,17 @@ class ScriptedPickPlaceExpert:
                 step_limit = min(step_limit, self.config.control.final_approach_step_m)
                 if self.sample.final_approach_step_m is not None:
                     step_limit = min(step_limit, self.sample.final_approach_step_m)
+                if self._planned_grasp_position is not None:
+                    step_limit = min(
+                        step_limit,
+                        self.planned_final_approach_step_m(),
+                    )
             barrier_step = self.config.control.approach_barrier_recovery_step_m
             if barrier_step is not None and not self._retry_retreat_pending:
-                transit_z = parcel[2] + self.approach_clearance_m()
+                target = self.pregrasp_position(state.parcel_pose)
+                transit_z = self._transit_height(target)
                 horizontal_distance = math.hypot(
-                    current[0] - parcel[0], current[1] - parcel[1]
+                    current[0] - target[0], current[1] - target[1]
                 )
                 vertical_deficit = transit_z - current[2]
                 if (
@@ -119,11 +126,23 @@ class ScriptedPickPlaceExpert:
                     step_limit = max(step_limit, min(barrier_step, vertical_deficit))
         elif command == Command.MOVE_LIFT and self.sample.lift_step_m is not None:
             step_limit = min(step_limit, self.sample.lift_step_m)
+        elif (
+            command == Command.MOVE_DROP
+            and self._planned_grasp_position is not None
+            and self._drop_descent_committed
+        ):
+            step_limit = min(
+                step_limit,
+                self.config.task.grasp_planning_drop_step_m,
+            )
         target = self._bounded_step(current, desired, step_limit)
         target_quaternion = self._grasp_quaternion
         if command == Command.MOVE_PREGRASP:
-            transit_z = parcel[2] + self.approach_clearance_m()
-            horizontal_distance = math.hypot(current[0] - parcel[0], current[1] - parcel[1])
+            pregrasp = self.pregrasp_position(state.parcel_pose)
+            transit_z = self._transit_height(pregrasp)
+            horizontal_distance = math.hypot(
+                current[0] - pregrasp[0], current[1] - pregrasp[1]
+            )
             if (
                 horizontal_distance > self.config.task.position_tolerance_m
                 and current[2] < transit_z - self.config.task.position_tolerance_m
@@ -142,17 +161,55 @@ class ScriptedPickPlaceExpert:
         )
 
     def pregrasp_position(self, parcel_pose: tuple[float, ...]) -> tuple[float, float, float]:
+        if self._planned_grasp_position is not None:
+            return self._planned_grasp_position
         return (
             parcel_pose[0],
             parcel_pose[1],
             parcel_pose[2] + self.grasp_hand_clearance_m(),
         )
 
+    def set_planned_grasp_pose(
+        self,
+        position: tuple[float, float, float],
+        quaternion: tuple[float, float, float, float],
+    ) -> None:
+        if not all(math.isfinite(value) for value in (*position, *quaternion)):
+            raise ValueError("planned grasp pose must be finite")
+        quaternion_norm = math.sqrt(sum(value * value for value in quaternion))
+        if not math.isclose(quaternion_norm, 1.0, rel_tol=0.0, abs_tol=1e-5):
+            raise ValueError("planned grasp quaternion must be normalized")
+        self._planned_grasp_position = tuple(float(value) for value in position)
+        self._grasp_quaternion = tuple(float(value) for value in quaternion)
+        self._descent_committed = False
+
+    def clear_planned_grasp_pose(self) -> None:
+        self._planned_grasp_position = None
+        half_yaw = profile_grasp_yaw(self.sample) / 2
+        self._grasp_quaternion = (
+            0.0,
+            math.cos(half_yaw),
+            math.sin(half_yaw),
+            0.0,
+        )
+        self._descent_committed = False
+
     def grasp_hand_clearance_m(self) -> float:
         clearance = self.config.task.grasp_hand_clearance_m
         if self.sample.shape == "cylinder" and self.sample.orientation_mode == "upright":
             return clearance + 0.008
         return clearance
+
+    def planned_final_approach_step_m(self) -> float:
+        """Reduce pre-contact travel again for boxes in the tallest risk band."""
+        dimensions = self.sample.dimensions_m
+        if (
+            self.sample.shape == "box"
+            and dimensions is not None
+            and dimensions[2] >= self.config.task.grasp_planning_tall_box_height_m
+        ):
+            return self.config.task.grasp_planning_tall_box_final_approach_step_m
+        return self.config.task.grasp_planning_final_approach_step_m
 
     def approach_clearance_m(self) -> float:
         """Return the horizontal-transit clearance for the current parcel.
@@ -215,6 +272,12 @@ class ScriptedPickPlaceExpert:
         """Test grasp capture while preserving the historical spherical default."""
         target = self.pregrasp_position(parcel_pose)
         tolerance = self.pregrasp_tolerance_m()
+        if self._planned_grasp_position is not None:
+            planned_tolerance = min(
+                tolerance,
+                self.config.task.approach_xy_tolerance_m,
+            )
+            return math.dist(end_effector_position, target) <= planned_tolerance
         if not self.config.task.surface_aware_pregrasp_enabled:
             return math.dist(end_effector_position, target) <= tolerance
 
@@ -260,20 +323,31 @@ class ScriptedPickPlaceExpert:
         parcel_pose: tuple[float, ...],
     ) -> tuple[float, float, float]:
         tolerance = self.config.task.approach_xy_tolerance_m
-        transit_z = parcel_pose[2] + self.approach_clearance_m()
+        target = self.pregrasp_position(parcel_pose)
+        transit_z = self._transit_height(target)
         horizontal_distance = math.hypot(
-            current[0] - parcel_pose[0],
-            current[1] - parcel_pose[1],
+            current[0] - target[0],
+            current[1] - target[1],
         )
 
         if self._descent_committed:
-            return self.pregrasp_position(parcel_pose)
+            return target
         if horizontal_distance > tolerance and current[2] < transit_z - tolerance:
             return (current[0], current[1], transit_z)
         if horizontal_distance > tolerance:
-            return (parcel_pose[0], parcel_pose[1], transit_z)
+            return (target[0], target[1], transit_z)
         self._descent_committed = True
-        return self.pregrasp_position(parcel_pose)
+        return target
+
+    def _transit_height(
+        self,
+        grasp_position: tuple[float, float, float],
+    ) -> float:
+        return (
+            grasp_position[2]
+            + self.approach_clearance_m()
+            - self.grasp_hand_clearance_m()
+        )
 
     def _retry_or_safe_approach_position(
         self,
@@ -314,7 +388,7 @@ class ScriptedPickPlaceExpert:
         parcel_pose: tuple[float, ...],
     ) -> tuple[float, float, float]:
         """Leave an incipient approach contact before issuing another transit move."""
-        transit_z = parcel_pose[2] + self.approach_clearance_m()
+        transit_z = self._transit_height(self.pregrasp_position(parcel_pose))
         if current[2] < transit_z - self.config.task.position_tolerance_m:
             return current[0], current[1], transit_z
         dx = current[0] - parcel_pose[0]
@@ -338,18 +412,22 @@ class ScriptedPickPlaceExpert:
         current: tuple[float, ...],
         parcel_pose: tuple[float, ...],
     ) -> bool:
+        target = self.pregrasp_position(parcel_pose)
         return math.hypot(
-            current[0] - parcel_pose[0],
-            current[1] - parcel_pose[1],
+            current[0] - target[0],
+            current[1] - target[1],
         ) <= self.config.task.approach_xy_tolerance_m
 
     def lift_position(self) -> tuple[float, float, float]:
-        return (
+        grasp_position = self._planned_grasp_position or (
             self.sample.position_xy[0],
             self.sample.position_xy[1],
-            self._initial_parcel_z
-            + self.grasp_hand_clearance_m()
-            + self.config.task.lift_height_m,
+            self._initial_parcel_z + self.grasp_hand_clearance_m(),
+        )
+        return (
+            grasp_position[0],
+            grasp_position[1],
+            grasp_position[2] + self.config.task.lift_height_m,
         )
 
     def drop_position(self) -> tuple[float, float, float]:

@@ -275,3 +275,25 @@ This closes the tolerance-based branch. The next candidate must synthesize an
 IK- and collision-feasible pose rather than loosen completion semantics.
 Balanced collection, policy training/ranking, VLA, and ROS 2 remain gated on
 the expert reaching the fixed task and force thresholds.
+
+## Latest controlled experiment: geometry-aware grasp planning
+
+The current leading experimental controller generates and audits box-relative
+grasp poses on Radeon, scopes planning to boxes at least 125 mm high, shares the
+selected pose across approach/grasp/lift, requires stable dual-finger contact,
+and uses a geometry-derived 5 mm / 2.5 mm final-approach schedule. A swept
+joint-segment collision gate was measured and moved behind an explicit
+diagnostic flag because it rejected zero challenge waypoints while adding up to
+7.76 seconds per episode.
+
+On the fixed single-Radeon `7000000`--`7000019` hard set, the reset baseline
+achieved 5/20 successes, 8/20 force aborts, zero drops, and 98.25 successful
+parcels/hour. The planner achieved 15/20, 4/20, zero drops, and 359.36/hour. It
+recovered ten failures with no regression; maximum force fell from 111.30 N to
+46.99 N. The candidate still failed the 90% success and 5% force-abort release
+gates, so it remains disabled by default.
+
+Five failures remain: approach-force aborts `7000006/15/19`, lift-force abort
+`7000014`, and lost-grasp timeout `7000017`. Balanced collection and formal
+learned-policy ranking remain blocked. Method, probes, formal protocol, and
+limitations are documented in `docs/GEOMETRY_AWARE_GRASP_PLANNING.md`.

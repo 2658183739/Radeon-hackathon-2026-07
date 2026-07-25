@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import math
 from pathlib import Path
 import time
-from typing import Any
+from typing import Any, Mapping
 
 from .config import ExperimentConfig
-from .contracts import CartesianAction, Observation, RobotState
+from .contracts import CartesianAction, ControlDecision, Observation, RobotState
 from .capabilities import require_supported_handling
 from .expert import ScriptedPickPlaceExpert
+from .grasp_planning import (
+    box_requires_geometry_aware_grasp_planning,
+    generate_box_grasp_pose_candidates,
+    grasp_evaluation_is_feasible,
+    interpolate_joint_segment,
+    rank_grasp_pose_evaluations,
+    select_grasp_pose_evaluation,
+)
 from .randomization import ParcelSample
 
 
@@ -287,6 +295,13 @@ class GenesisParcelEnv:
         self.gs, self.torch, self.np = initialize_genesis(backend)
         self.gs.set_random_seed(config.seed + sample.episode_index)
         self.expert = ScriptedPickPlaceExpert(config, sample)
+        self._geometry_grasp_planning_active = (
+            config.task.geometry_aware_grasp_planning_enabled
+            and box_requires_geometry_aware_grasp_planning(
+                sample,
+                hand_clearance_m=self.expert.grasp_hand_clearance_m(),
+            )
+        )
         self.control_step = 0
         self._release_steps = 0
         self._gripper_force_n = 0.0
@@ -321,6 +336,20 @@ class GenesisParcelEnv:
         self._collision_checked_reset_compute_ms = 0.0
         self._initial_robot_parcel_collisions: tuple[dict[str, Any], ...] = ()
         self._fallback_robot_parcel_collisions: tuple[dict[str, Any], ...] = ()
+        self._grasp_plan_retry_count: int | None = None
+        self._grasp_plan_selected: dict[str, Any] | None = None
+        self._grasp_plan_pending_replan = True
+        self._grasp_plan_rejected_candidate_ids: set[str] = set()
+        self._grasp_plan_events: list[dict[str, Any]] = []
+        self._grasp_plan_compute_ms_total = 0.0
+        self._grasp_plan_attempts = 0
+        self._grasp_waypoint_checks = 0
+        self._grasp_waypoint_rejections = 0
+        self._grasp_waypoint_compute_ms_total = 0.0
+        self._grasp_waypoint_collision_samples = 0
+        self._grasp_waypoint_max_segment_samples = 0
+        self._grasp_waypoint_last_collision: tuple[dict[str, Any], ...] = ()
+        self._grasp_waypoint_last_restore_error = 0.0
 
         physics_dt = 1.0 / config.simulation.physics_hz
         rolling_friction = needs_rolling_friction(sample)
@@ -479,6 +508,288 @@ class GenesisParcelEnv:
             gripper_contact_force_n=max_force,
         )
 
+    def prepare_action(self, decision: ControlDecision, state: RobotState) -> None:
+        """Select one audited grasp pose before the expert emits an action."""
+        task = self.config.task
+        if (
+            not self._geometry_grasp_planning_active
+            or decision.command != "move_pregrasp"
+        ):
+            return
+
+        retry_changed = decision.retry_count != self._grasp_plan_retry_count
+        if retry_changed:
+            self._grasp_plan_rejected_candidate_ids.clear()
+        should_replan = (
+            self._grasp_plan_selected is None
+            and self._grasp_plan_pending_replan
+        ) or (
+            retry_changed and task.grasp_planning_retry_replan_enabled
+        )
+        if not should_replan:
+            self._grasp_plan_retry_count = decision.retry_count
+            return
+
+        self.expert.clear_planned_grasp_pose()
+        self._grasp_plan_selected = None
+        self._grasp_plan_pending_replan = False
+        self._action_queue = deque([None] * self.sample.action_delay_steps)
+        self._plan_grasp_pose(state, decision.retry_count)
+
+    def _plan_grasp_pose(self, state: RobotState, retry_count: int) -> None:
+        started = time.perf_counter_ns()
+        task = self.config.task
+        candidates = generate_box_grasp_pose_candidates(
+            self.sample,
+            state.parcel_pose,
+            hand_clearance_m=self.expert.grasp_hand_clearance_m(),
+            include_symmetric_wrist=task.grasp_planning_symmetric_wrist_enabled,
+        )
+        seeds = self._grasp_planning_seeds()
+        evaluations = [
+            self._evaluate_grasp_pose_candidate(candidate, seed_name, seed_qpos)
+            for candidate in candidates
+            for seed_name, seed_qpos in seeds
+        ]
+        ranked = rank_grasp_pose_evaluations(
+            evaluations,
+            collision_filter_enabled=task.grasp_planning_collision_filter_enabled,
+            manipulability_ranking_enabled=(
+                task.grasp_planning_manipulability_ranking_enabled
+            ),
+        )
+        selected = select_grasp_pose_evaluation(
+            ranked,
+            rejected_candidate_ids=frozenset(
+                self._grasp_plan_rejected_candidate_ids
+            ),
+            collision_filter_enabled=task.grasp_planning_collision_filter_enabled,
+            manipulability_ranking_enabled=(
+                task.grasp_planning_manipulability_ranking_enabled
+            ),
+        )
+        compute_ms = (time.perf_counter_ns() - started) / 1_000_000
+        self._grasp_plan_attempts += 1
+        self._grasp_plan_compute_ms_total += compute_ms
+        self._grasp_plan_retry_count = retry_count
+
+        selected_summary = None
+        if selected is not None:
+            self._grasp_plan_selected = dict(selected)
+            self.expert.set_planned_grasp_pose(
+                tuple(float(value) for value in selected["target_position"]),
+                tuple(float(value) for value in selected["target_quaternion"]),
+            )
+            selected_summary = self._grasp_evaluation_summary(selected)
+        self._grasp_plan_events.append(
+            {
+                "retry_count": retry_count,
+                "candidate_count": len(candidates),
+                "seed_count": len(seeds),
+                "evaluation_count": len(evaluations),
+                "feasible_count": sum(
+                    grasp_evaluation_is_feasible(
+                        evaluation,
+                        collision_filter_enabled=(
+                            task.grasp_planning_collision_filter_enabled
+                        ),
+                    )
+                    for evaluation in evaluations
+                ),
+                "rejected_candidate_ids": sorted(
+                    self._grasp_plan_rejected_candidate_ids
+                ),
+                "selected": selected_summary,
+                "compute_ms": compute_ms,
+            }
+        )
+
+    def _grasp_planning_seeds(self) -> tuple[tuple[str, tuple[float, ...]], ...]:
+        configured = (
+            ("current", self._flat_tuple(self.robot.get_qpos())),
+            ("historical_reset", tuple(self.config.control.reset_qpos)),
+            (
+                "collision_free_reset",
+                tuple(self.config.control.collision_free_reset_qpos),
+            ),
+        )
+        unique: list[tuple[str, tuple[float, ...]]] = []
+        for name, values in configured:
+            if not any(
+                len(values) == len(other)
+                and all(
+                    math.isclose(value, reference, abs_tol=1e-9)
+                    for value, reference in zip(values, other, strict=True)
+                )
+                for _, other in unique
+            ):
+                unique.append((name, values))
+        return tuple(unique)
+
+    def _evaluate_grasp_pose_candidate(
+        self,
+        candidate: Any,
+        seed_name: str,
+        seed_qpos: tuple[float, ...],
+    ) -> dict[str, Any]:
+        started = time.perf_counter_ns()
+        qpos, ik_error = self.robot.inverse_kinematics(
+            link=self.end_effector,
+            pos=self.np.asarray(candidate.target_position),
+            quat=self.np.asarray(candidate.target_quaternion),
+            init_qpos=self.np.asarray(seed_qpos),
+            respect_joint_limit=True,
+            max_samples=8,
+            max_solver_iters=40,
+            return_error=True,
+        )
+        qpos_values = list(self._flat_tuple(qpos))
+        qpos_values[7:] = (
+            self.config.control.open_width_m,
+            self.config.control.open_width_m,
+        )
+        qpos_array = self.np.asarray(qpos_values)
+        ik_error_values = self._flat_tuple(ik_error)
+        finite = all(
+            math.isfinite(value) for value in (*qpos_values, *ik_error_values)
+        )
+
+        link_local_index = int(self.end_effector.idx - self.robot.link_start)
+        qpos_device = self.robot.get_qpos().device
+        fk_positions, fk_quaternions = self.robot.forward_kinematics(
+            self.torch.as_tensor(qpos_array, device=qpos_device),
+            links_idx_local=self.np.asarray((link_local_index,)),
+        )
+        fk_position = self._flat_tuple(fk_positions)
+        fk_quaternion = self._flat_tuple(fk_quaternions)
+        original_qpos = self._flat_tuple(self.robot.get_qpos())
+        collisions: tuple[dict[str, Any], ...] = ()
+        singular_values: tuple[float, ...] = ()
+        clearance_m = 0.0
+        restore_error = math.inf
+        try:
+            self.robot.set_qpos(qpos_array)
+            collisions = self._describe_robot_collisions()
+            clearance_m = self._minimum_nonfinger_parcel_clearance_m()
+            jacobian = self.robot.get_jacobian(self.end_effector)[..., :7]
+            singular_values = self._flat_tuple(
+                self.torch.linalg.svdvals(jacobian)
+            )
+        finally:
+            self.robot.set_qpos(self.np.asarray(original_qpos))
+            restored = self._flat_tuple(self.robot.get_qpos())
+            restore_error = max(
+                abs(value - reference)
+                for value, reference in zip(restored, original_qpos, strict=True)
+            )
+
+        disallowed = tuple(
+            collision
+            for collision in collisions
+            if not (
+                collision["robot_link"] in {"left_finger", "right_finger"}
+                and collision["other_is_parcel"]
+            )
+        )
+        joint_distance = math.sqrt(
+            sum(
+                (value - reference) ** 2
+                for value, reference in zip(
+                    qpos_values[:7], original_qpos[:7], strict=True
+                )
+            )
+        )
+        min_singular_value = min(singular_values) if singular_values else 0.0
+        evaluation = {
+            **asdict(candidate),
+            "seed_name": seed_name,
+            "qpos": qpos_values,
+            "ik_error_pose": ik_error_values,
+            "ik_position_error_m": math.sqrt(
+                sum(value * value for value in ik_error_values[:3])
+            ),
+            "ik_rotation_error_rad": math.sqrt(
+                sum(value * value for value in ik_error_values[3:])
+            ),
+            "fk_position": fk_position,
+            "fk_quaternion": fk_quaternion,
+            "fk_position_error_m": math.dist(
+                fk_position, candidate.target_position
+            ),
+            "joint_distance_rad": joint_distance,
+            "jacobian_singular_values": singular_values,
+            "minimum_singular_value": min_singular_value,
+            "nonfinger_clearance_m": clearance_m,
+            "collisions": collisions,
+            "disallowed_collisions": disallowed,
+            "collision_count": len(collisions),
+            "disallowed_collision_count": len(disallowed),
+            "restore_max_abs_error": restore_error,
+            "finite": finite,
+            "compute_ms": (time.perf_counter_ns() - started) / 1_000_000,
+        }
+        evaluation["feasible"] = grasp_evaluation_is_feasible(
+            evaluation,
+            collision_filter_enabled=(
+                self.config.task.grasp_planning_collision_filter_enabled
+            ),
+        )
+        return evaluation
+
+    @staticmethod
+    def _grasp_evaluation_summary(
+        evaluation: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        keys = (
+            "candidate_id",
+            "seed_name",
+            "target_position",
+            "target_quaternion",
+            "longitudinal_offset_m",
+            "vertical_offset_m",
+            "wrist_variant",
+            "ik_position_error_m",
+            "ik_rotation_error_rad",
+            "fk_position_error_m",
+            "joint_distance_rad",
+            "minimum_singular_value",
+            "nonfinger_clearance_m",
+            "disallowed_collision_count",
+            "compute_ms",
+        )
+        return {key: evaluation[key] for key in keys}
+
+    def _describe_robot_collisions(self) -> tuple[dict[str, Any], ...]:
+        rows = []
+        for geom_a_index, geom_b_index in self.robot.detect_collision():
+            geom_a = self.scene.rigid_solver.geoms[int(geom_a_index)]
+            geom_b = self.scene.rigid_solver.geoms[int(geom_b_index)]
+            if geom_a.entity is self.robot:
+                robot_geom, other_geom = geom_a, geom_b
+            elif geom_b.entity is self.robot:
+                robot_geom, other_geom = geom_b, geom_a
+            else:
+                continue
+            rows.append(
+                {
+                    "robot_geom_index": int(robot_geom.idx),
+                    "robot_link": str(robot_geom.link.name),
+                    "other_geom_index": int(other_geom.idx),
+                    "other_link": str(other_geom.link.name),
+                    "other_is_parcel": other_geom.entity is self.parcel,
+                }
+            )
+        return tuple(rows)
+
+    def _minimum_nonfinger_parcel_clearance_m(self) -> float:
+        parcel_aabb = self.parcel.get_AABB()
+        clearances = []
+        for link in self.robot.links:
+            if str(link.name) in {"left_finger", "right_finger"} or link.n_geoms == 0:
+                continue
+            clearances.append(aabb_gap_m(link.get_AABB(), parcel_aabb))
+        return min(clearances) if clearances else 0.0
+
     def observation(self, state: RobotState | None = None) -> Observation:
         state = state or self.state()
         parcel_position = state.parcel_pose[:3]
@@ -551,6 +862,20 @@ class GenesisParcelEnv:
             "precontact_aabb_guard_compute_ms": self._aabb_guard_last_compute_ms,
             "precontact_aabb_guard_filter_count": self._aabb_guard_filter_count,
             "precontact_aabb_guard_active_steps": self._aabb_guard_active_steps,
+            "geometry_aware_grasp_planning_enabled": (
+                self.config.task.geometry_aware_grasp_planning_enabled
+            ),
+            "geometry_aware_grasp_planning_active": (
+                self._geometry_grasp_planning_active
+            ),
+            "grasp_plan_retry_count": self._grasp_plan_retry_count,
+            "grasp_plan_selected_candidate_id": (
+                self._grasp_plan_selected["candidate_id"]
+                if self._grasp_plan_selected is not None
+                else None
+            ),
+            "grasp_waypoint_rejections": self._grasp_waypoint_rejections,
+            "grasp_waypoint_last_collision": self._grasp_waypoint_last_collision,
         }
 
     def safety_summary(self) -> dict[str, Any]:
@@ -606,6 +931,66 @@ class GenesisParcelEnv:
             "collision_checked_reset_compute_ms": self._collision_checked_reset_compute_ms,
             "initial_robot_parcel_collisions": self._initial_robot_parcel_collisions,
             "fallback_robot_parcel_collisions": self._fallback_robot_parcel_collisions,
+            "geometry_aware_grasp_planning_enabled": (
+                self.config.task.geometry_aware_grasp_planning_enabled
+            ),
+            "geometry_aware_grasp_planning_active": (
+                self._geometry_grasp_planning_active
+            ),
+            "grasp_planning_collision_filter_enabled": (
+                self.config.task.grasp_planning_collision_filter_enabled
+            ),
+            "grasp_planning_manipulability_ranking_enabled": (
+                self.config.task.grasp_planning_manipulability_ranking_enabled
+            ),
+            "grasp_planning_symmetric_wrist_enabled": (
+                self.config.task.grasp_planning_symmetric_wrist_enabled
+            ),
+            "grasp_planning_retry_replan_enabled": (
+                self.config.task.grasp_planning_retry_replan_enabled
+            ),
+            "grasp_planning_waypoint_collision_gate_enabled": (
+                self.config.task.grasp_planning_waypoint_collision_gate_enabled
+            ),
+            "grasp_planning_stability_steps": (
+                self.config.task.grasp_planning_stability_steps
+            ),
+            "grasp_planning_final_approach_step_m": (
+                self.config.task.grasp_planning_final_approach_step_m
+            ),
+            "grasp_planning_tall_box_height_m": (
+                self.config.task.grasp_planning_tall_box_height_m
+            ),
+            "grasp_planning_tall_box_final_approach_step_m": (
+                self.config.task.grasp_planning_tall_box_final_approach_step_m
+            ),
+            "grasp_planning_effective_final_approach_step_m": (
+                self.expert.planned_final_approach_step_m()
+                if self._geometry_grasp_planning_active
+                else None
+            ),
+            "grasp_planning_drop_step_m": (
+                self.config.task.grasp_planning_drop_step_m
+            ),
+            "grasp_planning_joint_segment_resolution_rad": (
+                self.config.task.grasp_planning_joint_segment_resolution_rad
+            ),
+            "grasp_plan_attempts": self._grasp_plan_attempts,
+            "grasp_plan_compute_ms_total": self._grasp_plan_compute_ms_total,
+            "grasp_plan_events": tuple(self._grasp_plan_events),
+            "grasp_waypoint_checks": self._grasp_waypoint_checks,
+            "grasp_waypoint_rejections": self._grasp_waypoint_rejections,
+            "grasp_waypoint_compute_ms_total": self._grasp_waypoint_compute_ms_total,
+            "grasp_waypoint_collision_samples": (
+                self._grasp_waypoint_collision_samples
+            ),
+            "grasp_waypoint_max_segment_samples": (
+                self._grasp_waypoint_max_segment_samples
+            ),
+            "grasp_waypoint_last_collision": self._grasp_waypoint_last_collision,
+            "grasp_waypoint_last_restore_error": (
+                self._grasp_waypoint_last_restore_error
+            ),
         }
 
     def close(self) -> None:
@@ -624,21 +1009,44 @@ class GenesisParcelEnv:
     def _apply_action(self, action: CartesianAction) -> None:
         action = self._filter_precontact_action(action)
         self._set_arm_stiffness_for_command(action.command)
-        if (
-            self.config.control.approach_velocity_control_enabled
+        planned_pregrasp = (
+            self._geometry_grasp_planning_active
             and action.command == "move_pregrasp"
+        )
+        qpos_array = None
+        arm_motion_allowed = (
+            not planned_pregrasp or self._grasp_plan_selected is not None
+        )
+        if (
+            arm_motion_allowed
+            and planned_pregrasp
+            and self.config.task.grasp_planning_waypoint_collision_gate_enabled
         ):
-            self._apply_approach_velocity(action)
-        else:
-            qpos = self.robot.inverse_kinematics(
-                link=self.end_effector,
-                pos=self.np.asarray(action.target_position),
-                quat=self.np.asarray(action.target_quaternion),
-            )
-            qpos_array = self.np.asarray(qpos.detach().cpu() if hasattr(qpos, "detach") else qpos)
-            if not self.np.isfinite(qpos_array).all():
-                raise RuntimeError(f"IK returned a non-finite solution for {action.command}")
-            self.robot.control_dofs_position(qpos_array[:7], self.arm_dofs)
+            qpos_array = self._validated_grasp_waypoint_qpos(action)
+            arm_motion_allowed = qpos_array is not None
+
+        if arm_motion_allowed:
+            if (
+                self.config.control.approach_velocity_control_enabled
+                and action.command == "move_pregrasp"
+            ):
+                self._apply_approach_velocity(action)
+            elif qpos_array is not None:
+                self.robot.control_dofs_position(qpos_array[:7], self.arm_dofs)
+            else:
+                qpos = self.robot.inverse_kinematics(
+                    link=self.end_effector,
+                    pos=self.np.asarray(action.target_position),
+                    quat=self.np.asarray(action.target_quaternion),
+                )
+                qpos_array = self.np.asarray(
+                    qpos.detach().cpu() if hasattr(qpos, "detach") else qpos
+                )
+                if not self.np.isfinite(qpos_array).all():
+                    raise RuntimeError(
+                        f"IK returned a non-finite solution for {action.command}"
+                    )
+                self.robot.control_dofs_position(qpos_array[:7], self.arm_dofs)
         if action.gripper > 0:
             self._gripper_force_n = 0.0
             width = self.config.control.open_width_m
@@ -650,6 +1058,99 @@ class GenesisParcelEnv:
             )
             force = self._gripper_force_n
             self.robot.control_dofs_force(self.np.asarray((-force, -force)), self.finger_dofs)
+
+    def _validated_grasp_waypoint_qpos(self, action: CartesianAction) -> Any | None:
+        """Reject a pre-contact IK waypoint with a non-finger collision."""
+        started = time.perf_counter_ns()
+        self._grasp_waypoint_checks += 1
+        self._grasp_waypoint_last_collision = ()
+        original_qpos = self._flat_tuple(self.robot.get_qpos())
+        qpos, ik_error = self.robot.inverse_kinematics(
+            link=self.end_effector,
+            pos=self.np.asarray(action.target_position),
+            quat=self.np.asarray(action.target_quaternion),
+            init_qpos=self.np.asarray(original_qpos),
+            respect_joint_limit=True,
+            max_samples=4,
+            max_solver_iters=30,
+            return_error=True,
+        )
+        qpos_values = list(self._flat_tuple(qpos))
+        qpos_values[7:] = (
+            self.config.control.open_width_m,
+            self.config.control.open_width_m,
+        )
+        qpos_array = self.np.asarray(qpos_values)
+        ik_error_values = self._flat_tuple(ik_error)
+        finite = all(
+            math.isfinite(value) for value in (*qpos_values, *ik_error_values)
+        )
+        kinematically_valid = (
+            finite
+            and math.sqrt(sum(value * value for value in ik_error_values[:3]))
+            <= 0.005
+            and math.sqrt(sum(value * value for value in ik_error_values[3:]))
+            <= 0.05
+        )
+        collisions: tuple[dict[str, Any], ...] = ()
+        restore_error = math.inf
+        try:
+            if kinematically_valid:
+                segment_start = list(original_qpos)
+                segment_start[7:] = (
+                    self.config.control.open_width_m,
+                    self.config.control.open_width_m,
+                )
+                segment = interpolate_joint_segment(
+                    segment_start,
+                    qpos_values,
+                    max_joint_delta_rad=(
+                        self.config.task.grasp_planning_joint_segment_resolution_rad
+                    ),
+                )
+                self._grasp_waypoint_max_segment_samples = max(
+                    self._grasp_waypoint_max_segment_samples,
+                    len(segment),
+                )
+                for segment_qpos in segment:
+                    self.robot.set_qpos(self.np.asarray(segment_qpos))
+                    self._grasp_waypoint_collision_samples += 1
+                    collisions = tuple(
+                        collision
+                        for collision in self._describe_robot_collisions()
+                        if not (
+                            collision["robot_link"]
+                            in {"left_finger", "right_finger"}
+                            and collision["other_is_parcel"]
+                        )
+                    )
+                    if collisions:
+                        break
+        finally:
+            self.robot.set_qpos(self.np.asarray(original_qpos))
+            restored = self._flat_tuple(self.robot.get_qpos())
+            restore_error = max(
+                abs(value - reference)
+                for value, reference in zip(restored, original_qpos, strict=True)
+            )
+        self._grasp_waypoint_last_restore_error = restore_error
+        self._grasp_waypoint_compute_ms_total += (
+            time.perf_counter_ns() - started
+        ) / 1_000_000
+
+        if kinematically_valid and not collisions and restore_error <= 1e-7:
+            return qpos_array
+
+        self._grasp_waypoint_rejections += 1
+        self._grasp_waypoint_last_collision = collisions
+        if self._grasp_plan_selected is not None:
+            self._grasp_plan_rejected_candidate_ids.add(
+                str(self._grasp_plan_selected["candidate_id"])
+            )
+        self._grasp_plan_selected = None
+        self._grasp_plan_pending_replan = True
+        self.expert.clear_planned_grasp_pose()
+        return None
 
     def _apply_approach_velocity(self, action: CartesianAction) -> None:
         """Execute one bounded operational-space velocity command on the Radeon."""

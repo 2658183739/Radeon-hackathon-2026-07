@@ -8,6 +8,7 @@ from .config import ExperimentConfig
 from .contracts import CartesianAction, Observation, PolicyContext, RobotState, TrajectoryFrame
 from .dataset import JsonlTrajectoryWriter, LeRobotTrajectoryWriter
 from .expert import ScriptedPickPlaceExpert
+from .grasp_planning import box_requires_geometry_aware_grasp_planning
 from .metrics import EpisodeResult
 from .policy import ActionPolicy, ScriptedExpertPolicy
 from .randomization import ParcelSample
@@ -48,6 +49,22 @@ class EpisodeReport:
         }
 
 
+def resolve_grasp_stability_steps(
+    config: ExperimentConfig,
+    sample: ParcelSample,
+) -> int:
+    steps = sample.grasp_stability_steps or config.task.grasp_stability_steps
+    if (
+        config.task.geometry_aware_grasp_planning_enabled
+        and box_requires_geometry_aware_grasp_planning(
+            sample,
+            hand_clearance_m=config.task.grasp_hand_clearance_m,
+        )
+    ):
+        steps = max(steps, config.task.grasp_planning_stability_steps)
+    return steps
+
+
 def run_policy_episode(
     env: ParcelEnvironment,
     config: ExperimentConfig,
@@ -60,7 +77,7 @@ def run_policy_episode(
         config.task.max_grasp_retries,
         grasp_settle_steps=config.task.grasp_settle_steps,
         release_settle_steps=config.task.release_settle_steps,
-        grasp_stability_steps=sample.grasp_stability_steps or config.task.grasp_stability_steps,
+        grasp_stability_steps=resolve_grasp_stability_steps(config, sample),
     )
     trace: list[dict[str, Any]] = []
     latencies_ms: list[float] = []
@@ -74,6 +91,9 @@ def run_policy_episode(
         rgb, depth = env.sensor_frame()
         started = time.perf_counter_ns()
         decision = supervisor.step(observation)
+        prepare_action = getattr(env, "prepare_action", None)
+        if callable(prepare_action):
+            prepare_action(decision, state)
         action = policy.predict(
             PolicyContext(
                 decision=decision,
@@ -150,7 +170,13 @@ def run_expert_episode(
     episode_index: int,
     writers: tuple[FrameWriter, ...] = (),
 ) -> EpisodeReport:
-    policy = ScriptedExpertPolicy(ScriptedPickPlaceExpert(config, sample))
+    environment_expert = getattr(env, "expert", None)
+    expert = (
+        environment_expert
+        if isinstance(environment_expert, ScriptedPickPlaceExpert)
+        else ScriptedPickPlaceExpert(config, sample)
+    )
+    policy = ScriptedExpertPolicy(expert)
     return run_policy_episode(env, config, sample, episode_index, policy, writers)
 
 

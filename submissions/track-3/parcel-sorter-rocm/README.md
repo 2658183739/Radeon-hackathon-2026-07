@@ -77,6 +77,8 @@ English submission documents:
 - [End-effector capability contract](docs/END_EFFECTOR_CAPABILITY.md) / [中文](docs/END_EFFECTOR_CAPABILITY_CN.md)
 - [Project status and reproduction protocol](docs/PROJECT_STATUS.md) / [中文](docs/PROJECT_STATUS_CN.md)
 
+- [Geometry-aware grasp-planning result](docs/GEOMETRY_AWARE_GRASP_PLANNING.md) / [Chinese](docs/GEOMETRY_AWARE_GRASP_PLANNING_CN.md)
+
 ## Repository layout
 
 ```text

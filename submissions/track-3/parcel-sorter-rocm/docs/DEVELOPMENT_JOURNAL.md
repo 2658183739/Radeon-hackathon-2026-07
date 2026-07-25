@@ -734,3 +734,39 @@ cannot repair kinematic infeasibility: the pose generator, collision check, and
 recovery transition must agree on the same physically stable grasp. Validation
 covered 140 Radeon tests plus 6 subtests and verified compact/full provenance
 hashes for every executed probe.
+
+### Entry 60: Generate feasible poses, reject an expensive guard, and reach 75%
+
+The next branch implemented the missing geometric capability instead of
+loosening another state predicate. It generates 24 box-relative grasp poses,
+solves each from up to three deduplicated joint seeds on Radeon, rejects IK/FK,
+state-restoration, and non-finger collision failures, and ranks the remaining
+poses by centred side contact, joint travel, manipulability, and clearance.
+The selected full pose is shared across approach, capture, closure, and lift;
+retry clears delayed actions and replans.
+
+Sequential probes first protected known successes. A 125 mm scope boundary,
+derived from 105 mm palm clearance plus 20 mm minimum overlap, kept episodes
+`7000004`, `7000007`, and `7000010` on the historical path; all three remained
+successful with zero planning attempts. Four high-box recoveries then remained
+successful. A swept joint-segment collision gate was falsified next: six force
+challenges produced zero waypoint rejections, still all force-aborted, and paid
+1.66--7.76 seconds of synchronized checking per episode. The gate was changed
+from default-on to an explicit diagnostic switch.
+
+The force failures did respond to pre-contact step size, but non-monotonically.
+A scoped 5 mm approach recovered four of six challenges while two remained
+unsafe. A global 2.5 mm approach fixed those two but regressed two medium-height
+boxes. The final policy therefore uses a geometry-derived split: 5 mm below
+160 mm and 2.5 mm at or above 160 mm, where 160 mm is the 105 mm palm envelope
+plus the 55 mm maximum vertical candidate offset. Four cross-sentinels all
+selected the intended step and succeeded before formal A/B began.
+
+The fixed single-Radeon 20+20 comparison improved success from 5/20 to 15/20,
+recovered ten failures with no regression, reduced force aborts from 8/20 to
+4/20, retained zero drops, reduced maximum force from 111.30 N to 46.99 N, and
+raised successful throughput from 98.25/hour to 359.36/hour. It still missed
+the 18/20 success and at-most-1/20 force-abort gates, so the planner remains
+disabled by default and model/data work stays gated. Validation passed 162
+Radeon tests; compact/full artifacts, logs, failure analyses, and hashes are
+archived under `evidence/expert/radeon-geometry-aware-grasp-planning-*`.

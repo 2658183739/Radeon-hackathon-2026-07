@@ -70,6 +70,18 @@ class TaskConfig:
     surface_aware_pregrasp_min_height_m: float = 0.150
     surface_aware_pregrasp_max_vertical_error_m: float = 0.055
     surface_aware_pregrasp_min_side_overlap_m: float = 0.020
+    geometry_aware_grasp_planning_enabled: bool = False
+    grasp_planning_collision_filter_enabled: bool = True
+    grasp_planning_manipulability_ranking_enabled: bool = True
+    grasp_planning_symmetric_wrist_enabled: bool = True
+    grasp_planning_retry_replan_enabled: bool = True
+    grasp_planning_waypoint_collision_gate_enabled: bool = False
+    grasp_planning_stability_steps: int = 5
+    grasp_planning_final_approach_step_m: float = 0.005
+    grasp_planning_tall_box_height_m: float = 0.160
+    grasp_planning_tall_box_final_approach_step_m: float = 0.0025
+    grasp_planning_drop_step_m: float = 0.005
+    grasp_planning_joint_segment_resolution_rad: float = 0.025
 
     def validate(self) -> None:
         if self.max_grasp_retries < 0:
@@ -130,6 +142,46 @@ class TaskConfig:
         ):
             raise ValueError(
                 "surface_aware_pregrasp_min_side_overlap_m must be finite and positive"
+            )
+        if self.grasp_planning_stability_steps < 1:
+            raise ValueError("grasp_planning_stability_steps must be positive")
+        if (
+            not math.isfinite(self.grasp_planning_final_approach_step_m)
+            or self.grasp_planning_final_approach_step_m <= 0
+        ):
+            raise ValueError(
+                "grasp_planning_final_approach_step_m must be finite and positive"
+            )
+        if (
+            not math.isfinite(self.grasp_planning_tall_box_height_m)
+            or self.grasp_planning_tall_box_height_m <= 0
+        ):
+            raise ValueError(
+                "grasp_planning_tall_box_height_m must be finite and positive"
+            )
+        if (
+            not math.isfinite(
+                self.grasp_planning_tall_box_final_approach_step_m
+            )
+            or self.grasp_planning_tall_box_final_approach_step_m <= 0
+            or self.grasp_planning_tall_box_final_approach_step_m
+            > self.grasp_planning_final_approach_step_m
+        ):
+            raise ValueError(
+                "grasp_planning_tall_box_final_approach_step_m must be in "
+                "(0, grasp_planning_final_approach_step_m]"
+            )
+        if (
+            not math.isfinite(self.grasp_planning_drop_step_m)
+            or self.grasp_planning_drop_step_m <= 0
+        ):
+            raise ValueError("grasp_planning_drop_step_m must be finite and positive")
+        if (
+            not math.isfinite(self.grasp_planning_joint_segment_resolution_rad)
+            or self.grasp_planning_joint_segment_resolution_rad <= 0
+        ):
+            raise ValueError(
+                "grasp_planning_joint_segment_resolution_rad must be finite and positive"
             )
 
 
@@ -398,6 +450,13 @@ class ExperimentConfig:
         self.sensors.validate()
         self.task.validate()
         self.control.validate()
+        if (
+            self.task.grasp_planning_final_approach_step_m
+            > self.control.max_ee_step_m
+        ):
+            raise ValueError(
+                "grasp_planning_final_approach_step_m cannot exceed max_ee_step_m"
+            )
         self.output.validate()
         self.randomization.validate()
         profile_ids = [profile.profile_id for profile in self.parcel_profiles]

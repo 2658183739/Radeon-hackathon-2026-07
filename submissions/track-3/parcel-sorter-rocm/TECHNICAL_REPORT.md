@@ -121,6 +121,25 @@ aborts on a simulator fault or excessive contact force. This behaviour is
 present for both expert and ACT execution, so learned inference remains inside
 the same control and safety envelope.
 
+### 6.1 Experimental geometry-aware grasp planner
+
+The current leading hard-carton candidate generates 24 parcel-relative side
+grasp poses, evaluates each from up to three joint seeds with Radeon IK/FK,
+non-finger collision, Jacobian, clearance, and state-restoration checks, and
+shares the selected XYZ/quaternion across approach, capture, closure, and lift.
+It is scoped to boxes at least 125 mm high. Planned contact requires five
+stable bilateral frames, final placement descent is capped at 5 mm, and final
+approach is capped at 5 mm below 160 mm box height and 2.5 mm above it.
+
+On fixed `large_narrow_carton` episodes `7000000`--`7000019`, with the same
+collision-checked reset and 35 N abort in both arms, success improved from 5/20
+to 15/20, force aborts fell from 8/20 to 4/20, drops remained zero, and maximum
+force fell from 111.30 N to 46.99 N. Ten failures were recovered with no
+regression. The feature remains disabled by default because it did not reach
+the preregistered 18/20 success and at-most-1/20 force-abort gates. Full method,
+negative swept-gate evidence, and remaining failures are documented in
+`docs/GEOMETRY_AWARE_GRASP_PLANNING.md`.
+
 ## 7. Dataset and robot learning
 
 The formal collection contains 120 randomized attempts. Ninety-six successful

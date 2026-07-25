@@ -161,3 +161,16 @@ v1 对所有非扁平纸箱启用。第一个保留成功探针就把 `7000005` 
 IK 与碰撞均可行的抓取位姿。本地哈希见
 `expert/radeon-surface-aware-pregrasp-probes-v1-SHA256SUMS`；远端清单保留三份完整源 summary 与
 派生 compact 产物。
+
+## 几何感知抓取规划结果
+
+`expert/radeon-geometry-aware-grasp-planning-ab-v2-tiered-*` 保存固定 20+20 单张 Radeon A/B 的
+精简 summary、轨迹失败归因、两份运行日志、精确 comparison 和本地/远端 SHA-256。相对碰撞检查
+复位基线，候选只改变 `task.geometry_aware_grasp_planning_enabled`。
+
+成功从 5/20 提升到 15/20，力中止从 8/20 降到 4/20，没有成功回归，掉落保持为 0。成功吞吐从
+每小时 98.25 件提升到 359.36 件，最大力从 111.30 N 降到 46.99 N。候选没有达到 90% 成功率与
+5% 力中止率门禁，所以仍是实验能力。
+
+`expert/radeon-geometry-aware-grasp-planning-v2-probe-ledger.json` 记录保留、swept 门禁、步长和交叉
+哨兵的顺序决策。完整逐帧 summary 保留在 Radeon 工作区，其哈希位于远端清单。

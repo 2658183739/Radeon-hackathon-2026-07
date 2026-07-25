@@ -149,6 +149,91 @@ class ScriptedExpertTests(unittest.TestCase):
         self.assertAlmostEqual(distance, candidate_config.control.final_approach_step_m)
         self.assertLess(distance, candidate_config.control.max_ee_step_m)
 
+    def test_planned_final_approach_uses_geometry_specific_step_limit(self) -> None:
+        decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)
+        candidate_config = replace(
+            self.config,
+            task=replace(
+                self.config.task,
+                geometry_aware_grasp_planning_enabled=True,
+                grasp_planning_final_approach_step_m=0.005,
+            ),
+        )
+        expert = ScriptedPickPlaceExpert(candidate_config, self.sample)
+        planned = (
+            self.state.parcel_pose[0],
+            self.state.parcel_pose[1],
+            0.20,
+        )
+        expert.set_planned_grasp_pose(planned, (0.0, 1.0, 0.0, 0.0))
+        state = replace(
+            self.state,
+            end_effector_pose=(planned[0], planned[1], 0.30, 1.0, 0.0, 0.0, 0.0),
+        )
+
+        action = expert.action(decision, state)
+
+        self.assertAlmostEqual(
+            math.dist(action.target_position, state.end_effector_pose[:3]),
+            candidate_config.task.grasp_planning_final_approach_step_m,
+        )
+
+    def test_unplanned_final_approach_keeps_baseline_step_limit(self) -> None:
+        decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)
+        candidate_config = replace(
+            self.config,
+            task=replace(
+                self.config.task,
+                geometry_aware_grasp_planning_enabled=True,
+                grasp_planning_final_approach_step_m=0.005,
+            ),
+        )
+        expert = ScriptedPickPlaceExpert(candidate_config, self.sample)
+        parcel = self.state.parcel_pose
+        state = replace(
+            self.state,
+            end_effector_pose=(parcel[0], parcel[1], 0.30, 1.0, 0.0, 0.0, 0.0),
+        )
+
+        action = expert.action(decision, state)
+
+        self.assertAlmostEqual(
+            math.dist(action.target_position, state.end_effector_pose[:3]),
+            candidate_config.control.final_approach_step_m,
+        )
+
+    def test_tall_planned_box_uses_second_stage_approach_limit(self) -> None:
+        candidate_config = replace(
+            self.config,
+            task=replace(
+                self.config.task,
+                geometry_aware_grasp_planning_enabled=True,
+                grasp_planning_final_approach_step_m=0.005,
+                grasp_planning_tall_box_height_m=0.160,
+                grasp_planning_tall_box_final_approach_step_m=0.0025,
+            ),
+        )
+        sample = replace(self.sample, dimensions_m=(0.35, 0.07, 0.160))
+        expert = ScriptedPickPlaceExpert(candidate_config, sample)
+
+        self.assertEqual(expert.planned_final_approach_step_m(), 0.0025)
+
+    def test_medium_planned_box_keeps_first_stage_approach_limit(self) -> None:
+        candidate_config = replace(
+            self.config,
+            task=replace(
+                self.config.task,
+                geometry_aware_grasp_planning_enabled=True,
+                grasp_planning_final_approach_step_m=0.005,
+                grasp_planning_tall_box_height_m=0.160,
+                grasp_planning_tall_box_final_approach_step_m=0.0025,
+            ),
+        )
+        sample = replace(self.sample, dimensions_m=(0.35, 0.07, 0.1599))
+        expert = ScriptedPickPlaceExpert(candidate_config, sample)
+
+        self.assertEqual(expert.planned_final_approach_step_m(), 0.005)
+
     def test_free_space_approach_can_use_a_separate_step_limit(self) -> None:
         decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)
         candidate_config = replace(
@@ -261,6 +346,78 @@ class ScriptedExpertTests(unittest.TestCase):
         self.assertAlmostEqual(action.target_position[1], state.end_effector_pose[1])
         self.assertGreater(action.target_position[2], state.end_effector_pose[2])
 
+    def test_planned_drop_descent_uses_safety_step_limit(self) -> None:
+        config = replace(
+            self.config,
+            task=replace(
+                self.config.task,
+                geometry_aware_grasp_planning_enabled=True,
+                grasp_planning_drop_step_m=0.005,
+            ),
+        )
+        expert = ScriptedPickPlaceExpert(config, self.sample)
+        expert.set_planned_grasp_pose(
+            (self.state.parcel_pose[0], self.state.parcel_pose[1], 0.20),
+            (0.0, 1.0, 0.0, 0.0),
+        )
+        destination = expert.destination_position
+        transfer_z = max(
+            config.task.drop_hand_height_m + 0.10,
+            expert.lift_position()[2] + 0.05,
+        )
+        aligned = replace(
+            self.state,
+            end_effector_pose=(destination[0], destination[1], transfer_z, 1.0, 0.0, 0.0, 0.0),
+        )
+
+        action = expert.action(
+            ControlDecision("place", Command.MOVE_DROP.value, "test", 0),
+            aligned,
+        )
+
+        self.assertAlmostEqual(
+            math.dist(action.target_position, aligned.end_effector_pose[:3]),
+            0.005,
+        )
+
+    def test_unplanned_drop_keeps_baseline_step_with_feature_enabled(self) -> None:
+        config = replace(
+            self.config,
+            task=replace(
+                self.config.task,
+                geometry_aware_grasp_planning_enabled=True,
+                grasp_planning_drop_step_m=0.005,
+            ),
+        )
+        expert = ScriptedPickPlaceExpert(config, self.sample)
+        destination = expert.destination_position
+        transfer_z = max(
+            config.task.drop_hand_height_m + 0.10,
+            expert.lift_position()[2] + 0.05,
+        )
+        aligned = replace(
+            self.state,
+            end_effector_pose=(
+                destination[0],
+                destination[1],
+                transfer_z,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+            ),
+        )
+
+        action = expert.action(
+            ControlDecision("place", Command.MOVE_DROP.value, "test", 0),
+            aligned,
+        )
+
+        self.assertAlmostEqual(
+            math.dist(action.target_position, aligned.end_effector_pose[:3]),
+            config.control.max_ee_step_m,
+        )
+
     def test_retry_lift_uses_latest_grasp_location(self) -> None:
         close = ControlDecision("grasp", Command.CLOSE_GRIPPER.value, "test", 1)
         self.expert.action(close, self.state)
@@ -270,6 +427,60 @@ class ScriptedExpertTests(unittest.TestCase):
 
         self.assertGreater(action.target_position[0], self.state.end_effector_pose[0])
         self.assertGreater(action.target_position[1], self.state.end_effector_pose[1])
+
+    def test_planned_pose_is_shared_by_capture_and_lift_targets(self) -> None:
+        planned_position = (0.55, 0.12, 0.24)
+        planned_quaternion = (0.0, 1.0, 0.0, 0.0)
+        self.expert.set_planned_grasp_pose(planned_position, planned_quaternion)
+
+        self.assertEqual(
+            self.expert.pregrasp_position(self.state.parcel_pose),
+            planned_position,
+        )
+        self.assertTrue(self.expert.at_pregrasp(planned_position, self.state.parcel_pose))
+        self.assertFalse(
+            self.expert.at_pregrasp(
+                (
+                    planned_position[0],
+                    planned_position[1],
+                    planned_position[2]
+                    + self.config.task.approach_xy_tolerance_m
+                    + 0.001,
+                ),
+                self.state.parcel_pose,
+            )
+        )
+        self.assertEqual(
+            self.expert.lift_position(),
+            (
+                planned_position[0],
+                planned_position[1],
+                planned_position[2] + self.config.task.lift_height_m,
+            ),
+        )
+
+    def test_close_saves_full_planned_xyz_for_incremental_lift(self) -> None:
+        planned_position = (0.55, 0.12, 0.24)
+        self.expert.set_planned_grasp_pose(
+            planned_position,
+            (0.0, 1.0, 0.0, 0.0),
+        )
+        close_state = replace(
+            self.state,
+            end_effector_pose=(*planned_position, 0.0, 1.0, 0.0, 0.0),
+        )
+        self.expert.action(
+            ControlDecision("grasp", Command.CLOSE_GRIPPER.value, "test", 0),
+            close_state,
+        )
+
+        action = self.expert.action(
+            ControlDecision("lift", Command.MOVE_LIFT.value, "test", 0),
+            close_state,
+        )
+
+        self.assertEqual(action.target_position[:2], planned_position[:2])
+        self.assertGreater(action.target_position[2], planned_position[2])
 
     def test_gripper_orientation_tracks_parcel_yaw(self) -> None:
         decision = ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0)

@@ -123,6 +123,54 @@ def main() -> int:
         action="store_true",
         help="enable a parcel-height-aware side-contact band for non-flat box grasp capture",
     )
+    parser.add_argument(
+        "--geometry-aware-grasp-planning",
+        action="store_true",
+        help="select a collision-free box grasp pose with Radeon IK and Jacobian scoring",
+    )
+    parser.add_argument(
+        "--grasp-planning-disable-collision-filter",
+        action="store_true",
+        help="ablation only: rank candidates without rejecting non-finger collisions",
+    )
+    parser.add_argument(
+        "--grasp-planning-disable-manipulability-ranking",
+        action="store_true",
+        help="ablation only: remove the Jacobian minimum-singular-value ranking term",
+    )
+    parser.add_argument(
+        "--grasp-planning-disable-symmetric-wrist",
+        action="store_true",
+        help="ablation only: generate only the canonical wrist orientation",
+    )
+    parser.add_argument(
+        "--grasp-planning-disable-retry-replan",
+        action="store_true",
+        help="ablation only: retain the original feasible pose across grasp retries",
+    )
+    parser.add_argument(
+        "--grasp-planning-waypoint-gate",
+        action="store_true",
+        help="diagnostic: sweep commanded IK waypoints for non-finger collisions",
+    )
+    parser.add_argument(
+        "--grasp-planning-stability-steps",
+        type=int,
+        default=None,
+        help="require this many consecutive dual-finger contact frames before planned lift",
+    )
+    parser.add_argument(
+        "--grasp-planning-final-approach-step",
+        type=float,
+        default=None,
+        help="cap final planned grasp approach in metres per control step",
+    )
+    parser.add_argument(
+        "--grasp-planning-drop-step",
+        type=float,
+        default=None,
+        help="cap final planned placement descent in metres per control step",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -155,6 +203,15 @@ def main() -> int:
         or args.approach_velocity_control
         or args.collision_checked_reset
         or args.surface_aware_pregrasp
+        or args.geometry_aware_grasp_planning
+        or args.grasp_planning_disable_collision_filter
+        or args.grasp_planning_disable_manipulability_ranking
+        or args.grasp_planning_disable_symmetric_wrist
+        or args.grasp_planning_disable_retry_replan
+        or args.grasp_planning_waypoint_gate
+        or args.grasp_planning_stability_steps is not None
+        or args.grasp_planning_final_approach_step is not None
+        or args.grasp_planning_drop_step is not None
     ):
         config = replace(
             config,
@@ -176,6 +233,45 @@ def main() -> int:
                 surface_aware_pregrasp_enabled=(
                     config.task.surface_aware_pregrasp_enabled
                     or args.surface_aware_pregrasp
+                ),
+                geometry_aware_grasp_planning_enabled=(
+                    config.task.geometry_aware_grasp_planning_enabled
+                    or args.geometry_aware_grasp_planning
+                ),
+                grasp_planning_collision_filter_enabled=(
+                    config.task.grasp_planning_collision_filter_enabled
+                    and not args.grasp_planning_disable_collision_filter
+                ),
+                grasp_planning_manipulability_ranking_enabled=(
+                    config.task.grasp_planning_manipulability_ranking_enabled
+                    and not args.grasp_planning_disable_manipulability_ranking
+                ),
+                grasp_planning_symmetric_wrist_enabled=(
+                    config.task.grasp_planning_symmetric_wrist_enabled
+                    and not args.grasp_planning_disable_symmetric_wrist
+                ),
+                grasp_planning_retry_replan_enabled=(
+                    config.task.grasp_planning_retry_replan_enabled
+                    and not args.grasp_planning_disable_retry_replan
+                ),
+                grasp_planning_waypoint_collision_gate_enabled=(
+                    config.task.grasp_planning_waypoint_collision_gate_enabled
+                    or args.grasp_planning_waypoint_gate
+                ),
+                grasp_planning_stability_steps=(
+                    config.task.grasp_planning_stability_steps
+                    if args.grasp_planning_stability_steps is None
+                    else args.grasp_planning_stability_steps
+                ),
+                grasp_planning_final_approach_step_m=(
+                    config.task.grasp_planning_final_approach_step_m
+                    if args.grasp_planning_final_approach_step is None
+                    else args.grasp_planning_final_approach_step
+                ),
+                grasp_planning_drop_step_m=(
+                    config.task.grasp_planning_drop_step_m
+                    if args.grasp_planning_drop_step is None
+                    else args.grasp_planning_drop_step
                 ),
             ),
             control=replace(
@@ -220,6 +316,17 @@ def main() -> int:
             config,
             control=replace(config.control, approach_step_m=args.approach_step),
         )
+    if (
+        args.grasp_planning_disable_collision_filter
+        or args.grasp_planning_disable_manipulability_ranking
+        or args.grasp_planning_disable_symmetric_wrist
+        or args.grasp_planning_disable_retry_replan
+        or args.grasp_planning_waypoint_gate
+        or args.grasp_planning_stability_steps is not None
+        or args.grasp_planning_final_approach_step is not None
+        or args.grasp_planning_drop_step is not None
+    ) and not config.task.geometry_aware_grasp_planning_enabled:
+        parser.error("grasp-planning options require --geometry-aware-grasp-planning")
     try:
         config.validate()
     except ValueError as exc:

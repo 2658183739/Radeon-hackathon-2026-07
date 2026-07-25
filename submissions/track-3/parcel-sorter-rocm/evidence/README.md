@@ -223,3 +223,22 @@ cannot substitute for an IK- and collision-feasible grasp pose. Local hashes
 are in `expert/radeon-surface-aware-pregrasp-probes-v1-SHA256SUMS`; remote
 manifests preserve the three complete source summaries and derived compact
 artifacts.
+
+## Geometry-aware grasp-planning result
+
+`expert/radeon-geometry-aware-grasp-planning-ab-v2-tiered-*` contains compact
+summaries, trace-derived failure analyses, both run logs, the exact comparison,
+and local/remote SHA-256 manifests for a fixed 20+20 single-Radeon A/B. The
+candidate changed only `task.geometry_aware_grasp_planning_enabled` relative to
+the collision-checked reset baseline.
+
+Success improved from 5/20 to 15/20, force aborts fell from 8/20 to 4/20, no
+success regressed, and drops remained zero. Successful throughput increased
+from 98.25 to 359.36 parcels/hour, while maximum force fell from 111.30 N to
+46.99 N. The candidate remains experimental because it missed the 90% success
+and 5% force-abort gates.
+
+`expert/radeon-geometry-aware-grasp-planning-v2-probe-ledger.json` records the
+ordered preservation, swept-gate, step-size, and cross-sentinel decisions. Full
+trace summaries remain in the Radeon workspace; their hashes are in the remote
+manifest.
