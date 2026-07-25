@@ -105,6 +105,16 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "orientation_weight"):
             invalid_weight.validate()
 
+    def test_collision_free_reset_pose_requires_nine_finite_values(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            control=replace(config.control, collision_free_reset_qpos=(0.0,) * 8),
+        )
+
+        with self.assertRaisesRegex(ValueError, "collision_free_reset_qpos"):
+            invalid.validate()
+
     def test_parcel_profile_rejects_negative_rolling_friction(self) -> None:
         config = load_config(PROJECT_ROOT / "configs" / "catalog_v2.toml")
         invalid_profile = replace(config.parcel_profiles[0], rolling_friction=-0.001)

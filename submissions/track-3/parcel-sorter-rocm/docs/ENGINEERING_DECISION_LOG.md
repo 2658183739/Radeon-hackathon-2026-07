@@ -1366,3 +1366,41 @@ geometry-aware grasp pose and recovery-state redesign, not another velocity-
 gain sweep. Evidence is under
 `evidence/expert/radeon-approach-velocity-ab-v1-*`; formal Radeon validation
 passed 128 tests plus 6 subtests.
+
+### 62. Retain collision-checked reset as a disabled diagnostic
+
+**Observation.** The velocity controller was numerically valid but physically
+blocked. A new 240 Hz link diagnostic compared failed episode `7000001` with
+successful episode `7000005`. The failed sample produced a hand/carton contact
+on initialization substep zero at 1,270.85 N, while the successful sample had
+no initialization contact and later reached only 17.12 N finger contact. The
+failure therefore existed before the 30 Hz policy loop could react.
+
+**Candidate and protocol.** Add a disabled-by-default collision check after
+scene construction but before integration. If and only if the historical reset
+intersects the sampled parcel, switch to one fixed fallback qpos and require a
+second collision query to return no robot/parcel pairs. The fixed Radeon A/B
+used `large_narrow_carton`, episodes `7000000`--`7000019`, identical seeds,
+physics, controller, and 35 N limit. The only allowed config difference was
+`control.collision_checked_reset_enabled`.
+
+**Evidence.** The candidate checked 20/20 episodes and used the fallback in 14.
+It detected 86 initial geometry pairs and zero after fallback. Success improved
+from 1/20 to 5/20, force aborts from 12/20 to 8/20, with no successful-episode
+regressions and no drops. Throughput rose from 17.80 to 97.00 successful
+parcels/hour. Mean synchronized check cost was 3.707 ms per episode. However,
+episode `7000001` still aborted at 37.37 N and the aggregate result remained
+25% success with 40% force aborts.
+
+**Decision.** Keep the implementation, telemetry, diagnostics, tests, and A/B
+runner, but keep the feature disabled. It is causal evidence that reset-scene
+intersection is one failure source, not proof that the task is deployable. It
+fails the preregistered 90% success and 5% force-abort gates. The next candidate
+must generate collision-free reset and grasp poses from sampled parcel geometry,
+then redesign approach/recovery without weakening the 35 N hard stop.
+
+Evidence is indexed under
+`evidence/expert/radeon-contact-link-diagnostic-v1-*` and
+`evidence/expert/radeon-collision-checked-reset-ab-v1-*`. The formal Radeon
+checkout passed 134 tests plus 6 subtests; local/remote SHA-256 manifests retain
+the complete provenance chain.

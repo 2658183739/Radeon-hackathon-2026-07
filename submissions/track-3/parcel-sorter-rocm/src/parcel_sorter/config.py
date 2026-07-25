@@ -9,6 +9,18 @@ from typing import Any
 
 DEFAULT_RESET_QPOS = (-1.0124, 1.5559, 1.3662, -1.6878, -1.5799, 1.7757, 1.4602, 0.04, 0.04)
 
+COLLISION_FREE_RESET_QPOS = (
+    -1.0124,
+    1.0,
+    1.4,
+    -1.6878,
+    -1.5799,
+    1.7757,
+    1.4602,
+    0.04,
+    0.04,
+)
+
 
 @dataclass(frozen=True)
 class SimulationConfig:
@@ -121,6 +133,8 @@ class ControlConfig:
     approach_velocity_max_angular_rad_s: float = 1.50
     approach_velocity_max_joint_rad_s: float = 1.50
     approach_velocity_damping: float = 0.05
+    collision_checked_reset_enabled: bool = False
+    collision_free_reset_qpos: tuple[float, ...] = COLLISION_FREE_RESET_QPOS
     reset_qpos: tuple[float, ...] = DEFAULT_RESET_QPOS
 
     def validate(self) -> None:
@@ -191,6 +205,12 @@ class ControlConfig:
             raise ValueError("approach_velocity_damping must be at most 1.0")
         if not 0.0 <= self.approach_velocity_orientation_weight <= 1.0:
             raise ValueError("approach_velocity_orientation_weight must be in [0, 1]")
+        if len(self.collision_free_reset_qpos) != 9 or any(
+            not math.isfinite(value) for value in self.collision_free_reset_qpos
+        ):
+            raise ValueError(
+                "collision_free_reset_qpos must contain nine finite joint positions"
+            )
         if len(self.reset_qpos) != 9 or any(not math.isfinite(value) for value in self.reset_qpos):
             raise ValueError("reset_qpos must contain nine finite joint positions")
 
@@ -411,7 +431,15 @@ def load_config(path: str | Path) -> ExperimentConfig:
                 "bin_half_extent_m",
             )
         ),
-        control=ControlConfig(**_tuple_values(raw["control"], "arm_kp", "arm_kv", "reset_qpos")),
+        control=ControlConfig(
+            **_tuple_values(
+                raw["control"],
+                "arm_kp",
+                "arm_kv",
+                "collision_free_reset_qpos",
+                "reset_qpos",
+            )
+        ),
         output=OutputConfig(**raw["output"]),
         randomization=RandomizationConfig(**raw["randomization"]),
         parcel_profiles=parcel_profiles,

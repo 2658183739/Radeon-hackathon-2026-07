@@ -366,3 +366,23 @@ Proceed in this order:
    or below baseline, and at least 85% throughput retention.
 5. Only after a candidate passes, expand to box, flat, long-carton, horizontal
    and upright cylinder strata before reopening balanced collection.
+
+## 16. Reset-collision result and pose-feasibility priority
+
+Collision-checked reset improved the fixed hard set from 1/20 to 5/20
+successes and reduced force aborts from 12/20 to 8/20, but still failed both
+absolute release gates. Keep it disabled and do not treat a single fixed
+fallback pose as the final solution.
+
+Proceed in this order:
+
+1. Compute a collision-free reset candidate from each sampled parcel pose and
+   dimensions rather than using one fallback for all geometry.
+2. Generate pregrasp/grasp poses with explicit palm, wrist, and `link7`
+   clearance, then reject infeasible samples before physics integration.
+3. Add an explicit recovery transition that returns to a verified collision-
+   free state before re-approach.
+4. Validate with isolated substep probes and the fixed 20+20 Radeon protocol;
+   require at least 18/20 successes and at most 1/20 force aborts.
+5. Expand only a passing candidate across all profile strata. Reopen balanced
+   RGB-D collection and model ranking only after that expanded expert gate.

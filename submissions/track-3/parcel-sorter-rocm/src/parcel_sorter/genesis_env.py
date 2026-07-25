@@ -37,6 +37,29 @@ def aabb_gap_m(first_aabb: Any, second_aabb: Any) -> float:
     return math.sqrt(sum(value * value for value in gap))
 
 
+def cross_entity_collision_pairs(
+    collision_pairs: Any,
+    first_geom_range: tuple[int, int],
+    second_geom_range: tuple[int, int],
+) -> tuple[tuple[int, int], ...]:
+    """Filter unordered collision pairs to two entity geometry ranges."""
+    first_start, first_end = first_geom_range
+    second_start, second_end = second_geom_range
+    matches = []
+    seen = set()
+    for pair in collision_pairs:
+        geom_a, geom_b = (int(value) for value in pair)
+        match = None
+        if first_start <= geom_a < first_end and second_start <= geom_b < second_end:
+            match = (geom_a, geom_b)
+        elif second_start <= geom_a < second_end and first_start <= geom_b < first_end:
+            match = (geom_b, geom_a)
+        if match is not None and match not in seen:
+            seen.add(match)
+            matches.append(match)
+    return tuple(matches)
+
+
 def scaled_robot_gains(
     arm_kp: tuple[float, ...],
     arm_kv: tuple[float, ...],
@@ -253,6 +276,7 @@ class GenesisParcelEnv:
         show_viewer: bool = False,
         video_path: str | Path | None = None,
         capture_sensors: bool = False,
+        defer_initialization_settle: bool = False,
     ) -> None:
         self.config = config
         self.sample = sample
@@ -293,6 +317,10 @@ class GenesisParcelEnv:
         self._approach_velocity_last_joint_command: tuple[float, ...] | None = None
         self._approach_velocity_last_predicted_twist: tuple[float, ...] | None = None
         self._approach_velocity_last_actual_joint_velocity: tuple[float, ...] | None = None
+        self._collision_checked_reset_used = False
+        self._collision_checked_reset_compute_ms = 0.0
+        self._initial_robot_parcel_collisions: tuple[dict[str, Any], ...] = ()
+        self._fallback_robot_parcel_collisions: tuple[dict[str, Any], ...] = ()
 
         physics_dt = 1.0 / config.simulation.physics_hz
         rolling_friction = needs_rolling_friction(sample)
@@ -374,15 +402,21 @@ class GenesisParcelEnv:
             self.right_finger.set_friction(sample.finger_friction)
         self.arm_dofs = self.np.arange(7)
         self.finger_dofs = self.np.arange(7, 9)
+        self._configure_collision_checked_reset()
 
         if self.camera is not None and self._video_path is not None:
             self._video_path.parent.mkdir(parents=True, exist_ok=True)
             self.camera.start_recording()
 
-        for _ in range(max(2, config.simulation.physics_hz // 30)):
-            self.scene.step()
-        if self.camera is not None and (self._capture_sensors or self._video_path):
-            self._render_camera()
+        if not defer_initialization_settle:
+            for _ in range(self.initialization_settle_steps):
+                self.scene.step()
+            if self.camera is not None and (self._capture_sensors or self._video_path):
+                self._render_camera()
+
+    @property
+    def initialization_settle_steps(self) -> int:
+        return max(2, self.config.simulation.physics_hz // 30)
 
     def _add_sorting_targets(self) -> None:
         for center, color in (
@@ -567,6 +601,13 @@ class GenesisParcelEnv:
             "approach_velocity_control_last_actual_joint_velocity": (
                 self._approach_velocity_last_actual_joint_velocity
             ),
+            "collision_checked_reset_enabled": (
+                self.config.control.collision_checked_reset_enabled
+            ),
+            "collision_checked_reset_used": self._collision_checked_reset_used,
+            "collision_checked_reset_compute_ms": self._collision_checked_reset_compute_ms,
+            "initial_robot_parcel_collisions": self._initial_robot_parcel_collisions,
+            "fallback_robot_parcel_collisions": self._fallback_robot_parcel_collisions,
         }
 
     def close(self) -> None:
@@ -684,6 +725,57 @@ class GenesisParcelEnv:
         self.robot.set_dofs_kp(self.np.asarray(gains_kp))
         self.robot.set_dofs_kv(self.np.asarray(gains_kv))
         self._active_arm_stiffness_scale = scale
+
+    def _configure_collision_checked_reset(self) -> None:
+        if not self.config.control.collision_checked_reset_enabled:
+            return
+        started = time.perf_counter_ns()
+        initial_pairs = self._robot_parcel_collision_pairs()
+        self._initial_robot_parcel_collisions = self._describe_collision_pairs(
+            initial_pairs
+        )
+        if initial_pairs:
+            self.robot.set_qpos(
+                self.np.asarray(self.config.control.collision_free_reset_qpos)
+            )
+            self._collision_checked_reset_used = True
+            fallback_pairs = self._robot_parcel_collision_pairs()
+            self._fallback_robot_parcel_collisions = self._describe_collision_pairs(
+                fallback_pairs
+            )
+            if fallback_pairs:
+                raise RuntimeError(
+                    "collision-free reset pose still intersects the parcel: "
+                    f"{self._fallback_robot_parcel_collisions}"
+                )
+        self._collision_checked_reset_compute_ms = (
+            time.perf_counter_ns() - started
+        ) / 1_000_000
+
+    def _robot_parcel_collision_pairs(self) -> tuple[tuple[int, int], ...]:
+        return cross_entity_collision_pairs(
+            self.robot.detect_collision(),
+            (self.robot.geom_start, self.robot.geom_end),
+            (self.parcel.geom_start, self.parcel.geom_end),
+        )
+
+    def _describe_collision_pairs(
+        self,
+        pairs: tuple[tuple[int, int], ...],
+    ) -> tuple[dict[str, Any], ...]:
+        descriptions = []
+        for robot_geom_index, parcel_geom_index in pairs:
+            robot_geom = self.scene.rigid_solver.geoms[robot_geom_index]
+            parcel_geom = self.scene.rigid_solver.geoms[parcel_geom_index]
+            descriptions.append(
+                {
+                    "robot_geom_index": robot_geom_index,
+                    "robot_link": str(robot_geom.link.name),
+                    "parcel_geom_index": parcel_geom_index,
+                    "parcel_link": str(parcel_geom.link.name),
+                }
+            )
+        return tuple(descriptions)
 
     def _filter_precontact_action(self, action: CartesianAction) -> CartesianAction:
         """Apply a geometry guard before IK while preserving the 8-D action contract."""

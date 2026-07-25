@@ -100,6 +100,12 @@ def compare_expert_runs(
         "candidate_approach_velocity_control": _approach_velocity_summary(
             candidate_episodes
         ),
+        "baseline_collision_checked_reset": _collision_checked_reset_summary(
+            baseline_episodes
+        ),
+        "candidate_collision_checked_reset": _collision_checked_reset_summary(
+            candidate_episodes
+        ),
         "acceptance": acceptance,
         "recommendation": "keep" if all(acceptance.values()) else "repeat_or_reject",
     }
@@ -160,6 +166,33 @@ def _approach_velocity_summary(episodes: dict[int, dict[str, Any]]) -> dict[str,
             ),
             default=0.0,
         ),
+    }
+
+
+def _collision_checked_reset_summary(
+    episodes: dict[int, dict[str, Any]],
+) -> dict[str, Any]:
+    summaries = [episode.get("safety_summary", {}) for episode in episodes.values()]
+    enabled = [
+        item for item in summaries if item.get("collision_checked_reset_enabled", False)
+    ]
+    compute_ms = sum(
+        float(item.get("collision_checked_reset_compute_ms", 0.0)) for item in enabled
+    )
+    return {
+        "enabled": bool(enabled),
+        "episodes_checked": len(enabled),
+        "fallback_episodes": sum(
+            bool(item.get("collision_checked_reset_used", False)) for item in enabled
+        ),
+        "initial_collision_pairs": sum(
+            len(item.get("initial_robot_parcel_collisions", ())) for item in enabled
+        ),
+        "fallback_collision_pairs": sum(
+            len(item.get("fallback_robot_parcel_collisions", ())) for item in enabled
+        ),
+        "compute_ms_total": compute_ms,
+        "compute_ms_mean": compute_ms / len(enabled) if enabled else 0.0,
     }
 
 

@@ -130,6 +130,29 @@ class ExpertComparisonTests(unittest.TestCase):
         self.assertAlmostEqual(summary["max_joint_command_rad_s"], 1.2)
         self.assertAlmostEqual(summary["max_pose_error_m"], 0.05)
 
+    def test_aggregates_collision_checked_reset_telemetry(self) -> None:
+        baseline = _run((True, True), (10.0, 10.0))
+        candidate = _run((True, True), (10.0, 10.0))
+        for index, episode in enumerate(candidate["episodes"]):
+            episode["safety_summary"] = {
+                "collision_checked_reset_enabled": True,
+                "collision_checked_reset_used": index == 0,
+                "collision_checked_reset_compute_ms": 2.0 + index,
+                "initial_robot_parcel_collisions": [{"robot_link": "hand"}],
+                "fallback_robot_parcel_collisions": [],
+            }
+
+        result = compare_expert_runs(baseline, candidate)
+
+        self.assertFalse(result["baseline_collision_checked_reset"]["enabled"])
+        summary = result["candidate_collision_checked_reset"]
+        self.assertTrue(summary["enabled"])
+        self.assertEqual(summary["episodes_checked"], 2)
+        self.assertEqual(summary["fallback_episodes"], 1)
+        self.assertEqual(summary["initial_collision_pairs"], 2)
+        self.assertEqual(summary["fallback_collision_pairs"], 0)
+        self.assertAlmostEqual(summary["compute_ms_mean"], 2.5)
+
 
 if __name__ == "__main__":
     unittest.main()

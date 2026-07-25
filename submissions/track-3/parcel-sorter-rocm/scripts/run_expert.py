@@ -113,6 +113,11 @@ def main() -> int:
         action="store_true",
         help="enable Jacobian damped-least-squares velocity control during MOVE_PREGRASP",
     )
+    parser.add_argument(
+        "--collision-checked-reset",
+        action="store_true",
+        help="use the fallback reset pose only when the historical pose intersects the parcel",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -143,6 +148,7 @@ def main() -> int:
         or args.precontact_aabb_guard_distance is not None
         or args.approach_stiffness_scale is not None
         or args.approach_velocity_control
+        or args.collision_checked_reset
     ):
         config = replace(
             config,
@@ -192,6 +198,10 @@ def main() -> int:
                 approach_velocity_control_enabled=(
                     config.control.approach_velocity_control_enabled
                     or args.approach_velocity_control
+                ),
+                collision_checked_reset_enabled=(
+                    config.control.collision_checked_reset_enabled
+                    or args.collision_checked_reset
                 ),
             ),
         )

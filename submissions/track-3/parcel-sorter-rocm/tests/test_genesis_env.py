@@ -11,6 +11,7 @@ from parcel_sorter.genesis_env import (
     GenesisParcelEnv,
     aabb_gap_m,
     cartesian_velocity_twist,
+    cross_entity_collision_pairs,
     damped_least_squares_velocity,
     genesis_depth_to_meters,
     scaled_robot_gains,
@@ -198,6 +199,15 @@ class ApproachVelocityControlTests(unittest.TestCase):
         self.assertAlmostEqual(float(np.max(np.abs(velocity))), 1.0)
         self.assertGreater(velocity[0], 0.0)
         self.assertLess(velocity[1], 0.0)
+
+
+class CollisionCheckedResetTests(unittest.TestCase):
+    def test_filters_and_canonicalizes_cross_entity_collision_pairs(self) -> None:
+        pairs = np.asarray(((1, 2), (12, 21), (22, 11), (12, 21), (13, 14), (21, 22)))
+
+        result = cross_entity_collision_pairs(pairs, (10, 20), (20, 30))
+
+        self.assertEqual(result, ((12, 21), (11, 22)))
 
 
 if __name__ == "__main__":

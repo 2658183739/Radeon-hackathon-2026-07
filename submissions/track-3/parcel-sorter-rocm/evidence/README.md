@@ -174,3 +174,28 @@ The candidate executed 5,727 velocity-control samples on ROCm, averaging
 1.50 rad/s and maximum pose error was 0.1817 m. Local compact hashes are in
 `expert/radeon-approach-velocity-ab-v1-SHA256SUMS`; both remote manifests
 preserve the trace-rich source and compact provenance.
+
+## Collision-checked reset diagnostic and negative control
+
+`expert/radeon-contact-link-diagnostic-v1-*` records link-level, 240 Hz
+initialization evidence. Failed episode `7000001` began with a hand/carton
+collision on physics substep zero at about 1,270.85 N; successful episode
+`7000005` had no initialization contact and later used only finger contacts,
+peaking at 17.12 N. Some randomized parcels therefore intersected the
+historical robot reset geometry before the 30 Hz controller could act.
+
+`expert/radeon-collision-checked-reset-ab-v1-*` records the resulting matched
+20-episode single-Radeon A/B. The candidate queried Genesis collision pairs
+before integration and used a fixed fallback pose only when robot/parcel
+intersection existed. It checked all 20 episodes, selected the fallback in 14,
+found 86 initial geometry pairs, and verified zero pairs after every fallback.
+Mean synchronized reset-check cost was 3.707 ms per episode.
+
+Success improved from 1/20 to 5/20 with no regressed successful episodes;
+force aborts fell from 12/20 to 8/20 and successful throughput rose from 17.80
+to 97.00 parcels/hour. Nevertheless, 25% success and 40% force-abort rates are
+far outside the 90% and 5% release gates. The feature remains disabled and is
+classified as a useful diagnostic/negative control, not a deployable
+optimization. Local hashes are in
+`expert/radeon-collision-checked-reset-ab-v1-SHA256SUMS`; the two remote
+manifests preserve full and compact provenance.

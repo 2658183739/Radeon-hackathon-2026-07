@@ -686,3 +686,28 @@ default remains off. Validation is 128 formal Radeon tests plus 6 subtests,
 shell syntax, comparison, two failure analyses, logs, and local/remote hashes.
 The next code should express feasible hand/carton geometry and recovery
 states before tuning another continuous controller.
+
+### Entry 58: Diagnose initialization collision before changing control again
+
+I added a deferred-settle diagnostic path so the scene could be inspected at
+every 240 Hz physics substep before the ordinary initialization settle. The
+script records bidirectional geometry/link mappings, contact forces, poses, and
+the exact first-contact substep. This showed that `7000001` did not first fail
+during approach: its hand already intersected the carton at substep zero and
+generated about 1.27 kN. The successful control `7000005` started collision
+free. That evidence changed the next experiment from another controller tune
+to a reset-feasibility check.
+
+The implementation queries Genesis `detect_collision()` before integration,
+filters unordered pairs to robot/parcel geometry ranges, and selects a fixed
+fallback qpos only on collision. A second query is a mandatory postcondition;
+remaining collision raises an error instead of silently starting the episode.
+The feature remains off by default, and the comparison reports checked
+episodes, fallback count, initial/fallback pair counts, and compute time.
+
+The fixed 20+20 Radeon result improved four failed episodes and regressed none,
+but reached only 5/20 successes with 8/20 force aborts. This is a useful root-
+cause intervention, not a release candidate. I retained the code and evidence
+for reproducibility while keeping the default disabled. Validation is 134
+Radeon tests plus 6 subtests, the two substep diagnostics, exact-config A/B,
+failure analyses, logs, compact summaries, and local/remote hashes.

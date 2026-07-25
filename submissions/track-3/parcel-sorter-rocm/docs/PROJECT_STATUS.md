@@ -241,3 +241,24 @@ Balanced 360-success RGB-D collection, ACT/Diffusion/3D ranking, VLA, and ROS 2
 remain blocked. The next candidate must redesign the grasp pose and recovery
 state around explicit geometry, then pass the same fixed Radeon elimination
 protocol before broader evaluation.
+
+## Latest controlled experiment: collision-checked reset
+
+Link-level 240 Hz diagnostics found that failed episode `7000001` started with
+a hand/carton collision at physics substep zero, whereas successful episode
+`7000005` started collision free. A disabled candidate therefore checked
+robot/parcel collision pairs before integration and selected one fixed fallback
+qpos only for colliding scenes.
+
+On the matched single-Radeon episodes `7000000`--`7000019`, the candidate used
+the fallback in 14/20 episodes and verified zero collision pairs afterward.
+Success rose from 1/20 to 5/20 and force aborts fell from 12/20 to 8/20, with
+no regressions or drops. It still failed the 90% success and 5% force-abort
+gates, so the feature remains disabled. Evidence is indexed under
+`evidence/expert/radeon-contact-link-diagnostic-v1-*` and
+`evidence/expert/radeon-collision-checked-reset-ab-v1-*`.
+
+Balanced RGB-D collection and learned-policy ranking remain blocked. The next
+candidate must generate reset and grasp poses that are feasible for each
+sampled parcel geometry, then pass the same safety gate before ACT, Diffusion,
+3D policy, VLA, or ROS 2 work resumes.
