@@ -774,6 +774,8 @@ class GenesisParcelEnv:
             "longitudinal_offset_m",
             "vertical_offset_m",
             "wrist_variant",
+            "approach_variant",
+            "approach_direction",
             "ik_position_error_m",
             "ik_rotation_error_rad",
             "fk_position_error_m",

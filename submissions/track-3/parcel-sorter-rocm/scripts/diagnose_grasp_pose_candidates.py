@@ -18,6 +18,8 @@ from parcel_sorter.config import load_config
 from parcel_sorter.genesis_env import GenesisParcelEnv
 from parcel_sorter.grasp_planning import (
     generate_box_grasp_pose_candidates,
+    generate_box_oblique_grasp_pose_candidates,
+    generate_box_side_grasp_pose_candidates,
     grasp_evaluation_is_feasible,
     rank_grasp_pose_evaluations,
 )
@@ -38,6 +40,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--ik-max-samples", type=int, default=8)
     parser.add_argument("--ik-max-iters", type=int, default=40)
+    parser.add_argument(
+        "--include-side-grasps",
+        action="store_true",
+        help="also evaluate long-axis side approaches without enabling them in control",
+    )
+    parser.add_argument(
+        "--include-oblique-grasps",
+        action="store_true",
+        help="also evaluate centred 30/45 degree top-down tilts for tall boxes",
+    )
     return parser.parse_args()
 
 
@@ -211,11 +223,27 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     sample = randomizer.sample_profile(args.profile, args.episode)
     with GenesisParcelEnv(config, sample, backend=args.backend) as env:
         state = env.state()
-        candidates = generate_box_grasp_pose_candidates(
+        candidates = list(generate_box_grasp_pose_candidates(
             sample,
             state.parcel_pose,
             hand_clearance_m=env.expert.grasp_hand_clearance_m(),
-        )
+        ))
+        if args.include_side_grasps:
+            candidates.extend(
+                generate_box_side_grasp_pose_candidates(
+                    sample,
+                    state.parcel_pose,
+                    hand_clearance_m=env.expert.grasp_hand_clearance_m(),
+                )
+            )
+        if args.include_oblique_grasps:
+            candidates.extend(
+                generate_box_oblique_grasp_pose_candidates(
+                    sample,
+                    state.parcel_pose,
+                    hand_clearance_m=env.expert.grasp_hand_clearance_m(),
+                )
+            )
         seeds = _seed_qpos(env)
         rows = [
             _evaluate_candidate(env, candidate, seed_name, seed_qpos, args)

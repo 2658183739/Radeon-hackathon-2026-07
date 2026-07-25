@@ -16,6 +16,8 @@ class GraspPoseCandidate:
     longitudinal_offset_m: float
     vertical_offset_m: float
     wrist_variant: str
+    approach_variant: str
+    approach_direction: tuple[float, float, float]
 
 
 IK_POSITION_TOLERANCE_M = 0.005
@@ -148,6 +150,207 @@ def generate_box_grasp_pose_candidates(
                         longitudinal_offset_m=longitudinal_offset,
                         vertical_offset_m=vertical_offset,
                         wrist_variant=wrist_variant,
+                        approach_variant="top_down",
+                        approach_direction=(0.0, 0.0, -1.0),
+                    )
+                )
+    return tuple(candidates)
+
+
+def generate_box_side_grasp_pose_candidates(
+    sample: ParcelSample,
+    parcel_pose: tuple[float, ...],
+    *,
+    hand_clearance_m: float,
+    palm_edge_margin_m: float = 0.065,
+    min_longitudinal_edge_margin_m: float = 0.035,
+    max_vertical_offset_m: float = 0.055,
+    min_vertical_side_overlap_m: float = MIN_VERTICAL_SIDE_OVERLAP_M,
+) -> tuple[GraspPoseCandidate, ...]:
+    """Generate long-axis side approaches with the palm outside the box.
+
+    The hand z-axis points from an end face toward the box centre while the
+    finger-opening axis remains parallel to the box minor axis. Contact is
+    shifted only as far from the centre as needed to keep the palm outside the
+    end face, preserving moment-arm margin for long parcels.
+    """
+    if sample.shape != "box" or sample.dimensions_m is None:
+        raise ValueError("box side-grasp generation requires box dimensions")
+    if min(
+        hand_clearance_m,
+        palm_edge_margin_m,
+        min_longitudinal_edge_margin_m,
+        min_vertical_side_overlap_m,
+    ) <= 0:
+        raise ValueError("side-grasp clearances and margins must be positive")
+    if max_vertical_offset_m < 0:
+        raise ValueError("side-grasp vertical offset limit cannot be negative")
+
+    length_m, _, height_m = sample.dimensions_m
+    half_length_m = length_m / 2
+    if half_length_m + 1e-12 < min_longitudinal_edge_margin_m:
+        return ()
+    contact_offset_m = max(
+        0.0,
+        half_length_m - hand_clearance_m + palm_edge_margin_m,
+    )
+    available_contact_offset_m = max(
+        0.0,
+        half_length_m - min_longitudinal_edge_margin_m,
+    )
+    if contact_offset_m > available_contact_offset_m + 1e-12:
+        return ()
+
+    available_vertical_offset_m = max(
+        0.0,
+        height_m / 2 - min_vertical_side_overlap_m,
+    )
+    vertical_extent_m = min(
+        max_vertical_offset_m,
+        available_vertical_offset_m,
+    )
+    vertical_offsets_m = _unique_values(
+        (
+            0.0,
+            min(0.020, vertical_extent_m),
+            min(0.040, vertical_extent_m),
+            vertical_extent_m,
+        )
+    )
+
+    parcel_yaw = _yaw_from_pose(parcel_pose)
+    longitudinal_axis = (math.cos(parcel_yaw), math.sin(parcel_yaw), 0.0)
+    minor_axis = (-math.sin(parcel_yaw), math.cos(parcel_yaw), 0.0)
+    candidates = []
+    for side_sign, side_name in ((1.0, "positive_long"), (-1.0, "negative_long")):
+        approach_direction = tuple(
+            -side_sign * value for value in longitudinal_axis
+        )
+        local_y_axis = tuple(side_sign * value for value in minor_axis)
+        quaternion = _quaternion_from_rotation_columns(
+            (0.0, 0.0, 1.0),
+            local_y_axis,
+            approach_direction,
+        )
+        signed_contact_offset_m = side_sign * contact_offset_m
+        contact_x = parcel_pose[0] + signed_contact_offset_m * longitudinal_axis[0]
+        contact_y = parcel_pose[1] + signed_contact_offset_m * longitudinal_axis[1]
+        for vertical_offset_m in vertical_offsets_m:
+            candidate_id = (
+                f"side-{side_name}-long-{signed_contact_offset_m:+.3f}"
+                f"-up-{vertical_offset_m:.3f}"
+            )
+            candidates.append(
+                GraspPoseCandidate(
+                    candidate_id=candidate_id,
+                    target_position=(
+                        float(
+                            contact_x
+                            - hand_clearance_m * approach_direction[0]
+                        ),
+                        float(
+                            contact_y
+                            - hand_clearance_m * approach_direction[1]
+                        ),
+                        float(parcel_pose[2] + vertical_offset_m),
+                    ),
+                    target_quaternion=quaternion,
+                    longitudinal_offset_m=signed_contact_offset_m,
+                    vertical_offset_m=vertical_offset_m,
+                    wrist_variant=side_name,
+                    approach_variant="side_long_axis",
+                    approach_direction=approach_direction,
+                )
+            )
+    return tuple(candidates)
+
+
+def generate_box_oblique_grasp_pose_candidates(
+    sample: ParcelSample,
+    parcel_pose: tuple[float, ...],
+    *,
+    hand_clearance_m: float,
+    tilt_angles_deg: tuple[float, ...] = (30.0, 45.0),
+    max_vertical_offset_m: float = 0.020,
+    min_vertical_side_overlap_m: float = MIN_VERTICAL_SIDE_OVERLAP_M,
+) -> tuple[GraspPoseCandidate, ...]:
+    """Generate centred grasps whose palm tilts toward either long-axis end."""
+    if sample.shape != "box" or sample.dimensions_m is None:
+        raise ValueError("box oblique-grasp generation requires box dimensions")
+    if hand_clearance_m <= 0 or min_vertical_side_overlap_m <= 0:
+        raise ValueError("oblique-grasp clearances must be positive")
+    if max_vertical_offset_m < 0:
+        raise ValueError("oblique-grasp vertical offset limit cannot be negative")
+    if not tilt_angles_deg or any(
+        not math.isfinite(angle) or not 0 < angle < 90
+        for angle in tilt_angles_deg
+    ):
+        raise ValueError("oblique-grasp tilt angles must be finite and in (0, 90)")
+
+    height_m = sample.dimensions_m[2]
+    available_vertical_offset_m = max(
+        0.0,
+        height_m / 2 - min_vertical_side_overlap_m,
+    )
+    vertical_extent_m = min(
+        max_vertical_offset_m,
+        available_vertical_offset_m,
+    )
+    vertical_offsets_m = _unique_values((0.0, vertical_extent_m))
+
+    parcel_yaw = _yaw_from_pose(parcel_pose)
+    longitudinal_axis = (math.cos(parcel_yaw), math.sin(parcel_yaw), 0.0)
+    minor_axis = (-math.sin(parcel_yaw), math.cos(parcel_yaw), 0.0)
+    local_y_axis = tuple(-value for value in minor_axis)
+    candidates = []
+    for tilt_angle_deg in tilt_angles_deg:
+        angle_rad = math.radians(tilt_angle_deg)
+        vertical_component = math.cos(angle_rad)
+        horizontal_component = math.sin(angle_rad)
+        for side_sign, side_name in ((1.0, "positive_long"), (-1.0, "negative_long")):
+            approach_direction = (
+                -side_sign * horizontal_component * longitudinal_axis[0],
+                -side_sign * horizontal_component * longitudinal_axis[1],
+                -vertical_component,
+            )
+            local_x_axis = _cross(local_y_axis, approach_direction)
+            quaternion = _quaternion_from_rotation_columns(
+                local_x_axis,
+                local_y_axis,
+                approach_direction,
+            )
+            for vertical_offset_m in vertical_offsets_m:
+                target_position = (
+                    float(
+                        parcel_pose[0]
+                        - hand_clearance_m * approach_direction[0]
+                    ),
+                    float(
+                        parcel_pose[1]
+                        - hand_clearance_m * approach_direction[1]
+                    ),
+                    float(
+                        parcel_pose[2]
+                        + vertical_offset_m
+                        - hand_clearance_m * approach_direction[2]
+                    ),
+                )
+                candidate_id = (
+                    f"oblique-{side_name}-tilt-{tilt_angle_deg:.0f}"
+                    f"-up-{vertical_offset_m:.3f}"
+                )
+                candidates.append(
+                    GraspPoseCandidate(
+                        candidate_id=candidate_id,
+                        target_position=target_position,
+                        target_quaternion=quaternion,
+                        longitudinal_offset_m=0.0,
+                        vertical_offset_m=vertical_offset_m,
+                        wrist_variant=(
+                            f"oblique_{side_name}_{tilt_angle_deg:.0f}deg"
+                        ),
+                        approach_variant="oblique_top_down",
+                        approach_direction=approach_direction,
                     )
                 )
     return tuple(candidates)
@@ -296,6 +499,68 @@ def _unique_values(values: tuple[float, ...]) -> tuple[float, ...]:
         if not any(math.isclose(value, other, abs_tol=1e-12) for other in unique):
             unique.append(float(value))
     return tuple(unique)
+
+
+def _quaternion_from_rotation_columns(
+    local_x_world: tuple[float, float, float],
+    local_y_world: tuple[float, float, float],
+    local_z_world: tuple[float, float, float],
+) -> tuple[float, float, float, float]:
+    """Convert orthonormal world-frame axis columns to a normalized wxyz quaternion."""
+    matrix = (
+        (local_x_world[0], local_y_world[0], local_z_world[0]),
+        (local_x_world[1], local_y_world[1], local_z_world[1]),
+        (local_x_world[2], local_y_world[2], local_z_world[2]),
+    )
+    trace = matrix[0][0] + matrix[1][1] + matrix[2][2]
+    if trace > 0:
+        scale = math.sqrt(trace + 1.0) * 2
+        quaternion = (
+            0.25 * scale,
+            (matrix[2][1] - matrix[1][2]) / scale,
+            (matrix[0][2] - matrix[2][0]) / scale,
+            (matrix[1][0] - matrix[0][1]) / scale,
+        )
+    elif matrix[0][0] > matrix[1][1] and matrix[0][0] > matrix[2][2]:
+        scale = math.sqrt(1.0 + matrix[0][0] - matrix[1][1] - matrix[2][2]) * 2
+        quaternion = (
+            (matrix[2][1] - matrix[1][2]) / scale,
+            0.25 * scale,
+            (matrix[0][1] + matrix[1][0]) / scale,
+            (matrix[0][2] + matrix[2][0]) / scale,
+        )
+    elif matrix[1][1] > matrix[2][2]:
+        scale = math.sqrt(1.0 + matrix[1][1] - matrix[0][0] - matrix[2][2]) * 2
+        quaternion = (
+            (matrix[0][2] - matrix[2][0]) / scale,
+            (matrix[0][1] + matrix[1][0]) / scale,
+            0.25 * scale,
+            (matrix[1][2] + matrix[2][1]) / scale,
+        )
+    else:
+        scale = math.sqrt(1.0 + matrix[2][2] - matrix[0][0] - matrix[1][1]) * 2
+        quaternion = (
+            (matrix[1][0] - matrix[0][1]) / scale,
+            (matrix[0][2] + matrix[2][0]) / scale,
+            (matrix[1][2] + matrix[2][1]) / scale,
+            0.25 * scale,
+        )
+    norm = math.sqrt(sum(value * value for value in quaternion))
+    normalized = tuple(float(value / norm) for value in quaternion)
+    if normalized[0] < 0:
+        normalized = tuple(-value for value in normalized)
+    return normalized
+
+
+def _cross(
+    left: tuple[float, float, float],
+    right: tuple[float, float, float],
+) -> tuple[float, float, float]:
+    return (
+        left[1] * right[2] - left[2] * right[1],
+        left[2] * right[0] - left[0] * right[2],
+        left[0] * right[1] - left[1] * right[0],
+    )
 
 
 def _yaw_from_pose(pose: tuple[float, ...]) -> float:

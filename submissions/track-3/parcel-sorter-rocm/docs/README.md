@@ -26,6 +26,8 @@
 | Raw evidence | [Evidence](../evidence/README.md) | [原始证据](../evidence/README_CN.md) |
 | Third-party notices | [Notices](../THIRD_PARTY_NOTICES.md) | [第三方说明](../THIRD_PARTY_NOTICES_CN.md) |
 
+Additional investigation: [grasp contact stability](GRASP_CONTACT_STABILITY_2026-07-26.md) / [中文版](GRASP_CONTACT_STABILITY_2026-07-26_CN.md).
+
 English documents are the primary competition materials. Chinese documents are
 paired operator and learning references. Results, plans, and unverified changes
 must remain explicitly distinguished in both languages.

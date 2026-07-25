@@ -9,6 +9,8 @@ from parcel_sorter.config import load_config
 from parcel_sorter.grasp_planning import (
     box_requires_geometry_aware_grasp_planning,
     generate_box_grasp_pose_candidates,
+    generate_box_oblique_grasp_pose_candidates,
+    generate_box_side_grasp_pose_candidates,
     grasp_evaluation_is_feasible,
     interpolate_joint_segment,
     rank_grasp_pose_evaluations,
@@ -117,6 +119,140 @@ class GraspPoseCandidateTests(unittest.TestCase):
 
         self.assertEqual(len(candidates), 12)
         self.assertEqual({item.wrist_variant for item in candidates}, {"canonical"})
+
+    def test_top_down_candidates_preserve_explicit_approach_metadata(self) -> None:
+        candidates = generate_box_grasp_pose_candidates(
+            self.sample,
+            self.parcel_pose,
+            hand_clearance_m=0.105,
+        )
+
+        self.assertEqual({item.approach_variant for item in candidates}, {"top_down"})
+        self.assertEqual(
+            {item.approach_direction for item in candidates},
+            {(0.0, 0.0, -1.0)},
+        )
+
+    def test_side_candidates_keep_palm_outside_and_approach_from_both_ends(self) -> None:
+        candidates = generate_box_side_grasp_pose_candidates(
+            self.sample,
+            self.parcel_pose,
+            hand_clearance_m=0.105,
+        )
+
+        self.assertEqual(len(candidates), 8)
+        self.assertEqual(
+            {item.wrist_variant for item in candidates},
+            {"positive_long", "negative_long"},
+        )
+        half_length_m = self.sample.dimensions_m[0] / 2
+        for candidate in candidates:
+            side_sign = 1.0 if candidate.target_position[0] > self.parcel_pose[0] else -1.0
+            palm_offset_m = side_sign * (
+                candidate.target_position[0] - self.parcel_pose[0]
+            )
+            self.assertGreaterEqual(palm_offset_m, half_length_m + 0.065 - 1e-12)
+            self.assertAlmostEqual(
+                math.sqrt(
+                    sum(value * value for value in candidate.target_quaternion)
+                ),
+                1.0,
+            )
+            w, x, y, z = candidate.target_quaternion
+            local_z_world = (
+                2 * (x * z + w * y),
+                2 * (y * z - w * x),
+                1 - 2 * (x * x + y * y),
+            )
+            for actual, expected in zip(
+                local_z_world,
+                candidate.approach_direction,
+                strict=True,
+            ):
+                self.assertAlmostEqual(actual, expected)
+
+    def test_side_candidates_rotate_with_box_yaw(self) -> None:
+        parcel_pose = (
+            self.parcel_pose[0],
+            self.parcel_pose[1],
+            self.parcel_pose[2],
+            math.cos(math.pi / 4),
+            0.0,
+            0.0,
+            math.sin(math.pi / 4),
+        )
+        candidates = generate_box_side_grasp_pose_candidates(
+            self.sample,
+            parcel_pose,
+            hand_clearance_m=0.105,
+        )
+
+        positive = next(
+            item
+            for item in candidates
+            if item.wrist_variant == "positive_long"
+            and math.isclose(item.vertical_offset_m, 0.0)
+        )
+        self.assertAlmostEqual(positive.target_position[0], parcel_pose[0])
+        self.assertGreater(positive.target_position[1], parcel_pose[1])
+        for actual, expected in zip(
+            positive.approach_direction,
+            (0.0, -1.0, 0.0),
+            strict=True,
+        ):
+            self.assertAlmostEqual(actual, expected)
+
+    def test_side_candidates_reject_boxes_without_contact_edge_margin(self) -> None:
+        sample = replace(self.sample, dimensions_m=(0.06, 0.07, 0.08))
+
+        candidates = generate_box_side_grasp_pose_candidates(
+            sample,
+            self.parcel_pose,
+            hand_clearance_m=0.105,
+        )
+
+        self.assertEqual(candidates, ())
+
+    def test_oblique_candidates_tilt_palm_while_preserving_centred_contact(self) -> None:
+        candidates = generate_box_oblique_grasp_pose_candidates(
+            self.sample,
+            self.parcel_pose,
+            hand_clearance_m=0.105,
+        )
+
+        self.assertEqual(len(candidates), 8)
+        self.assertEqual(
+            {item.approach_variant for item in candidates},
+            {"oblique_top_down"},
+        )
+        self.assertEqual(
+            {
+                round(math.degrees(math.acos(-item.approach_direction[2])))
+                for item in candidates
+            },
+            {30, 45},
+        )
+        for candidate in candidates:
+            self.assertAlmostEqual(candidate.longitudinal_offset_m, 0.0)
+            self.assertLess(candidate.approach_direction[2], 0.0)
+            self.assertAlmostEqual(
+                math.sqrt(
+                    sum(value * value for value in candidate.approach_direction)
+                ),
+                1.0,
+            )
+            w, x, y, z = candidate.target_quaternion
+            local_z_world = (
+                2 * (x * z + w * y),
+                2 * (y * z - w * x),
+                1 - 2 * (x * x + y * y),
+            )
+            for actual, expected in zip(
+                local_z_world,
+                candidate.approach_direction,
+                strict=True,
+            ):
+                self.assertAlmostEqual(actual, expected)
 
     def test_planning_scope_is_derived_from_palm_clearance_and_side_overlap(self) -> None:
         below = replace(self.sample, dimensions_m=(0.30, 0.07, 0.1249))
