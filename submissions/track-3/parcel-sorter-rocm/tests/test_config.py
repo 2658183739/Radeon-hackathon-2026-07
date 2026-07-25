@@ -43,6 +43,16 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "approach_step_m"):
             invalid.validate()
 
+    def test_approach_contact_brake_threshold_stays_below_safety_limit(self) -> None:
+        config = load_config(PROJECT_ROOT / "configs" / "baseline.toml")
+        invalid = replace(
+            config,
+            control=replace(config.control, approach_contact_brake_force_n=35.0),
+        )
+
+        with self.assertRaisesRegex(ValueError, "approach_contact_brake_force_n"):
+            invalid.validate()
+
     def test_parcel_profile_rejects_negative_rolling_friction(self) -> None:
         config = load_config(PROJECT_ROOT / "configs" / "catalog_v2.toml")
         invalid_profile = replace(config.parcel_profiles[0], rolling_friction=-0.001)

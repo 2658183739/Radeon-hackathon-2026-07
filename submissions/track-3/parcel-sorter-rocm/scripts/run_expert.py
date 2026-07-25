@@ -78,6 +78,18 @@ def main() -> int:
         default=None,
         help="limit every MOVE_PREGRASP Cartesian step for a controlled diagnostic",
     )
+    parser.add_argument(
+        "--approach-contact-brake-force",
+        type=float,
+        default=None,
+        help="enable approach contact braking at this measured force threshold",
+    )
+    parser.add_argument(
+        "--approach-contact-brake-step",
+        type=float,
+        default=None,
+        help="maximum Cartesian retreat step used by approach contact braking",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -102,6 +114,8 @@ def main() -> int:
         or args.approach_clearance_margin is not None
         or args.retry_retreat_distance is not None
         or args.approach_step is not None
+        or args.approach_contact_brake_force is not None
+        or args.approach_contact_brake_step is not None
     ):
         config = replace(
             config,
@@ -119,6 +133,19 @@ def main() -> int:
                     config.task.retry_retreat_distance_m
                     if args.retry_retreat_distance is None
                     else args.retry_retreat_distance
+                ),
+            ),
+            control=replace(
+                config.control,
+                approach_contact_brake_force_n=(
+                    config.control.approach_contact_brake_force_n
+                    if args.approach_contact_brake_force is None
+                    else args.approach_contact_brake_force
+                ),
+                approach_contact_brake_step_m=(
+                    config.control.approach_contact_brake_step_m
+                    if args.approach_contact_brake_step is None
+                    else args.approach_contact_brake_step
                 ),
             ),
         )

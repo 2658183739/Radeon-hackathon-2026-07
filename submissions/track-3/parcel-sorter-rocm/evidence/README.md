@@ -89,3 +89,16 @@ The large generated artifacts are deliberately not stored in Git:
 They should be attached to the final submission through release or object
 storage with separately published SHA-256 hashes. The documented commands
 regenerate them from this source revision.
+
+## Approach contact-brake negative control
+
+`expert/radeon-contact-brake-ab-v1-*` contains compact summaries, failure
+analyses, logs, comparison, and two hash manifests for a matched 20-episode
+Radeon A/B. Only the 20 N contact-brake threshold changed. Candidate and
+baseline both produced 1/20 successes, 12/20 force aborts, and zero drops;
+candidate peak force increased from 111.28 N to 467.31 N, so it remains
+disabled. Local SHA-256 values include baseline summary
+`e79de0fd...3ce30`, candidate summary `b35298cf...4e11d`, and comparison
+`5b8ead9a...40290`. Full digests are in
+`expert/radeon-contact-brake-ab-v1-SHA256SUMS`; the remote manifest preserves
+the full-summary provenance hashes.

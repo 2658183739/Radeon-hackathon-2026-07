@@ -1184,3 +1184,36 @@ runtime, configuration, randomization, and per-episode outcomes.
 change addresses the approach/retry state machine and passes the predeclared
 absolute success, force-abort, drop, profile, and throughput gates on a larger
 fixed set.
+
+### 57. Reject the previous-frame contact-brake candidate
+
+**Hypothesis.** Some failures in the 400-episode trace showed 20--32 N during
+approach before crossing the 35 N hard limit. The candidate observes at least
+20 N during `MOVE_PREGRASP` and commands at most 10 mm of separation before the
+next transit command can press farther into the parcel.
+
+**Controlled protocol.** Only `control.approach_contact_brake_force_n` changed,
+to 20 N. The 10 mm brake step already equals the baseline default and is not an
+observed config difference. Both runs used one Radeon, episodes `7000000`-
+`7000019`, `large_narrow_carton`, the same 35 N boundary, and the same ROCm
+runtime.
+
+**Evidence.** Baseline and candidate both achieved 1/20 successes, 12/20 force
+aborts, and zero drops. Candidate throughput was 1.047x baseline, but peak force
+rose from 111.28 N to 467.31 N. Candidate episode `7000007` measured 0 N on the
+previous frame and jumped directly to 467.31 N on the abort frame, leaving no
+control frame in which the 20 N brake could act. The candidate only reduced
+episode `7000014` from 37.20 N to 36.10 N, recovered no failures, and failed the
+90% success and 5% force-abort gates.
+
+**Decision.** Reject and keep the feature disabled. A low-rate, one-frame-late
+force threshold is not a sufficient safety layer here. The next candidate must
+act before collision using geometric proximity/predicted contact, or move force
+limiting into a higher-rate compliant/impedance controller. Do not raise the
+35 N hard limit or start the 360-success collection from this result.
+
+**Implementation and auditability.** Retain the typed config, CLI, validation,
+tests, and fixed A/B runner as a reproducible experiment component. Fix the
+runner's exact difference contract to list only the field that actually changed.
+Full summaries remain on the Radeon host; Git stores compact summaries, failure
+analyses, logs, comparison, and local/remote SHA-256 manifests.

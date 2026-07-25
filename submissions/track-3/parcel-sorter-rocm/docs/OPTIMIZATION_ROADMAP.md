@@ -297,3 +297,22 @@ decision_reason:
 
 The submission remains pinned to its verified ROCm 7.2.1 environment even when
 upstream documentation moves to newer production releases.
+
+## 12. Near-term priority after the 2026-07-25 contact-brake experiment
+
+The previous-frame force-threshold candidate was rejected by matched Radeon
+A/B: it changed neither success nor force-abort counts and raised peak force to
+467.31 N. Do not scan more 20 N thresholds or raise the 35 N boundary. Proceed
+in this order:
+
+1. Build a pre-contact guard from scene geometry or Genesis collision distance,
+   continuously tightening end-effector step and velocity near obstacles.
+2. Move velocity limiting/compliance into a control loop faster than 30 Hz;
+   keep the supervisor responsible for stages and the hard abort.
+3. Use the fixed 20 `large_narrow_carton` episodes for elimination, then expand
+   passing candidates to a preregistered hard set and the full catalog.
+4. Only after the expert gate passes, collect 30 successful RGB-D episodes for
+   each of 12 train profiles and compare ACT, Diffusion, DP3/point-cloud, and a
+   lightweight VLA on the same closed-loop split.
+5. Continue recording the exact config difference, episode set, seeds, runtime,
+   logs, failure attribution, and SHA-256 for every candidate.

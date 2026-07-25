@@ -154,3 +154,19 @@ Compact summaries omit only per-frame traces and include source paths, sizes,
 and SHA-256 values. The next engineering target is the approach/retry state
 machine; no batch collection or model selection should start from this
 negative control.
+
+## Latest controlled experiment: approach contact-brake A/B
+
+The candidate commanded at most 10 mm of separation after observing at least
+20 N during `MOVE_PREGRASP`. On the fixed 20 Radeon episodes it matched the
+baseline at 1/20 successes, 12/20 force aborts, and zero drops. Peak force
+worsened from 111.28 N to 467.31 N. Throughput was 1.047x baseline, but both
+absolute task and safety gates failed. The critical trace jumped from 0 N on
+the previous frame directly to the 467.31 N abort frame, showing that the
+current 30 Hz reactive force path cannot prevent the first collision impulse.
+
+The candidate is rejected and disabled. Evidence is indexed under
+`evidence/expert/radeon-contact-brake-ab-v1-*`. The next controlled intervention
+is a pre-contact geometric-distance guard or a higher-rate compliant/impedance
+controller. The 35 N hard limit, balanced-data gate, and formal model-ranking
+block remain unchanged.

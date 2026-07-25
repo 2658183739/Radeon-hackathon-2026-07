@@ -576,3 +576,20 @@ file as if it contained raw traces.
 Validation: 101 Radeon unit tests, shell syntax validation, the two failure
 analyses, and the machine comparison completed. The next experiment must target
 the approach/retry state machine rather than tuning this step in isolation.
+
+### Entry 53: Contact-brake A/B exposes an observation-timing limit
+
+Implemented a disabled-by-default approach contact brake with a 20 N trigger
+and at most 10 mm separation, including config, CLI, expert-action, and runner
+regression tests. The fixed 20-episode Radeon A/B produced the same 1/20
+successes, 12/20 force aborts, and zero drops, while candidate peak force rose
+to 467.31 N. Trace evidence shows the critical episode jumped from 0 N on the
+previous frame directly to 467.31 N on the abort frame, so observe-contact-now,
+brake-next-frame is too late in the current 30 Hz loop. Keep the candidate off
+and prioritize a pre-contact geometric guard or high-rate compliant control.
+Post-processing initially rejected an overdeclared config-difference whitelist;
+after correcting it, the complete summaries were reused without rerunning the
+GPU experiment.
+
+Validation: 104 unit tests in the Radeon environment, runner shell syntax,
+Python compilation, both failure analyses, and local evidence hashes passed.

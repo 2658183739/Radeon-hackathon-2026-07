@@ -68,3 +68,13 @@ SHA-256。为控制仓库体积，它保留逐失败回合归因与聚合统计�
 
 Catalog v2 同样只记录每类一个确定性回合以及同 episode 的物理/控制候选，不能合并为
 正式成功率。准确结果和哈希见 `catalog/README_CN.md`。
+
+## 接近接触制动负对照
+
+`expert/radeon-contact-brake-ab-v1-*` 保存 20 回合匹配 Radeon A/B 的 compact summary、失败
+归因、日志、comparison 和两级哈希清单。候选只改变 20 N 接触制动阈值；结果与基线同为
+1/20 成功、12/20 力中止、0 次掉落，峰值力从 111.28 N 增至 467.31 N，因此默认关闭。
+核心本地哈希为：baseline summary `e79de0fd...3ce30`、candidate summary
+`b35298cf...4e11d`、comparison `5b8ead9a...40290`。完整值见
+`expert/radeon-contact-brake-ab-v1-SHA256SUMS`，远端原始 summary 哈希见
+`expert/radeon-contact-brake-ab-v1-remote-SHA256SUMS`。

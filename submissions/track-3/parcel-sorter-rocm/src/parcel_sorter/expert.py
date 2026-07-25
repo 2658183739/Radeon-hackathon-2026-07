@@ -91,6 +91,13 @@ class ScriptedPickPlaceExpert:
         if command == Command.MOVE_PREGRASP:
             if self.config.control.approach_step_m is not None:
                 step_limit = min(step_limit, self.config.control.approach_step_m)
+            brake_threshold = self.config.control.approach_contact_brake_force_n
+            if (
+                brake_threshold is not None
+                and state.gripper_contact_force_n >= brake_threshold
+            ):
+                desired = self._contact_brake_position(current, parcel)
+                step_limit = min(step_limit, self.config.control.approach_contact_brake_step_m)
             if self._is_final_approach(current, parcel):
                 step_limit = min(step_limit, self.config.control.final_approach_step_m)
                 if self.sample.final_approach_step_m is not None:
@@ -237,6 +244,31 @@ class ScriptedPickPlaceExpert:
             parcel_pose[0] + direction_x * retreat_distance,
             parcel_pose[1] + direction_y * retreat_distance,
             retreat_z,
+        )
+
+    def _contact_brake_position(
+        self,
+        current: tuple[float, ...],
+        parcel_pose: tuple[float, ...],
+    ) -> tuple[float, float, float]:
+        """Leave an incipient approach contact before issuing another transit move."""
+        transit_z = parcel_pose[2] + self.approach_clearance_m()
+        if current[2] < transit_z - self.config.task.position_tolerance_m:
+            return current[0], current[1], transit_z
+        dx = current[0] - parcel_pose[0]
+        dy = current[1] - parcel_pose[1]
+        distance = math.hypot(dx, dy)
+        if distance > 1e-6:
+            retreat = self.config.control.approach_contact_brake_step_m
+            return (
+                current[0] + retreat * dx / distance,
+                current[1] + retreat * dy / distance,
+                current[2],
+            )
+        return (
+            current[0],
+            current[1],
+            current[2] + self.config.control.approach_contact_brake_step_m,
         )
 
     def _is_final_approach(
