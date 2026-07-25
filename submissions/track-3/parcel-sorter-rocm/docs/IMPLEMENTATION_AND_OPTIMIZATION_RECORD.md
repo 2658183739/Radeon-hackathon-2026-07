@@ -346,3 +346,28 @@ transfer. The code and evidence are retained for diagnosis and future
 composition, but all new runtime switches remain off. The next optimization
 unit must change support geometry or use a longer loaded horizon; further local
 height, force, and step tuning is not justified by the measured results.
+
+## Completed full-horizon counterfactual decision
+
+This iteration added four default-neutral capabilities: bounded Cartesian
+segment generation, explicit full-horizon completion gates, deterministic
+full-task candidate ranking, and a pre-execution diagnostic candidate
+allowlist. The allowlist is audited in planning events and combines with the
+normal rejection set through a pure tested helper. The production path sees
+`None`, so its historical selection behavior is unchanged.
+
+The experiment deliberately separated model error from controller error. The
+idealized path covered more physics but still bypassed production dynamics and
+failed validation. The formal counterfactual retained those dynamics and found
+a safe successful alternative. This demonstrates why fidelity is part of the
+label definition, not merely an implementation detail.
+
+The code is accepted for data collection and diagnosis. A production ranking
+change is held because the positive result comes from one observed episode.
+The next optimization is a small ROCm-trained candidate scorer using static
+geometry, IK/manipulability, parcel properties, destination geometry, and
+controller-faithful outcomes. Safety abort remains a hard target and the
+35 N supervisor remains outside the model.
+
+Final verification used the current source tree explicitly and passed the
+complete 227-test Radeon suite after compiling `src`, `scripts`, and `tests`.

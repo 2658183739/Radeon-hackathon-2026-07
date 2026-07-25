@@ -38,7 +38,8 @@ def dynamic_grasp_is_stable(
     """Apply the preregistered safety and retention gates to one rollout."""
     thresholds.validate()
     return (
-        bool(evaluation.get("captured", False))
+        bool(evaluation.get("completed_horizon", True))
+        and bool(evaluation.get("captured", False))
         and bool(evaluation.get("final_dual_contact", False))
         and not bool(evaluation.get("safety_aborted", False))
         and bool(evaluation.get("finite", False))
@@ -62,6 +63,7 @@ def dynamic_grasp_rank_key(
     stable = dynamic_grasp_is_stable(evaluation, thresholds)
     return (
         not stable,
+        not bool(evaluation.get("completed_horizon", True)),
         bool(evaluation.get("safety_aborted", False)),
         not bool(evaluation.get("final_dual_contact", False)),
         not bool(evaluation.get("captured", False)),
@@ -84,4 +86,47 @@ def rank_dynamic_grasp_evaluations(
     return sorted(
         evaluations,
         key=lambda evaluation: dynamic_grasp_rank_key(evaluation, thresholds),
+    )
+
+
+def linear_segment_waypoints(
+    start: Sequence[float],
+    target: Sequence[float],
+    max_step_m: float,
+) -> tuple[tuple[float, float, float], ...]:
+    """Split one Cartesian segment into bounded steps, excluding the start."""
+    if len(start) != 3 or len(target) != 3:
+        raise ValueError("Cartesian segment endpoints must contain three values")
+    values = tuple(float(value) for value in (*start, *target))
+    if any(not math.isfinite(value) for value in values):
+        raise ValueError("Cartesian segment endpoints must be finite")
+    if not math.isfinite(max_step_m) or max_step_m <= 0:
+        raise ValueError("max_step_m must be finite and positive")
+    start_xyz = values[:3]
+    target_xyz = values[3:]
+    distance = math.dist(start_xyz, target_xyz)
+    if distance <= 1e-12:
+        return ()
+    step_count = max(1, math.ceil(distance / max_step_m))
+    return tuple(
+        target_xyz
+        if step == step_count
+        else tuple(
+            float(origin + (destination - origin) * step / step_count)
+            for origin, destination in zip(start_xyz, target_xyz, strict=True)
+        )
+        for step in range(1, step_count + 1)
+    )
+
+
+def full_episode_grasp_rank_key(evaluation: Mapping[str, Any]) -> tuple[Any, ...]:
+    """Rank counterfactual closed-loop grasps under the project safety order."""
+    return (
+        bool(evaluation.get("safety_aborted", False)),
+        bool(evaluation.get("dropped", False)),
+        not bool(evaluation.get("success", False)),
+        float(evaluation.get("max_contact_force_n", math.inf)),
+        float(evaluation.get("duration_seconds", math.inf)),
+        int(evaluation.get("static_rank", 2**31 - 1)),
+        str(evaluation.get("candidate_id", "")),
     )

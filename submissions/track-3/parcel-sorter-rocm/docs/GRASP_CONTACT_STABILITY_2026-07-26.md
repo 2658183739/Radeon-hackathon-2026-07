@@ -141,3 +141,35 @@ retry reached 129.98 N during its second transfer. The failure is therefore not
 unsafe set-down and not merely repeated selection of one height. Both features
 remain disabled. The next test must alter loaded support geometry or evaluate
 stability over a horizon that includes the failure-producing transport.
+
+## Full-horizon diagnostic and controller-faithful counterfactual
+
+The diagnostic horizon was extended through raise, transfer, and descent with
+bounded Cartesian waypoints. All six candidates passed, including the
+production `+40 mm` candidate already known to lose the carton. This is a
+second false negative: direct waypoint IK bypasses the production approach
+error, two-step action delay, and feedback dynamics. The idealized rollout is
+therefore rejected as a selector.
+
+A separate runner then preserved the complete production closed loop and
+created a fresh Genesis scene for every candidate. It disabled retries and
+changed exactly one variable: an allowlist rejected every generated candidate
+except the requested target. The production `+40 mm` candidate reproduced the
+missed-destination failure at 21.81 N. Four of five alternatives completed;
+centered `+45 mm` was best at 10.31 N and 16.93 s, while offset `+40 mm` on the
+opposite side crossed the unchanged limit at 53.74 N. Requested, allowed,
+rejected, and selected candidate IDs are recorded in every planning event.
+
+Two additional centered `+45 mm` executions were identical on the reported
+task metrics and both succeeded. The `shoe_box_proxy` and
+`large_narrow_carton` sentinels do not have that exact candidate in their
+statically feasible sets, so the tested fallback remained centered `+40 mm`;
+both completed at 29.69 N and 9.95 N respectively.
+
+This is a valid label-generation mechanism, not yet a production policy. One
+observed development episode cannot justify a general `+45 mm` ranking rule.
+The next gate is to freeze new episode IDs, collect controller-faithful labels,
+train a small PyTorch/ROCm candidate scorer, and evaluate it on an untouched
+paired holdout. Compact evidence is in
+`evidence/expert/radeon-full-horizon-counterfactual-grasp-v1.json`.
+The final Radeon compile and complete `unittest` suite passed 227 tests.

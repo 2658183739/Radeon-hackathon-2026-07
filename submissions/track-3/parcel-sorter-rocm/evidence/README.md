@@ -327,3 +327,17 @@ to a second grasp. The plain retry reused `+40 mm` and aborted at 129.45 N;
 the blacklist forced `+45.1 mm` and aborted at 129.98 N. Both aborts occurred
 during the second transfer. Bilingual interpretation, exact commands, source
 hashes, compact artifacts, and remote full-summary hashes preserve provenance.
+
+## Full-horizon and controller-faithful grasp counterfactual
+
+`expert/radeon-full-horizon-counterfactual-grasp-v1.json` is the compact index
+for six ignored raw JSON artifacts. It records runtime, fixed intervention,
+source SHA-256 hashes, idealized full-horizon rejection, six production-loop
+candidate outcomes, two repeat runs, and two fallback sentinels.
+
+The idealized path passed a known failure and is not a selector. In the formal
+loop, `+40 mm` missed the destination while centered `+45 mm` completed at
+10.31 N in two identical repeats. Four of five alternatives completed and one
+crossed the unchanged safety line. These are development labels, not a success
+rate. The scorer remains unimplemented pending a frozen multi-episode dataset
+and untouched paired holdout.

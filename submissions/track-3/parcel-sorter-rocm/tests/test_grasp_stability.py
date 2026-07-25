@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import math
 import unittest
 
 from parcel_sorter.grasp_stability import (
     DynamicGraspThresholds,
     dynamic_grasp_is_stable,
+    full_episode_grasp_rank_key,
+    linear_segment_waypoints,
     rank_dynamic_grasp_evaluations,
 )
 
@@ -40,6 +43,7 @@ class DynamicGraspStabilityTests(unittest.TestCase):
 
     def test_each_safety_or_retention_failure_rejects_rollout(self) -> None:
         failures = (
+            {"completed_horizon": False},
             {"captured": False},
             {"final_dual_contact": False},
             {"safety_aborted": True},
@@ -96,6 +100,62 @@ class DynamicGraspStabilityTests(unittest.TestCase):
     def test_threshold_validation_rejects_invalid_fraction(self) -> None:
         with self.assertRaisesRegex(ValueError, "min_dual_contact_fraction"):
             DynamicGraspThresholds(min_dual_contact_fraction=1.1).validate()
+
+    def test_cartesian_segment_ends_exactly_with_bounded_steps(self) -> None:
+        waypoints = linear_segment_waypoints((0.0, 0.0, 0.0), (0.0, 0.0, 0.025), 0.01)
+
+        self.assertEqual(waypoints[-1], (0.0, 0.0, 0.025))
+        points = ((0.0, 0.0, 0.0), *waypoints)
+        self.assertTrue(
+            all(
+                math.dist(current, following) <= 0.01 + 1e-12
+                for current, following in zip(points, points[1:])
+            )
+        )
+
+    def test_cartesian_segment_rejects_invalid_contract(self) -> None:
+        with self.assertRaisesRegex(ValueError, "three values"):
+            linear_segment_waypoints((0.0, 0.0), (1.0, 0.0, 0.0), 0.01)
+        with self.assertRaisesRegex(ValueError, "positive"):
+            linear_segment_waypoints((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), 0.0)
+
+    def test_full_episode_ranking_prioritizes_safety_then_task_success(self) -> None:
+        rows = (
+            {
+                "candidate_id": "unsafe-success",
+                "success": True,
+                "safety_aborted": True,
+                "dropped": False,
+                "max_contact_force_n": 36.0,
+                "duration_seconds": 5.0,
+                "static_rank": 0,
+            },
+            {
+                "candidate_id": "safe-timeout",
+                "success": False,
+                "safety_aborted": False,
+                "dropped": False,
+                "max_contact_force_n": 8.0,
+                "duration_seconds": 20.0,
+                "static_rank": 1,
+            },
+            {
+                "candidate_id": "safe-success",
+                "success": True,
+                "safety_aborted": False,
+                "dropped": False,
+                "max_contact_force_n": 12.0,
+                "duration_seconds": 8.0,
+                "static_rank": 2,
+            },
+        )
+
+        ranked = sorted(rows, key=full_episode_grasp_rank_key)
+
+        self.assertEqual(
+            [row["candidate_id"] for row in ranked],
+            ["safe-success", "safe-timeout", "unsafe-success"],
+        )
 
 
 if __name__ == "__main__":

@@ -503,6 +503,22 @@ def rejected_candidates_after_retry(
     return updated
 
 
+def effective_rejected_candidate_ids(
+    generated_candidate_ids: Sequence[str],
+    rejected_candidate_ids: set[str] | frozenset[str],
+    diagnostic_allowlist: frozenset[str] | None = None,
+) -> frozenset[str]:
+    """Combine runtime rejection with an optional diagnostic-only allowlist."""
+    effective = set(rejected_candidate_ids)
+    if diagnostic_allowlist is not None:
+        effective.update(
+            str(candidate_id)
+            for candidate_id in generated_candidate_ids
+            if str(candidate_id) not in diagnostic_allowlist
+        )
+    return frozenset(effective)
+
+
 def _error_bucket(error: float, tolerance: float) -> int:
     if not math.isfinite(error):
         return 2**31 - 1

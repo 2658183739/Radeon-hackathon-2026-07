@@ -409,3 +409,22 @@ is made from these development probes. The next justified direction is a
 licensed support-geometry change or longer-horizon loaded-stability planning;
 adjacent-height, force, and set-down-step scans are stopped. Complete evidence
 is under `evidence/expert/radeon-dynamic-stability-setdown-probes-v1/`.
+
+## Latest mechanism result: controller-faithful labels found
+
+Extending the idealized diagnostic through the entire pre-release path did not
+solve its false-negative problem: all six candidates passed, including the
+known failed `+40 mm` grasp. A new counterfactual runner instead retains the
+production closed loop and restricts only the selected candidate.
+
+On observed development episode `4120001`, forced `+40 mm` missed the bin at
+21.81 N. Centered `+45 mm` completed twice with identical 10.31 N peaks, and
+three other alternatives also completed; one offset candidate safely aborted
+at 53.74 N. Existing success sentinels retained their feasible `+40 mm`
+fallbacks and completed at 29.69 N and 9.95 N.
+
+No production ranking change is claimed or enabled. The accepted capability is
+a controller-faithful ROCm label collector. The next milestone is a frozen
+multi-episode candidate dataset, lightweight PyTorch/ROCm scoring, and an
+untouched paired holdout. This keeps learning and AMD acceleration central
+without fitting a height rule to one episode.

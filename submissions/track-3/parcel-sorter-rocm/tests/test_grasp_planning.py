@@ -8,6 +8,7 @@ import unittest
 from parcel_sorter.config import load_config
 from parcel_sorter.grasp_planning import (
     box_requires_geometry_aware_grasp_planning,
+    effective_rejected_candidate_ids,
     generate_box_grasp_pose_candidates,
     generate_box_oblique_grasp_pose_candidates,
     generate_box_side_grasp_pose_candidates,
@@ -393,6 +394,19 @@ class GraspPoseRankingTests(unittest.TestCase):
 
         self.assertEqual(unchanged, {"waypoint-rejected"})
         self.assertEqual(default_retry, set())
+
+    def test_diagnostic_allowlist_adds_to_runtime_rejections(self) -> None:
+        effective = effective_rejected_candidate_ids(
+            ("a", "b", "c"),
+            {"c"},
+            frozenset({"b"}),
+        )
+
+        self.assertEqual(effective, frozenset({"a", "c"}))
+        self.assertEqual(
+            effective_rejected_candidate_ids(("a", "b"), {"a"}),
+            frozenset({"a"}),
+        )
 
     def test_centered_lower_side_contact_outranks_shorter_joint_path(self) -> None:
         off_center = self.evaluation(

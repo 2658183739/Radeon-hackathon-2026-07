@@ -973,3 +973,32 @@ mechanism worked and the ranking feedback worked, but neither passed the task
 or safety gate. Both remain disabled negative controls. The stop rule cancelled
 sentinels, scans, and new episodes; the next hypothesis must change loaded
 support geometry or use a genuinely longer-horizon stability objective.
+
+### Record 70: Separate idealized horizon coverage from production dynamics
+
+The dynamic runner was first extended through the complete pre-release path:
+raise, transfer, and descent used bounded Cartesian segments, fresh IK at each
+waypoint, the 35 N gate, and phase metrics. All six `4120001` candidates passed.
+Because that set included the `+40 mm` candidate already known to fail in the
+production loop, increased path length did not repair predictive validity.
+Direct waypoint execution had removed the approach residual, action-delay
+queue, and feedback behavior that produce the real failure.
+
+The next runner used a fresh scene per rollout and the normal expert,
+supervisor, delay queue, transport phases, force abort, and terminal task
+check. A diagnostic allowlist was applied before execution, with retries set
+to zero; no controller or physics parameter changed. The forced `+40 mm`
+candidate reproduced the missed destination, while centered `+45 mm` completed
+at 10.31 N. Four alternatives succeeded and one crossed 35 N. Two repeated
+`+45 mm` runs matched exactly. Two prior-success sentinels safely retained
+their own statically feasible `+40 mm` fallback.
+
+The result changes the next engineering unit, not the production ranker. The
+counterfactual runner is accepted as a label collector; a hand-written height
+preference is rejected as post-hoc fitting. New episode IDs must be frozen
+before collecting a candidate-ranking dataset and training a lightweight
+PyTorch/ROCm scorer. The scorer must beat the static rank on an untouched
+paired holdout before any integration.
+
+The final synchronized Radeon tree compiled cleanly and passed all 227 unit
+tests with `PYTHONPATH` bound to that tree rather than the older editable install.

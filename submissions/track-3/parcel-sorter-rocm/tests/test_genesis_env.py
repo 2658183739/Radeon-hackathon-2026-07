@@ -23,6 +23,34 @@ from parcel_sorter.genesis_env import (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+class DiagnosticGraspAllowlistTests(unittest.TestCase):
+    def _environment(self) -> GenesisParcelEnv:
+        env = GenesisParcelEnv.__new__(GenesisParcelEnv)
+        env._grasp_plan_attempts = 0
+        env.control_step = 0
+        env._diagnostic_grasp_candidate_allowlist = None
+        return env
+
+    def test_freezes_nonempty_allowlist_before_execution(self) -> None:
+        env = self._environment()
+
+        env.set_diagnostic_grasp_candidate_allowlist(frozenset({"candidate-b", "candidate-a"}))
+
+        self.assertEqual(
+            env._diagnostic_grasp_candidate_allowlist,
+            frozenset({"candidate-a", "candidate-b"}),
+        )
+
+    def test_rejects_empty_or_late_allowlist(self) -> None:
+        env = self._environment()
+        with self.assertRaisesRegex(ValueError, "cannot be empty"):
+            env.set_diagnostic_grasp_candidate_allowlist(frozenset())
+
+        env._grasp_plan_attempts = 1
+        with self.assertRaisesRegex(RuntimeError, "before execution"):
+            env.set_diagnostic_grasp_candidate_allowlist(frozenset({"candidate-a"}))
+
+
 class GenesisDepthTests(unittest.TestCase):
     def test_preserves_genesis_depth_in_meters(self) -> None:
         raw_depth_m = np.asarray([[0.8, 3.4185]], dtype=np.float32)

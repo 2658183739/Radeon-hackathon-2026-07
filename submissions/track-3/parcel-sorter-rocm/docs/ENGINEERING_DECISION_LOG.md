@@ -1725,3 +1725,32 @@ set-down step, adjacent height, or close force on the same episode. Retain the
 mechanisms for audit and future composition. Revisit when the regrasp changes
 support geometry, or when a longer-horizon model can reject both unstable
 loaded trajectories before execution.
+
+### 74. Accept the formal counterfactual as a labeler, not a ranker
+
+**Question.** Determine whether extending the dynamic rollout through descent
+is sufficient, and if not, whether forcing one candidate inside the production
+closed loop can generate trustworthy loaded-grasp labels.
+
+**Evidence and alternatives.** The idealized pre-release horizon classified all
+six candidates stable, including the known failed `+40 mm` grasp. A fresh-scene
+formal counterfactual preserved approach tracking, action delay, feedback
+transport, state transitions, the 35 N gate, and the terminal task check. It
+reproduced the `+40 mm` miss and found four successful alternatives. Centered
+`+45 mm` completed twice with identical 10.31 N peaks. One offset candidate
+aborted at 53.74 N. Two success sentinels retained their feasible fallback.
+
+**Code capability.** Add bounded segment helpers and completion-aware dynamic
+ranking; add a pure allowlist/rejection merge; expose a pre-execution diagnostic
+allowlist in `GenesisParcelEnv`; and provide a runner that verifies requested
+and selected IDs for every fresh-scene rollout. All capabilities default to no
+production behavior change.
+
+**Decision and reason.** Reject idealized long-horizon ranking and reject a
+hand-written `+45 mm` preference. Accept the controller-faithful runner as a
+ROCm label collector. The one observed mechanism episode proves discriminative
+potential, not generalization.
+
+**Revisit trigger.** Freeze new episode IDs, collect candidate labels, train a
+small PyTorch/ROCm scorer with safety-first targets, and beat static ranking on
+an untouched paired holdout before integration.

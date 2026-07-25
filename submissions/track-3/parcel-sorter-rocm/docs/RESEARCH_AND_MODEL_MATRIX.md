@@ -255,3 +255,20 @@ evaluate it on held-out full transports; only then consider a lightweight
 learned scorer on PyTorch/ROCm. A VLA may select task intent or semantic target
 later, but it must not bypass IK, collision checks, the 35 N abort, or explicit
 recovery states. Metadata was checked through the arXiv API on 2026-07-26.
+
+### Updated model decision after the full-task counterfactual
+
+The formal counterfactual shows that the target is not “stable after direct
+IK transport.” The useful label is the outcome of the real delayed,
+feedback-controlled task. Candidate features should include parcel dimensions,
+mass and friction, destination displacement, pose offsets, IK residual,
+collision clearance, manipulability, and joint distance. Targets should be
+multi-task: safety abort first, task success second, then peak force and
+duration among safe successes.
+
+Start with a small MLP or gradient-boosting baseline, not a VLA. The MLP can be
+trained and inferred with PyTorch/ROCm, exported with its feature contract, and
+kept behind deterministic feasibility and safety gates. RGB-D can later add
+shape/material embeddings once the camera pipeline produces aligned labels;
+language does not improve this low-level choice until the physical scorer has
+held-out evidence.

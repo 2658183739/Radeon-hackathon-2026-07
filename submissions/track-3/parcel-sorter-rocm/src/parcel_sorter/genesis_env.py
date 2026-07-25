@@ -13,6 +13,7 @@ from .capabilities import require_supported_handling
 from .expert import ScriptedPickPlaceExpert
 from .grasp_planning import (
     box_requires_geometry_aware_grasp_planning,
+    effective_rejected_candidate_ids,
     generate_box_grasp_pose_candidates,
     grasp_evaluation_is_feasible,
     interpolate_joint_segment,
@@ -426,6 +427,7 @@ class GenesisParcelEnv:
         self._grasp_plan_selected: dict[str, Any] | None = None
         self._grasp_plan_pending_replan = True
         self._grasp_plan_rejected_candidate_ids: set[str] = set()
+        self._diagnostic_grasp_candidate_allowlist: frozenset[str] | None = None
         self._grasp_plan_events: list[dict[str, Any]] = []
         self._grasp_plan_compute_ms_total = 0.0
         self._grasp_plan_attempts = 0
@@ -646,6 +648,19 @@ class GenesisParcelEnv:
         self._action_queue = deque([None] * self.sample.action_delay_steps)
         self._plan_grasp_pose(state, decision.retry_count)
 
+    def set_diagnostic_grasp_candidate_allowlist(
+        self,
+        candidate_ids: frozenset[str],
+    ) -> None:
+        """Restrict the planner before an isolated counterfactual experiment."""
+        if not candidate_ids:
+            raise ValueError("diagnostic grasp candidate allowlist cannot be empty")
+        if self._grasp_plan_attempts or self.control_step:
+            raise RuntimeError("diagnostic allowlist must be set before execution")
+        self._diagnostic_grasp_candidate_allowlist = frozenset(
+            str(candidate_id) for candidate_id in candidate_ids
+        )
+
     def _update_transport_slip_recovery(
         self,
         decision: ControlDecision,
@@ -739,11 +754,14 @@ class GenesisParcelEnv:
                 task.grasp_planning_manipulability_ranking_enabled
             ),
         )
+        effective_rejected_ids = effective_rejected_candidate_ids(
+            tuple(candidate.candidate_id for candidate in candidates),
+            self._grasp_plan_rejected_candidate_ids,
+            self._diagnostic_grasp_candidate_allowlist,
+        )
         selected = select_grasp_pose_evaluation(
             ranked,
-            rejected_candidate_ids=frozenset(
-                self._grasp_plan_rejected_candidate_ids
-            ),
+            rejected_candidate_ids=effective_rejected_ids,
             collision_filter_enabled=task.grasp_planning_collision_filter_enabled,
             manipulability_ranking_enabled=(
                 task.grasp_planning_manipulability_ranking_enabled
@@ -777,8 +795,11 @@ class GenesisParcelEnv:
                     )
                     for evaluation in evaluations
                 ),
-                "rejected_candidate_ids": sorted(
-                    self._grasp_plan_rejected_candidate_ids
+                "rejected_candidate_ids": sorted(effective_rejected_ids),
+                "diagnostic_candidate_allowlist": (
+                    sorted(self._diagnostic_grasp_candidate_allowlist)
+                    if self._diagnostic_grasp_candidate_allowlist is not None
+                    else None
                 ),
                 "selected": selected_summary,
                 "compute_ms": compute_ms,
@@ -1082,6 +1103,11 @@ class GenesisParcelEnv:
             "grasp_planning_failed_candidate_blacklist_enabled": (
                 self.config.task.grasp_planning_failed_candidate_blacklist_enabled
             ),
+            "diagnostic_grasp_candidate_allowlist": (
+                sorted(self._diagnostic_grasp_candidate_allowlist)
+                if self._diagnostic_grasp_candidate_allowlist is not None
+                else None
+            ),
             "transport_slip_recovery_enabled": (
                 self.config.control.transport_slip_recovery_enabled
             ),
@@ -1189,6 +1215,11 @@ class GenesisParcelEnv:
             ),
             "grasp_planning_failed_candidate_blacklist_enabled": (
                 self.config.task.grasp_planning_failed_candidate_blacklist_enabled
+            ),
+            "diagnostic_grasp_candidate_allowlist": (
+                sorted(self._diagnostic_grasp_candidate_allowlist)
+                if self._diagnostic_grasp_candidate_allowlist is not None
+                else None
             ),
             "grasp_planning_waypoint_collision_gate_enabled": (
                 self.config.task.grasp_planning_waypoint_collision_gate_enabled
