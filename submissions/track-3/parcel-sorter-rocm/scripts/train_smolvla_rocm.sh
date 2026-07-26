@@ -48,6 +48,25 @@ fi
 EPISODES="$(python scripts/build_dataset_split.py --manifest "${SPLIT_MANIFEST}" --print episodes)"
 EVAL_SPLIT="$(python scripts/build_dataset_split.py --manifest "${SPLIT_MANIFEST}" --print eval_split)"
 
+# Resume uses the checkpoint's complete training configuration. Do not append
+# fresh-run policy feature flags here: draccus would treat those serialized
+# dictionaries as strings and reject the checkpoint config.
+if [[ "${SMOLVLA_RESUME:-false}" == "true" ]]; then
+  CONFIG_PATH="${SMOLVLA_CONFIG_PATH:-}"
+  if [[ -z "${CONFIG_PATH}" ]]; then
+    echo "ERROR: SMOLVLA_CONFIG_PATH is required when SMOLVLA_RESUME=true" >&2
+    exit 7
+  fi
+  lerobot-train \
+    --config_path="${CONFIG_PATH}" \
+    --resume=true \
+    --steps="${STEPS}" \
+    --eval_steps="${EVAL_STEPS}" \
+    --save_freq="${SAVE_FREQ}" \
+    --output_dir="${OUTPUT_DIR}"
+  exit $?
+fi
+
 # Strict-open initialization uses the Apache-2.0 SmolVLM2 weights and trains the
 # SmolVLA action expert. The unlicensed smolvla_base checkpoint is not consumed.
 # Inputs are task text, RGB, and non-privileged 20-D state; parcel pose is excluded.
