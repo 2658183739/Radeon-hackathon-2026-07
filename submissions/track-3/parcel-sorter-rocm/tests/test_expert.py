@@ -831,5 +831,22 @@ class ScriptedExpertTests(unittest.TestCase):
         self.assertEqual(action.target_position, current)
         self.assertEqual(action.target_quaternion, planned_quaternion)
 
+        drifted_state = replace(
+            state,
+            end_effector_pose=(
+                current[0] + 0.002,
+                current[1],
+                current[2] - 0.012,
+                *DOWNWARD_QUATERNION,
+            ),
+        )
+        drifted_action = expert.action(
+            ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0),
+            drifted_state,
+        )
+
+        self.assertEqual(drifted_action.target_position, current)
+        self.assertEqual(drifted_action.target_quaternion, planned_quaternion)
+
 if __name__ == "__main__":
     unittest.main()

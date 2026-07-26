@@ -59,6 +59,17 @@ def main() -> int:
     )
     parser.add_argument("--vla-refresh-steps", type=int, default=3)
     parser.add_argument("--vla-residual-limit-m", type=float, default=0.01)
+    parser.add_argument("--vla-min-progress-ratio", type=float, default=0.5)
+    parser.add_argument(
+        "--collision-checked-reset",
+        action="store_true",
+        help="enable the collision-tested fallback reset used by the expert safety layer",
+    )
+    parser.add_argument(
+        "--geometry-aware-grasp-planning",
+        action="store_true",
+        help="enable Radeon IK/collision-ranked shape-aware grasp planning",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -66,10 +77,34 @@ def main() -> int:
         parser.error("vla-refresh-steps must be positive")
     if args.vla_residual_limit_m < 0:
         parser.error("vla-residual-limit-m cannot be negative")
+    if not 0 < args.vla_min_progress_ratio <= 1:
+        parser.error("vla-min-progress-ratio must be in (0, 1]")
 
     config = load_config(args.config)
     if args.nominal:
         config = replace(config, randomization=replace(config.randomization, enabled=False))
+    if args.collision_checked_reset or args.geometry_aware_grasp_planning:
+        config = replace(
+            config,
+            task=replace(
+                config.task,
+                geometry_aware_grasp_planning_enabled=(
+                    config.task.geometry_aware_grasp_planning_enabled
+                    or args.geometry_aware_grasp_planning
+                ),
+            ),
+            control=replace(
+                config.control,
+                collision_checked_reset_enabled=(
+                    config.control.collision_checked_reset_enabled
+                    or args.collision_checked_reset
+                ),
+            ),
+        )
+    try:
+        config.validate()
+    except ValueError as exc:
+        parser.error(str(exc))
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     writer = JsonlTrajectoryWriter(output / "audit_dataset")
@@ -118,6 +153,7 @@ def main() -> int:
                     env.expert,
                     refresh_steps=args.vla_refresh_steps,
                     residual_limit_m=args.vla_residual_limit_m,
+                    min_progress_ratio=args.vla_min_progress_ratio,
                 )
             episode_policy.reset()
             report = run_policy_episode(
@@ -159,6 +195,7 @@ def main() -> int:
         "slow_fast_vla": args.slow_fast_vla,
         "vla_refresh_steps": args.vla_refresh_steps,
         "vla_residual_limit_m": args.vla_residual_limit_m,
+        "vla_min_progress_ratio": args.vla_min_progress_ratio,
         "evaluation_range": {
             "start_episode": min(spec.episode_index for spec in plan),
             "end_episode": max(spec.episode_index for spec in plan),

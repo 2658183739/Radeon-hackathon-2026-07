@@ -28,6 +28,7 @@ class ParcelSample:
     final_approach_step_m: float | None = None
     lift_step_m: float | None = None
     finger_friction: float | None = None
+    close_force_n: float | None = None
     pregrasp_tolerance_m: float | None = None
     grasp_stability_steps: int | None = None
 
@@ -170,6 +171,7 @@ class DomainRandomizer:
             final_approach_step_m=profile.final_approach_step_m,
             lift_step_m=profile.lift_step_m,
             finger_friction=profile.finger_friction,
+            close_force_n=profile.close_force_n,
             pregrasp_tolerance_m=profile.pregrasp_tolerance_m,
             grasp_stability_steps=profile.grasp_stability_steps,
         )

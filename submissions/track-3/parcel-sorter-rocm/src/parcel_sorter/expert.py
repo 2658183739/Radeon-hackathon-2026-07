@@ -46,6 +46,8 @@ class ScriptedPickPlaceExpert:
         self._grasp_origin_xyz: tuple[float, float, float] | None = None
         self._planned_grasp_position: tuple[float, float, float] | None = None
         self._descent_committed = False
+        self._wrist_alignment_position: tuple[float, float, float] | None = None
+        self._wrist_alignment_complete = False
         self._drop_descent_committed = False
         self._transport_phase = "inactive"
         self._transport_reference_position: tuple[float, float, float] | None = None
@@ -65,6 +67,7 @@ class ScriptedPickPlaceExpert:
     def action(self, decision: ControlDecision, state: RobotState) -> CartesianAction:
         if decision.retry_count != self._last_retry_count:
             self._descent_committed = False
+            self._reset_wrist_alignment()
             self._drop_descent_committed = False
             self._reset_transport_contract(
                 planned=self._planned_grasp_position is not None
@@ -213,16 +216,27 @@ class ScriptedPickPlaceExpert:
                 return desired, DOWNWARD_QUATERNION
             return desired, self._grasp_quaternion
 
-        if current[2] < transit_z - SAFE_WRIST_ALIGNMENT_HEIGHT_TOLERANCE_M:
+        if (
+            self._wrist_alignment_position is None
+            and current[2] < transit_z - SAFE_WRIST_ALIGNMENT_HEIGHT_TOLERANCE_M
+        ):
             return (current[0], current[1], transit_z), DOWNWARD_QUATERNION
 
-        if self._quaternion_error_rad(
+        if self._wrist_alignment_position is None:
+            self._wrist_alignment_position = tuple(float(value) for value in current)
+
+        if not self._wrist_alignment_complete and self._quaternion_error_rad(
             current_quaternion,
             self._grasp_quaternion,
         ) > SAFE_WRIST_ALIGNMENT_ORIENTATION_TOLERANCE_RAD:
-            return tuple(float(value) for value in current), self._grasp_quaternion
+            return self._wrist_alignment_position, self._grasp_quaternion
 
+        self._wrist_alignment_complete = True
         return (pregrasp[0], pregrasp[1], transit_z), self._grasp_quaternion
+
+    def _reset_wrist_alignment(self) -> None:
+        self._wrist_alignment_position = None
+        self._wrist_alignment_complete = False
 
     @staticmethod
     def _quaternion_error_rad(
@@ -275,6 +289,7 @@ class ScriptedPickPlaceExpert:
         self._planned_grasp_position = tuple(float(value) for value in position)
         self._grasp_quaternion = tuple(float(value) for value in quaternion)
         self._descent_committed = False
+        self._reset_wrist_alignment()
         self._reset_transport_contract(planned=True)
 
     def clear_planned_grasp_pose(self) -> None:
@@ -287,6 +302,7 @@ class ScriptedPickPlaceExpert:
             0.0,
         )
         self._descent_committed = False
+        self._reset_wrist_alignment()
         self._reset_transport_contract()
 
     @property

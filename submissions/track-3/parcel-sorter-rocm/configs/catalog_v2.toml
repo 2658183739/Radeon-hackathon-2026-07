@@ -126,6 +126,8 @@ mass_kg_max = 0.55
 friction_min = 0.30
 friction_max = 0.85
 provenance = "rigid flat-mailer proxy constrained to the current rigid-body solver"
+finger_friction = 2.0
+close_force_n = 12.0
 
 [[parcel_profiles]]
 profile_id = "book_box"

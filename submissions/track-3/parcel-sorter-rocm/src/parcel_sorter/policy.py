@@ -36,15 +36,19 @@ class SlowFastVLAExpertPolicy:
         *,
         refresh_steps: int = 3,
         residual_limit_m: float = 0.01,
+        min_progress_ratio: float = 0.5,
     ) -> None:
         if refresh_steps < 1:
             raise ValueError("refresh_steps must be positive")
         if not math.isfinite(residual_limit_m) or residual_limit_m < 0:
             raise ValueError("residual_limit_m must be finite and non-negative")
+        if not math.isfinite(min_progress_ratio) or not 0 < min_progress_ratio <= 1:
+            raise ValueError("min_progress_ratio must be in (0, 1]")
         self.vla = vla
         self.expert = expert
         self.refresh_steps = refresh_steps
         self.residual_limit_m = residual_limit_m
+        self.min_progress_ratio = min_progress_ratio
         self._frame = 0
         self._cached_vla_action: CartesianAction | None = None
         self.vla_updates = 0
@@ -72,7 +76,20 @@ class SlowFastVLAExpertPolicy:
         if Command(context.decision.command) != Command.MOVE_PREGRASP:
             return expert_action
 
-        residual = tuple(
+        current = tuple(float(value) for value in context.state.end_effector_pose[:3])
+        motion = tuple(
+            target - position
+            for target, position in zip(
+                expert_action.target_position,
+                current,
+                strict=True,
+            )
+        )
+        motion_norm = math.sqrt(sum(value * value for value in motion))
+        if motion_norm <= 1e-9:
+            return expert_action
+        direction = tuple(value / motion_norm for value in motion)
+        raw_residual = tuple(
             proposed - nominal
             for proposed, nominal in zip(
                 self._cached_vla_action.target_position,
@@ -80,11 +97,19 @@ class SlowFastVLAExpertPolicy:
                 strict=True,
             )
         )
-        residual_norm = math.sqrt(sum(value * value for value in residual))
-        if residual_norm > self.residual_limit_m and residual_norm > 0:
-            scale = self.residual_limit_m / residual_norm
-            residual = tuple(value * scale for value in residual)
-            residual_norm = self.residual_limit_m
+        projected_distance = sum(
+            offset * axis
+            for offset, axis in zip(raw_residual, direction, strict=True)
+        )
+        projected_distance = max(
+            -min(
+                self.residual_limit_m,
+                motion_norm * (1.0 - self.min_progress_ratio),
+            ),
+            min(self.residual_limit_m, projected_distance),
+        )
+        residual = tuple(projected_distance * axis for axis in direction)
+        residual_norm = abs(projected_distance)
         self.max_applied_residual_m = max(
             self.max_applied_residual_m,
             residual_norm,
@@ -99,7 +124,7 @@ class SlowFastVLAExpertPolicy:
             )
         return CartesianAction(
             target_position=_bounded_target(
-                tuple(float(value) for value in context.state.end_effector_pose[:3]),
+                current,
                 combined_target,
                 self.expert.config.control.max_ee_step_m,
             ),
@@ -108,13 +133,15 @@ class SlowFastVLAExpertPolicy:
             command=expert_action.command,
         )
 
-    def summary(self) -> dict[str, int | float]:
+    def summary(self) -> dict[str, int | float | str]:
         return {
             "refresh_steps": self.refresh_steps,
             "residual_limit_m": self.residual_limit_m,
+            "min_progress_ratio": self.min_progress_ratio,
             "vla_updates": self.vla_updates,
             "fast_control_steps": self.fast_control_steps,
             "max_applied_residual_m": self.max_applied_residual_m,
+            "residual_projection": "expert_motion_axis",
         }
 
 

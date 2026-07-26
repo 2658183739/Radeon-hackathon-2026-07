@@ -472,6 +472,7 @@ class ParcelProfileConfig:
     final_approach_step_m: float | None = None
     lift_step_m: float | None = None
     finger_friction: float | None = None
+    close_force_n: float | None = None
     pregrasp_tolerance_m: float | None = None
     grasp_stability_steps: int | None = None
 
@@ -488,6 +489,8 @@ class ParcelProfileConfig:
             raise ValueError("parcel profile lift_step_m must be positive when set")
         if self.finger_friction is not None and not 0 < self.finger_friction <= 5:
             raise ValueError("parcel profile finger_friction must be in (0, 5] when set")
+        if self.close_force_n is not None and not 0 < self.close_force_n <= 100:
+            raise ValueError("parcel profile close_force_n must be in (0, 100] when set")
         if self.pregrasp_tolerance_m is not None and self.pregrasp_tolerance_m <= 0:
             raise ValueError("parcel profile pregrasp_tolerance_m must be positive when set")
         if self.grasp_stability_steps is not None and self.grasp_stability_steps < 1:

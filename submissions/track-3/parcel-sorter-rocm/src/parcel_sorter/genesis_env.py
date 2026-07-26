@@ -745,7 +745,11 @@ class GenesisParcelEnv:
         self._transport_slip_force_remaining_steps = 0
         self._transport_slip_max_relative_delta_m = 0.0
         self._transport_slip_last_signal: TransportSlipSignal | None = None
-        self._transport_slip_last_force_limit_n = config.control.close_force_n
+        self._transport_slip_last_force_limit_n = (
+            sample.close_force_n
+            if sample.close_force_n is not None
+            else config.control.close_force_n
+        )
         self._transport_slip_events: list[dict[str, Any]] = []
         self._transport_slip_setdown_pending = False
         self._last_applied_command: str | None = None
@@ -1798,12 +1802,12 @@ class GenesisParcelEnv:
             self._gripper_force_n = 0.0
             self._transport_slip_force_remaining_steps = 0
             self._transport_slip_last_force_limit_n = (
-                self.config.control.close_force_n
+                self._close_force_limit_n()
             )
             width = self.config.control.open_width_m
             self.robot.control_dofs_position(self.np.asarray((width, width)), self.finger_dofs)
         else:
-            force_limit_n = self.config.control.close_force_n
+            force_limit_n = self._close_force_limit_n()
             if self._transport_slip_force_remaining_steps > 0:
                 force_limit_n += self.config.control.transport_slip_force_boost_n
                 self._transport_slip_force_remaining_steps -= 1
@@ -1815,6 +1819,11 @@ class GenesisParcelEnv:
             )
             force = self._gripper_force_n
             self.robot.control_dofs_force(self.np.asarray((-force, -force)), self.finger_dofs)
+
+    def _close_force_limit_n(self) -> float:
+        if self.sample.close_force_n is not None:
+            return self.sample.close_force_n
+        return self.config.control.close_force_n
 
     def _validated_grasp_waypoint_qpos(self, action: CartesianAction) -> Any | None:
         """Reject a pre-contact IK waypoint with a non-finger collision."""
