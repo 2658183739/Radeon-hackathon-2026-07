@@ -2177,3 +2177,18 @@ tubes remain `cradle_required`.
 **Evidence.** Ten directed tests pass remotely. Candidate geometry is finite,
 normalized, deterministic, axis-aligned, and explicitly empty at capability
 boundaries. No physical cylinder rollout has yet been used for selection.
+
+### 91. Advance cylinder planning only to static feasibility screening
+
+**Evidence.** After commit `4788d21`, the frozen outcome-free audit accepted
+128/128 catalog samples. Candidate uniqueness, quaternion norms, aperture
+margin, tube-axis alignment, and approach orthogonality all passed fixed gates.
+
+**Decision and reason.** Authorize a static Radeon IK/FK and mesh-collision
+screen. Do not authorize physical execution, because analytic candidate
+existence says nothing about Panda reachability, swept collision, contact
+force, rolling, lift retention, or placement.
+
+**Revisit trigger.** A separately frozen feasibility screen must show useful
+coverage in both profiles with bounded P95 planning cost. Any candidate-family
+redesign uses a new development namespace and leaves this audit immutable.

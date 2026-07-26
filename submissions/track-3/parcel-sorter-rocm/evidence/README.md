@@ -510,3 +510,16 @@ gates, and implementation hashes. The dry run plans 480 candidate rollouts;
 no V5 physics result is present yet. See
 `docs/CONTROLLER_PROBE_V5_PROTOCOL.md` and
 `docs/CONTROLLER_PROBE_V5_DECISION_RECORD.md`.
+
+## Cylinder candidate population v1
+
+`planning/cylinder-candidate-audit-v1.json` is the complete 128-sample
+outcome-free analytic audit. Two 64-sample namespaces cover upright canisters
+and horizontal mailing tubes. Every sample is capability-supported and yields
+16 or 18 unique candidates; the worst horizontal axis-alignment error is
+`4.44e-16` and the smallest observed aperture margin is 10.29 mm.
+
+The file SHA-256 is `1c19e5a0...adf2c`. It proves deterministic candidate
+coverage only: the selection contract records no scene, physics, action, or
+outcome access. Static IK/collision screening remains pending. See
+`docs/CYLINDER_CANDIDATE_AUDIT_RESULTS.md`.

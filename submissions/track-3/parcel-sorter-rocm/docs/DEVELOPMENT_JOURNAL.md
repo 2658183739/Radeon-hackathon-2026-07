@@ -1489,3 +1489,17 @@ prefiltering but is not claimed as complete mesh collision proof. Ten directed
 remote tests pass. No cylinder physics result exists yet; the method remains
 "implemented, awaiting physical screening." Full rationale is in
 `docs/CYLINDER_GRASP_PLANNING.md`.
+
+### Record 91: Audit the cylinder candidate population after protocol freeze
+
+Commit `4788d21` froze two 64-sample namespaces, planner parameters, analytic
+tolerances, and implementation hashes before the full audit. All 128 samples
+passed without constructing a scene, stepping physics, executing an action, or
+reading an outcome. Upright canisters generated 16 candidates each and mailing
+tubes generated 18; the smallest aperture margin was 10.29 mm and the maximum
+horizontal axis error was `4.44e-16`.
+
+This result advances the module only to static Radeon IK/collision screening.
+It is not evidence of physical reachability, safe force, or closed-loop task
+success. The complete artifact SHA-256 is `1c19e5a0...adf2c`; see
+`docs/CYLINDER_CANDIDATE_AUDIT_RESULTS.md`.
