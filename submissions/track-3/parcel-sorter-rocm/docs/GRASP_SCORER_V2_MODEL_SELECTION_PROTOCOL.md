@@ -23,3 +23,31 @@ force, mean duration, Radeon P95, and fixed candidate name. If neither passes,
 no scorer is promoted, development is not reused for tuning, and holdout is
 not opened. If one is selected, its checkpoint and all hyperparameters are
 frozen before the single holdout execution.
+
+## Executable phases
+
+After the 32-group train collection is complete, run the frozen training phase
+with the ROCm environment:
+
+```bash
+cd /workspace/parcel-sorter-opt-v1
+PYTHONPATH=src /workspace/rdna/bin/python \
+  scripts/run_grasp_scorer_v2_pipeline.py train
+```
+
+The command refuses to run if development or holdout manifests already exist.
+It builds the hash-bound train dataset, trains both exact recipes, validates
+all hyperparameters and AMD/HIP metadata, hashes both checkpoints, and writes
+`outputs/grasp-scorer-v2/model-selection/train-freeze-manifest.json`.
+
+Only after that manifest exists may development be collected. When the
+development collection is complete, run:
+
+```bash
+PYTHONPATH=src /workspace/rdna/bin/python \
+  scripts/run_grasp_scorer_v2_pipeline.py development
+```
+
+This phase verifies frozen checkpoint hashes, builds the combined dataset,
+evaluates both models, applies the preregistered selection rule, and leaves
+holdout closed regardless of whether a model is promoted.

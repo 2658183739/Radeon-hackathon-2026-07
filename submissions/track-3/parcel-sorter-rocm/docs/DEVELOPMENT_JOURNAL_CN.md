@@ -984,3 +984,13 @@ groupwise-safety-first。二者都使用 28 维特征、6,276 参数、2,000 步
 
 协议审计、18 项定向测试和独立运行时参数计数均在 Radeon 上通过；没有打开 development 场景或
 holdout。
+
+### 记录 82：把 train 先于 development 的顺序变成可执行约束
+
+新的两阶段编排器把冻结模型协议变成每阶段一条命令。train 阶段发现任何 development/holdout
+manifest 就拒绝，要求完整 32 组采集，训练两套配方，核对全部冻结超参数与 AMD/HIP 元数据，并
+写入不可覆盖的检查点冻结 manifest。development 阶段验证这些检查点哈希，拒绝已有 holdout
+manifest，构建组合数据集，评测两模型并执行固定晋级门，但不打开 holdout。
+
+测试覆盖同容量命令构造、按物理 group 而不是行数计数，以及拒绝 group 跨 split。runner 还在每个
+结果里记录自身哈希，避免隐藏编排变化。这只强化工作流，不增加第三个模型，也不改变冻结配方。

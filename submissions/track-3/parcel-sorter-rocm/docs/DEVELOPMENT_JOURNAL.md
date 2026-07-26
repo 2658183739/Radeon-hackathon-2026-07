@@ -1293,3 +1293,19 @@ passes, development cannot be reused for tuning and holdout stays closed.
 
 The protocol audit, 18 directed tests, and an independent runtime parameter
 count all passed on Radeon. No development scene or holdout was opened.
+
+### Record 82: Make the train-before-development order executable
+
+A two-phase orchestrator now turns the frozen model protocol into one command
+per phase. The train phase refuses any existing development/holdout manifest,
+requires the complete 32-group collection, trains both recipes, validates every
+frozen hyperparameter plus AMD/HIP metadata, and writes a non-overwritable
+checkpoint freeze manifest. The development phase verifies those checkpoint
+hashes, rejects any existing holdout manifest, builds the combined dataset,
+evaluates both models, and applies the fixed promotion gate without opening
+holdout.
+
+Tests cover capacity-matched command construction, physical-group rather than
+row counts, and cross-split group rejection. The runner also hashes itself in
+each result, so orchestration changes cannot be hidden. This is workflow
+enforcement only; it does not add a third model or alter the frozen recipes.
