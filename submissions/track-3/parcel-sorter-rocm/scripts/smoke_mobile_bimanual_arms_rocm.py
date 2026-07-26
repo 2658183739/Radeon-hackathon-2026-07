@@ -9,6 +9,10 @@ from pathlib import Path
 import time
 
 from parcel_sorter.genesis_env import initialize_genesis
+from parcel_sorter.mobile_dataset import (
+    MobileBimanualFrame,
+    MobileBimanualLeRobotWriter,
+)
 from parcel_sorter.mobile_bimanual import (
     ARM_JOINT_NAMES,
     BASE_JOINT_NAMES,
@@ -42,13 +46,28 @@ def main() -> int:
     parser.add_argument(
         "--output", type=Path, default=Path("outputs/mobile-bimanual-arms-v1")
     )
+    parser.add_argument(
+        "--record-dataset",
+        type=Path,
+        help="record a 30 Hz RGB-D LeRobot episode under this dataset root",
+    )
+    parser.add_argument("--hybrid-tools", action="store_true")
+    parser.add_argument("--image-size", type=int, default=224)
     args = parser.parse_args()
     if args.steps < 1:
         parser.error("steps must be positive")
 
     gs, torch, np = initialize_genesis(args.backend)
     source = Path(gs.__file__).resolve().parent / "assets/xml/franka_sim/bi-franka_panda.xml"
-    asset = build_mobile_bimanual_mjcf(source, args.output / "mobile_bi_franka.xml")
+    if args.image_size < 32:
+        parser.error("image-size must be at least 32")
+    use_hybrid_tools = args.hybrid_tools or args.record_dataset is not None
+    asset = build_mobile_bimanual_mjcf(
+        source,
+        args.output / "mobile_bi_franka.xml",
+        left_tri_suction=use_hybrid_tools,
+        right_v_cradle=use_hybrid_tools,
+    )
     scene = gs.Scene(
         sim_options=gs.options.SimOptions(dt=1.0 / 240.0, substeps=1),
         rigid_options=gs.options.RigidOptions(enable_collision=True),
@@ -56,6 +75,15 @@ def main() -> int:
     )
     scene.add_entity(gs.morphs.Plane())
     robot = scene.add_entity(gs.morphs.MJCF(file=str(asset)))
+    camera = None
+    if args.record_dataset is not None:
+        camera = scene.add_camera(
+            res=(args.image_size, args.image_size),
+            pos=(0.0, -2.4, 3.1),
+            lookat=(0.0, 0.35, 1.15),
+            fov=52,
+            GUI=False,
+        )
     scene.build()
 
     base_dofs = np.asarray(joint_dof_indices(robot, BASE_JOINT_NAMES))
@@ -128,15 +156,82 @@ def main() -> int:
     initial_collisions = _collision_pairs(robot)
     robot.control_dofs_position(solution_values[arm_dofs], arm_dofs)
 
+    writer = None
+    if args.record_dataset is not None:
+        writer = MobileBimanualLeRobotWriter(
+            args.record_dataset,
+            fps=30,
+            image_size=(args.image_size, args.image_size),
+            include_depth=True,
+        )
+    physics_per_frame = 8
+    task_text = (
+        "Move the mobile dual-arm parcel robot to a collision-free synchronized "
+        "pregrasp pose while keeping the base stationary."
+    )
+    action_vector = (
+        0.0,
+        0.0,
+        0.0,
+        *targets[0].tolist(),
+        *initial_quaternions[0],
+        1.0,
+        *targets[1].tolist(),
+        *initial_quaternions[1],
+        1.0,
+    )
+
     max_joint_velocity = 0.0
     torch.cuda.synchronize()
     started = time.perf_counter()
-    for _ in range(args.steps):
+    recorded_frames = 0
+    for step_index in range(args.steps):
         scene.step()
         velocity = np.abs(np.asarray(_flat(robot.get_dofs_velocity(arm_dofs))))
         max_joint_velocity = max(max_joint_velocity, float(velocity.max()))
+        if writer is not None and (step_index + 1) % physics_per_frame == 0:
+            rgb, depth, _, _ = camera.render(rgb=True, depth=True)
+            current_qpos = np.asarray(_flat(robot.get_qpos()))
+            base_velocity = _flat(robot.get_dofs_velocity(base_dofs))
+            left_pose = (*_flat(left_ee.get_pos()), *_flat(left_ee.get_quat()))
+            right_pose = (*_flat(right_ee.get_pos()), *_flat(right_ee.get_quat()))
+            state_vector = (
+                *current_qpos[base_dofs].tolist(),
+                *base_velocity,
+                *current_qpos[np.asarray(left_arm_dofs)].tolist(),
+                *current_qpos[np.asarray(joint_dof_indices(robot, FINGER_JOINT_NAMES["left"]))].tolist(),
+                *current_qpos[np.asarray(right_arm_dofs)].tolist(),
+                *current_qpos[np.asarray(joint_dof_indices(robot, FINGER_JOINT_NAMES["right"]))].tolist(),
+                *left_pose,
+                *right_pose,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            )
+            writer.add_frame(
+                MobileBimanualFrame(
+                    frame_index=recorded_frames,
+                    timestamp_seconds=recorded_frames / 30.0,
+                    stage="synchronized_pregrasp",
+                    state=tuple(float(value) for value in state_vector),
+                    action=tuple(float(value) for value in action_vector),
+                    privileged_state=(0.0,) * 7,
+                    task=task_text,
+                    rgb=np.asarray(rgb)[..., :3],
+                    depth=np.asarray(depth, dtype=np.float32),
+                )
+            )
+            recorded_frames += 1
     torch.cuda.synchronize()
     elapsed = time.perf_counter() - started
+
+    if writer is not None:
+        if recorded_frames < 1:
+            raise RuntimeError("recording produced no frames; use at least 8 physics steps")
+        writer.save_episode()
+        writer.finalize()
 
     final_positions = (_flat(left_ee.get_pos()), _flat(right_ee.get_pos()))
     position_errors = [math.dist(actual, target) for actual, target in zip(final_positions, targets)]
@@ -174,6 +269,10 @@ def main() -> int:
         "steps": args.steps,
         "elapsed_seconds": elapsed,
         "simulation_fps": args.steps / max(elapsed, 1e-12),
+        "hybrid_tools": use_hybrid_tools,
+        "recorded_frames": recorded_frames,
+        "mobile_state_dim": 43,
+        "mobile_action_dim": 19,
         "success": success,
     }
     args.output.mkdir(parents=True, exist_ok=True)

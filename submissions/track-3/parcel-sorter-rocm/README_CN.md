@@ -4,6 +4,9 @@
 AMD Radeon GPU 和 ROCm 上完成 Genesis 物理仿真、Franka Panda 机械臂控制、
 RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 
+移动扩展的最新状态见[43 维状态 / 19 维动作 SmolVLA 状态](docs/MOBILE_VLA_STATUS_CN.md)：
+Radeon 训练和 checkpoint 重载链已验证，移动三吸盘物理抬升仍按失败结果记录。
+
 英文 [README.md](README.md) 是评审复现的主入口；中文正式报告见
 [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)。优化顺序见
 [优化路线图](docs/OPTIMIZATION_ROADMAP_CN.md)，完整工程决策和代码学习记录见
