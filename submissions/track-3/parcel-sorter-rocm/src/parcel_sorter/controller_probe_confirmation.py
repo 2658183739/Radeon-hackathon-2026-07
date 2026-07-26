@@ -14,6 +14,7 @@ from .metrics import wilson_interval
 CONFIRMATION_SCHEMA_VERSION = 1
 CONFIRMATION_POLICY = "veto-static"
 CONFIRMATION_SPLIT = "confirmation"
+CONFIRMATION_ACTIVATION_POLICY = "all-boxes"
 
 
 def _finite_float(value: Any, name: str) -> float:
@@ -100,8 +101,10 @@ def confirmation_rows(
         contract.get("fresh_scene_per_rollout")
     ):
         raise ValueError("confirmation source violates the controller-faithful contract")
-    if str(contract.get("planning_activation_policy")) != "geometry-eligible":
-        raise ValueError("confirmation source must use geometry-eligible activation")
+    if str(contract.get("planning_activation_policy")) != CONFIRMATION_ACTIVATION_POLICY:
+        raise ValueError(
+            f"confirmation source must use {CONFIRMATION_ACTIVATION_POLICY} activation"
+        )
     profile = str(payload["profile"])
     episode = int(payload["episode"])
     if str(sample.get("profile_id")) != profile:
@@ -133,7 +136,15 @@ def confirmation_rows(
                 "static_rank": int(rollout["static_rank"]),
                 "sample": dict(sample),
                 "strata": strata,
-                "probe": extract_controller_faithful_probe(payload, rollout),
+                # All-box confirmation intentionally includes candidates that
+                # can time out before the pre-place boundary. Their complete
+                # trace is retained and the extractor marks probe_completed=0,
+                # making them ineligible without fabricating a boundary.
+                "probe": extract_controller_faithful_probe(
+                    payload,
+                    rollout,
+                    allow_incomplete=True,
+                ),
                 "labels": {
                     "success": bool(rollout["success"]),
                     "safety_aborted": bool(rollout["safety_aborted"]),

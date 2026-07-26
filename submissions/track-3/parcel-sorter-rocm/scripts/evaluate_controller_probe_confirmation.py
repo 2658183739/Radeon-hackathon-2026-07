@@ -14,6 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from parcel_sorter.controller_probe_confirmation import (
+    CONFIRMATION_ACTIVATION_POLICY,
     CONFIRMATION_POLICY,
     CONFIRMATION_SPLIT,
     audit_confirmation,
@@ -52,7 +53,7 @@ def manifest_sources(
         raise ValueError("confirmation manifest has the wrong split")
     if str(manifest.get("protocol_sha256")) != sha256_file(protocol_path):
         raise ValueError("confirmation manifest is not bound to this protocol")
-    if str(manifest.get("planning_activation_policy")) != "all-boxes":
+    if str(manifest.get("planning_activation_policy")) != CONFIRMATION_ACTIVATION_POLICY:
         raise ValueError("confirmation manifest has the wrong activation policy")
     rows = manifest.get("runs")
     if not isinstance(rows, list) or not rows:

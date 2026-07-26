@@ -2282,3 +2282,22 @@ was observed. The source-audit module/runner are also bound and cross-checked
 against the fingerprints embedded in the source artifact. Planner logic and
 every feasibility, coverage, restoration, and latency threshold remain
 unchanged. The active protocol SHA-256 is `31f1b73d...1dbfc4`.
+# 2026-07-26 continuation: VLA and frozen-protocol execution
+
+## Decision: resume SmolVLA from the 4k checkpoint
+
+- Evidence: the 4,000-step strict-open pilot reached validation loss 0.1760 and wrote optimizer, scheduler, RNG, and data-order state.
+- Failure found: LeRobot accepts path options in `--key=value` form; the previous space-separated `--config_path path` was not recoverable during validation. Fresh-run policy dictionary overrides also conflict with a serialized resume config.
+- Action: verified a one-step resume at step 4001, then started a single AMD Radeon/ROCm run to total step 20,000 with evaluation every 1,000 steps and checkpoints every 2,000 steps.
+- Acceptance rule: select by held-out closed-loop success and safety, not training loss alone. The checkpoint is not a competition claim until a frozen held-out episode evaluation succeeds.
+
+## Decision: repair V5 evaluation without recollecting physics
+
+- Evidence: all 80 frozen V5 source episodes were complete and the manifest explicitly declared `planning_activation_policy=all-boxes`.
+- Failure found: the evaluator still required `geometry-eligible`, and incomplete all-box candidates that timed out before place were treated as malformed instead of ineligible.
+- Action: V5 now accepts the frozen `all-boxes` contract. The probe extractor has an opt-in incomplete-trace path that retains the observed trace and emits `probe_completed=0`; it never fabricates a successful boundary. The original physics artifacts were not rerun.
+- Result: the corrected offline evaluator completed and reported `confirmation_failed` because of safety-regression gates. Therefore no runtime controller authorization was granted.
+
+## Next experiment gate
+
+The next learned-policy comparison is limited to one or two held-out closed-loop episodes per checkpoint. If SmolVLA remains in `approach`, change one factor at a time: action-chunk horizon/refresh first, then target representation. Do not claim a VLA improvement from offline loss alone.

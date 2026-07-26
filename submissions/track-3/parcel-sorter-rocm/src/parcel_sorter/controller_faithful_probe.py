@@ -101,7 +101,11 @@ def _validated_trace(rollout: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...
     return trace
 
 
-def _probe_prefix(trace: Sequence[Mapping[str, Any]]) -> tuple[Mapping[str, Any], ...]:
+def _probe_prefix(
+    trace: Sequence[Mapping[str, Any]],
+    *,
+    allow_incomplete: bool = False,
+) -> tuple[Mapping[str, Any], ...]:
     saw_lift = False
     for index, row in enumerate(trace):
         stage = str(row["stage"])
@@ -110,12 +114,16 @@ def _probe_prefix(trace: Sequence[Mapping[str, Any]]) -> tuple[Mapping[str, Any]
             if stage == "place" and not saw_lift:
                 raise ValueError("place boundary appeared before lift")
             return tuple(trace[: index + 1])
+    if allow_incomplete:
+        return tuple(trace)
     raise ValueError("probe trace has no pre-place boundary observation")
 
 
 def extract_controller_faithful_probe(
     payload: Mapping[str, Any],
     rollout: Mapping[str, Any],
+    *,
+    allow_incomplete: bool = False,
 ) -> dict[str, Any]:
     """Extract only state observed before the first transport/place action.
 
@@ -135,7 +143,7 @@ def extract_controller_faithful_probe(
         raise ValueError("force_abort_n must be positive")
 
     trace = _validated_trace(rollout)
-    prefix = _probe_prefix(trace)
+    prefix = _probe_prefix(trace, allow_incomplete=allow_incomplete)
     boundary = prefix[-1]
     active_start = next(
         (index for index, row in enumerate(prefix) if str(row["stage"]) == "grasp"),
