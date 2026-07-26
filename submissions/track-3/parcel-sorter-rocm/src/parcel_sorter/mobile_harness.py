@@ -218,9 +218,19 @@ def _candidate(
     config: MobileHarnessConfig,
     rejected_vla: bool,
 ) -> MobileHarnessCandidate:
+    expert_base_speed = math.hypot(expert[0], expert[1])
+    precision_handoff = stage == "grasp_approach" and expert_base_speed < 0.025
+    dynamic_base_residual_limit = (
+        0.0
+        if precision_handoff
+        else min(
+            config.max_base_residual_m_s,
+            expert_base_speed * (1.0 - config.min_progress_ratio),
+        )
+    )
     base_residual = _clip_norm(
         tuple(vla[index] - expert[index] for index in (0, 1)),
-        config.max_base_residual_m_s,
+        dynamic_base_residual_limit,
     )
     yaw_residual = _clip(
         vla[2] - expert[2], config.max_yaw_residual_rad_s
@@ -292,6 +302,24 @@ def _candidate(
             _progress_ratio(state[24:27], expert_left.position_m, left.position_m),
             _progress_ratio(state[31:34], expert_right.position_m, right.position_m),
         ]
+        selected_base = decoded.base_velocity_xy_yaw[:2]
+        if expert_base_speed > 1e-9:
+            base_progress = sum(
+                selected * nominal
+                for selected, nominal in zip(selected_base, expert[:2], strict=True)
+            ) / (expert_base_speed * expert_base_speed)
+            parallel = tuple(
+                base_progress * nominal for nominal in expert[:2]
+            )
+            lateral = math.dist(selected_base, parallel)
+            progress_values.append(base_progress)
+            if lateral > 0.35 * expert_base_speed + 1e-9:
+                reasons.append("base_lateral_gate")
+        elif math.hypot(*selected_base) > 1e-9:
+            progress_values.append(0.0)
+            reasons.append("base_hold_gate")
+        else:
+            progress_values.append(1.0)
         if min(progress_values) + 1e-9 < config.min_progress_ratio:
             reasons.append("expert_progress_gate")
         executable_action = (
@@ -312,15 +340,20 @@ def _candidate(
         reasons.append("invalid_vla_action")
     if stage == "release" and tool_corrections:
         reasons.append("stage_tool_interlock")
+    if precision_handoff:
+        reasons.append("contact_precision_handoff")
     safe = not any(
         reason in {
             "expert_progress_gate",
+            "base_lateral_gate",
+            "base_hold_gate",
             "invalid_vla_action",
         }
         or reason.startswith("decode_error:")
         for reason in reasons
     )
-    score = scale - 0.02 * tool_corrections - (10.0 if not safe else 0.0)
+    learned_score = -scale if precision_handoff else scale
+    score = learned_score - 0.02 * tool_corrections - (10.0 if not safe else 0.0)
     return MobileHarnessCandidate(
         scale=scale,
         action=tuple(float(value) for value in executable_action),

@@ -106,11 +106,43 @@ over `cat:cs.RO` with self-improving, self-evolving, experience-driven,
 failure-replay, and vision-language-action terms; first page only; accessed
 2026-07-27.
 
+## Iteration 2: mass-aware expert and frozen holdout
+
+Failure diagnosis showed that the 0.55 kg and 0.65 kg parcels remained attached
+but missed the 8 cm lift gate by only 1.1--2.6 mm because the arm tracked a
+fixed 10 cm target less accurately under load. The success criterion was not
+relaxed. Instead, the expert added a bounded mass-aware lift target from 10 to
+12 cm and matched placement descent. Targeted reruns passed, and the unchanged
+six-profile collection improved from 4/6 to 6/6 successes. The audited v2
+dataset has 3,899 frames and all six stages in every episode.
+
+SmolVLA v2 trained for 2,400 steps, preserving about 4.92 epochs after the data
+increase. Training took 6 min 19 s, peaked at 2.21 GB, reached about 63
+samples/s, and ended at loss 0.067. On 36 training episode-stage samples, the
+precision-handoff Harness achieved MAE 0.005485 and 36/36 envelope passes,
+versus 0.022105 and 0/36 for raw VLA.
+
+The first five unseen runs produced 4/5 successes. Its only failure was then
+used as development evidence: the VLA reduced the final approach speed until
+the two-cup seal timed out, while the matched expert succeeded. A directional
+progress gate alone did not fix it. The accepted slow-fast change hands control
+fully to the expert when grasp-approach speed falls below 2.5 cm/s. The failed
+case then succeeded with 1.32 cm placement error, seven explicit handoffs, and
+no force violation.
+
+Because that change used the first campaign, those five runs are labeled
+development, not holdout. A new frozen v2 holdout changed size, mass, friction,
+and offset again. It achieved 4/5 successes (80% point estimate), 0 force
+violations, and 4/5 runs with VLA base actuation. The 95% Wilson interval is
+37.55%--96.38%, so this is only a small-sample gate. The 0.72 kg boundary box
+failed before latch and generated a quarantined 0.648 kg curriculum bridge.
+No parameter was changed after the frozen v2 result.
+
 ## Remaining gates
 
-The next promotion gate requires a frozen, non-overlapping campaign of at least
-100 trials, at least 80% raw task success, reported Wilson confidence bounds,
-zero force violations, and matched expert/raw/clipped/Harness variants. Arm
+The next promotion gate requires expanding the frozen protocol to at least 100
+trials, at least 80% raw task success, reported Wilson confidence bounds, zero
+force violations, and matched expert/raw/clipped/Harness variants. Arm
 residual actuation, right-cradle cooperation, RGB-D input ablation, unseen
 geometry, and sim-to-real remain unverified.
 

@@ -500,11 +500,14 @@ def main() -> int:
 
     latched = suction.try_latch()
     lift_trace = []
+    lift_target_delta_m = 0.10 + min(
+        0.02, max(0.0, args.parcel_mass_kg - 0.40) * 0.08
+    )
     if latched:
         start_hand = np.asarray(_flat(hand.get_pos()))
         start_qpos = np.asarray(_flat(robot.get_qpos()))
         start_arm_qpos = start_qpos[left_arm_dofs]
-        lift_target = start_hand + np.asarray((0.0, 0.0, 0.10))
+        lift_target = start_hand + np.asarray((0.0, 0.0, lift_target_delta_m))
         lift_quaternion = np.asarray(_flat(hand.get_quat()))
         solution = robot.inverse_kinematics(
             link=hand,
@@ -532,7 +535,7 @@ def main() -> int:
                 stage="lift",
                 base_action=np.zeros(3),
                 left_position=start_hand
-                + np.asarray((0.0, 0.0, 0.10 * smooth_progress)),
+                + np.asarray((0.0, 0.0, lift_target_delta_m * smooth_progress)),
                 left_quaternion=lift_quaternion,
                 left_tool_command=1.0,
                 right_position=pregrasp_targets[1],
@@ -636,7 +639,8 @@ def main() -> int:
         place_start_hand = np.asarray(_flat(hand.get_pos()))
         place_start_qpos = np.asarray(_flat(robot.get_qpos()))
         place_start_arm_qpos = place_start_qpos[left_arm_dofs]
-        place_target = place_start_hand - np.asarray((0.0, 0.0, 0.085))
+        place_drop_m = lift_target_delta_m - 0.015
+        place_target = place_start_hand - np.asarray((0.0, 0.0, place_drop_m))
         place_quaternion = np.asarray(_flat(hand.get_quat()))
         place_solution = robot.inverse_kinematics(
             link=hand,
@@ -664,7 +668,7 @@ def main() -> int:
                 stage="place",
                 base_action=np.zeros(3),
                 left_position=place_start_hand
-                - np.asarray((0.0, 0.0, 0.085 * smooth_progress)),
+                - np.asarray((0.0, 0.0, place_drop_m * smooth_progress)),
                 left_quaternion=place_quaternion,
                 left_tool_command=1.0,
                 right_position=_flat(right_hand.get_pos()),
@@ -815,6 +819,7 @@ def main() -> int:
         "parcel_lift_z_m": lift_parcel_z,
         "parcel_final_position_m": parcel_final_position.tolist(),
         "lift_delta_m": lift_delta,
+        "lift_target_delta_m": lift_target_delta_m,
         "lift_success": lift_success,
         "transport_success": transport_success,
         "placed_before_release": placed_before_release,

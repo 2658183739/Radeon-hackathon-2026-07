@@ -5,9 +5,9 @@ AMD Radeon GPU 和 ROCm 上完成 Genesis 物理仿真、Franka Panda 机械臂�
 RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 
 移动扩展的最新结果见[Harness-Lite 与失败驱动自我改进](docs/MOBILE_HARNESS_SELF_IMPROVEMENT_2026-07-27_CN.md)：
-当前 SmolVLA 在四个成功专家回合上训练1600步，完成24样本动作包络消融，并在抓取接近与30 cm
-运输阶段实际控制有界底盘残差。0.4 kg配对回合完成抬升、放置和释放，最终误差0.92 cm。
-机械臂残差控制和独立留出泛化仍未验证。
+SmolVLA v2在六个成功专家回合上训练2400步，完成36样本动作包络消融，并在抓取接近与30 cm
+运输阶段实际控制有界底盘残差。冻结的五回合未见参数门禁得到4/5成功且0次力越界；Wilson区间
+仍很宽，因此还需执行计划中的100回合。机械臂残差控制和广泛泛化仍未验证。
 
 英文 [README.md](README.md) 是评审复现的主入口；中文正式报告见
 [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)。优化顺序见

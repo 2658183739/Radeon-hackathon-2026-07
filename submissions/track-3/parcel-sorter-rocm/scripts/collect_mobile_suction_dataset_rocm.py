@@ -43,11 +43,19 @@ def main() -> int:
     parser.add_argument("--backend", choices=("rocm", "cuda"), default="rocm")
     parser.add_argument("--max-episodes", type=int)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--audit-only", action="store_true")
+    parser.add_argument("--smolvla-checkpoint", type=Path)
+    parser.add_argument(
+        "--policy-mode", choices=("shadow", "base_residual"), default="shadow"
+    )
+    parser.add_argument("--policy-hz", type=int, default=3)
     args = parser.parse_args()
     if args.output.exists() and any(args.output.iterdir()) and not args.resume:
         parser.error(f"output directory must be new or empty: {args.output}")
     if args.max_episodes is not None and args.max_episodes < 1:
         parser.error("max-episodes must be positive")
+    if args.policy_mode != "shadow" and args.smolvla_checkpoint is None:
+        parser.error("base_residual mode requires --smolvla-checkpoint")
 
     config = json.loads(args.config.read_text(encoding="utf-8"))
     episodes = list(config.get("episodes", ()))
@@ -78,9 +86,11 @@ def main() -> int:
         if retained is not None:
             summary_path = Path(str(retained.get("summary", "")))
             retained_success = bool(
-                retained.get("success") and summary_path.is_file() and dataset_root.is_dir()
+                retained.get("success")
+                and summary_path.is_file()
+                and (args.audit_only or dataset_root.is_dir())
             )
-            if retained_success:
+            if retained_success and not args.audit_only:
                 successful_roots.append(dataset_root.resolve())
             results.append(retained)
             continue
@@ -91,8 +101,6 @@ def main() -> int:
             args.backend,
             "--output",
             str(shard / "run"),
-            "--record-dataset",
-            str(dataset_root),
             "--parcel-profile",
             str(item["profile"]),
             "--parcel-size-m",
@@ -104,6 +112,19 @@ def main() -> int:
             "--parcel-offset-m",
             *(str(value) for value in item["offset_m"]),
         ]
+        if not args.audit_only:
+            command.extend(("--record-dataset", str(dataset_root)))
+        if args.smolvla_checkpoint is not None:
+            command.extend(
+                (
+                    "--smolvla-checkpoint",
+                    str(args.smolvla_checkpoint),
+                    "--policy-mode",
+                    args.policy_mode,
+                    "--policy-hz",
+                    str(args.policy_hz),
+                )
+            )
         if item.get("task_text"):
             command.extend(("--task-text", str(item["task_text"])))
         shard.mkdir(parents=True, exist_ok=True)
@@ -117,7 +138,7 @@ def main() -> int:
             else {}
         )
         success = bool(completed.returncode == 0 and summary.get("success"))
-        if success and dataset_root.is_dir():
+        if success and dataset_root.is_dir() and not args.audit_only:
             successful_roots.append(dataset_root.resolve())
         results.append(
             {
@@ -158,7 +179,9 @@ def main() -> int:
                 "collection_id": config.get("collection_id"),
                 "requested_episodes": len(episodes),
                 "completed_episodes": len(results),
-                "successful_episodes": len(successful_roots),
+                "successful_episodes": sum(
+                    bool(result.get("success")) for result in results
+                ),
                 "results": results,
                 "status": "collecting",
             },
@@ -166,7 +189,7 @@ def main() -> int:
 
     merged_root = args.output / "lerobot_dataset"
     merge_error = None
-    if successful_roots:
+    if successful_roots and not args.audit_only:
         if merged_root.exists():
             if not args.resume:
                 raise RuntimeError(f"merged dataset already exists: {merged_root}")
@@ -204,7 +227,11 @@ def main() -> int:
         if merged.returncode != 0:
             merge_error = f"dataset merge failed with exit code {merged.returncode}"
 
+    successful_count = sum(bool(result.get("success")) for result in results)
     status = (
+        "completed_audit_only"
+        if args.audit_only and len(results) == len(episodes)
+        else
         "passed"
         if len(successful_roots) >= 2 and merge_error is None and merged_root.is_dir()
         else "insufficient_successes"
@@ -217,19 +244,21 @@ def main() -> int:
         "config": str(args.config.resolve()),
         "requested_episodes": len(episodes),
         "completed_episodes": len(results),
-        "successful_episodes": len(successful_roots),
-        "failed_episodes": len(results) - len(successful_roots),
+        "successful_episodes": successful_count,
+        "failed_episodes": len(results) - successful_count,
         "merged_dataset_root": str(merged_root.resolve()) if merged_root.is_dir() else None,
         "merge_error": merge_error,
         "results": results,
         "status": status,
         "claim_boundary": (
-            "successful expert episodes are merged for training; failed runs remain audit-only"
+            "audit-only campaign; no episode is written to or merged into training data"
+            if args.audit_only
+            else "successful expert episodes are merged for training; failed runs remain audit-only"
         ),
     }
     _write_json(args.output / "collection-summary.json", payload)
     print(json.dumps(payload))
-    return 0 if status == "passed" else 2
+    return 0 if status in {"passed", "completed_audit_only"} else 2
 
 
 if __name__ == "__main__":

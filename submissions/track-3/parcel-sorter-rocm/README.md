@@ -3,10 +3,11 @@
 Latest mobile result: [Harness-Lite and failure-driven self-improvement](docs/MOBILE_HARNESS_SELF_IMPROVEMENT_2026-07-27.md), including a successful SmolVLA base-residual closed loop on one Radeon GPU.
 
 Mobile extension: [43-D state / 19-D action SmolVLA status](docs/MOBILE_VLA_STATUS.md).
-The current checkpoint was trained for 1,600 steps on four successful expert episodes. Harness-Lite
-passed a 24-sample action-envelope ablation and then controlled bounded base residuals during grasp
-approach and 30 cm transport. The matched 0.4 kg run completed lift, placement, and release with
-0.92 cm final error. Arm residual control and held-out generalization remain unverified.
+The v2 checkpoint was trained for 2,400 steps on six successful expert episodes. Harness-Lite
+passed a 36-sample action-envelope ablation and controls bounded base residuals during grasp
+approach and 30 cm transport. A frozen five-run unseen-parameter gate achieved 4/5 successes with
+zero force violations; its wide Wilson interval means the planned 100-run campaign is still required.
+Arm residual control and broad generalization remain unverified.
 
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis

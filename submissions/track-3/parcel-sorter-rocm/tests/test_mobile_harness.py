@@ -47,6 +47,23 @@ class MobileHarnessTests(unittest.TestCase):
         self.assertEqual(decision.selected.tool_command_corrections, 1)
         self.assertIn("stage_tool_interlock", decision.selected.reasons)
 
+    def test_near_contact_base_residual_preserves_nominal_progress(self) -> None:
+        expert = list(_action())
+        expert[:3] = [0.002, 0.010, 0.0]
+        vla = list(expert)
+        vla[:3] = [0.002, -0.010, 0.0]
+        decision = select_mobile_harness_action(
+            state=_state(), expert_action=expert, vla_action=vla, stage="grasp_approach"
+        )
+        selected = decision.selected.action
+        progress = (selected[0] * expert[0] + selected[1] * expert[1]) / (
+            expert[0] ** 2 + expert[1] ** 2
+        )
+        self.assertGreaterEqual(progress, 0.5)
+        self.assertGreaterEqual(selected[1], 0.0)
+        self.assertTrue(decision.fallback_to_expert)
+        self.assertIn("contact_precision_handoff", decision.selected.reasons)
+
     def test_force_gate_stops_base_holds_arms_and_releases_suction(self) -> None:
         decision = select_mobile_harness_action(
             state=_state(force_n=35.0),
