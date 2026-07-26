@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 import shutil
@@ -36,6 +37,13 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _cli_float(value: Any) -> str:
+    """Format physical parameters without exponent syntax confusing argparse."""
+
+    rendered = f"{float(value):.10f}".rstrip("0").rstrip(".")
+    return "0" if rendered in {"", "-0"} else rendered
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
@@ -49,11 +57,21 @@ def main() -> int:
         "--policy-mode", choices=("shadow", "base_residual"), default="shadow"
     )
     parser.add_argument("--policy-hz", type=int, default=3)
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Concurrent isolated rollout processes; values above one require --audit-only",
+    )
     args = parser.parse_args()
     if args.output.exists() and any(args.output.iterdir()) and not args.resume:
         parser.error(f"output directory must be new or empty: {args.output}")
     if args.max_episodes is not None and args.max_episodes < 1:
         parser.error("max-episodes must be positive")
+    if args.workers < 1:
+        parser.error("workers must be positive")
+    if args.workers > 1 and not args.audit_only:
+        parser.error("parallel workers are supported only for audit-only campaigns")
     if args.policy_mode != "shadow" and args.smolvla_checkpoint is None:
         parser.error("base_residual mode requires --smolvla-checkpoint")
 
@@ -66,6 +84,9 @@ def main() -> int:
     seen: set[str] = set()
     for item in episodes:
         _validate_episode(item, seen)
+    seen_order = {
+        str(item["episode_id"]): index for index, item in enumerate(episodes)
+    }
 
     root = Path(__file__).resolve().parent.parent
     args.output.mkdir(parents=True, exist_ok=True)
@@ -78,6 +99,7 @@ def main() -> int:
         }
     results = []
     successful_roots = []
+    pending = []
     for item in episodes:
         episode_id = str(item["episode_id"])
         shard = args.output / "shards" / episode_id
@@ -85,15 +107,25 @@ def main() -> int:
         retained = existing_results.get(episode_id)
         if retained is not None:
             summary_path = Path(str(retained.get("summary", "")))
-            retained_success = bool(
-                retained.get("success")
-                and summary_path.is_file()
-                and (args.audit_only or dataset_root.is_dir())
+            retained_complete = bool(
+                summary_path.is_file()
+                and (
+                    args.audit_only
+                    or not retained.get("success")
+                    or dataset_root.is_dir()
+                )
             )
-            if retained_success and not args.audit_only:
-                successful_roots.append(dataset_root.resolve())
-            results.append(retained)
-            continue
+            if retained_complete:
+                if retained.get("success") and not args.audit_only:
+                    successful_roots.append(dataset_root.resolve())
+                results.append(retained)
+                continue
+        pending.append(item)
+
+    def collect_one(item: dict[str, Any]) -> dict[str, Any]:
+        episode_id = str(item["episode_id"])
+        shard = args.output / "shards" / episode_id
+        dataset_root = shard / "lerobot_dataset"
         command = [
             sys.executable,
             str(root / "scripts/evaluate_mobile_suction_lift_rocm.py"),
@@ -104,13 +136,13 @@ def main() -> int:
             "--parcel-profile",
             str(item["profile"]),
             "--parcel-size-m",
-            *(str(value) for value in item["size_m"]),
+            *(_cli_float(value) for value in item["size_m"]),
             "--parcel-mass-kg",
-            str(item["mass_kg"]),
+            _cli_float(item["mass_kg"]),
             "--parcel-friction",
-            str(item["friction"]),
+            _cli_float(item["friction"]),
             "--parcel-offset-m",
-            *(str(value) for value in item["offset_m"]),
+            *(_cli_float(value) for value in item["offset_m"]),
         ]
         if not args.audit_only:
             command.extend(("--record-dataset", str(dataset_root)))
@@ -138,54 +170,67 @@ def main() -> int:
             else {}
         )
         success = bool(completed.returncode == 0 and summary.get("success"))
-        if success and dataset_root.is_dir() and not args.audit_only:
-            successful_roots.append(dataset_root.resolve())
-        results.append(
-            {
-                "episode_id": episode_id,
-                "profile": item["profile"],
-                "parameters": item,
-                "return_code": completed.returncode,
-                "success": success,
-                "failure_stage": next(
-                    (
-                        name
-                        for name in (
-                            "lift_success",
-                            "transport_success",
-                            "placed_before_release",
-                            "released",
-                        )
-                        if not summary.get(name, False)
+        return {
+            "episode_id": episode_id,
+            "profile": item["profile"],
+            "parameters": item,
+            "return_code": completed.returncode,
+            "success": success,
+            "failure_stage": next(
+                (
+                    name
+                    for name in (
+                        "lift_success",
+                        "transport_success",
+                        "placed_before_release",
+                        "released",
+                    )
+                    if not summary.get(name, False)
+                ),
+                None,
+            ),
+            "placement_error_m": summary.get("placement_error_m"),
+            "max_suction_force_n": summary.get("suction", {}).get(
+                "max_suction_force_n"
+            ),
+            "max_contact_force_n": summary.get("suction", {}).get(
+                "max_contact_force_n"
+            ),
+            "frames": summary.get("dataset", {}).get("frames", 0),
+            "summary": str(summary_path.resolve()),
+            "log": str(log_path.resolve()),
+        }
+
+    if args.workers == 1:
+        collected = map(collect_one, pending)
+    else:
+        executor = ThreadPoolExecutor(max_workers=args.workers)
+        collected = executor.map(collect_one, pending)
+    try:
+        for result in collected:
+            results.append(result)
+            if result["success"] and not args.audit_only:
+                successful_roots.append(
+                    (args.output / "shards" / result["episode_id"] / "lerobot_dataset").resolve()
+                )
+            results.sort(key=lambda result: seen_order[str(result["episode_id"])])
+            _write_json(
+                args.output / "collection-summary.json",
+                {
+                    "schema_version": 1,
+                    "collection_id": config.get("collection_id"),
+                    "requested_episodes": len(episodes),
+                    "completed_episodes": len(results),
+                    "successful_episodes": sum(
+                        bool(result.get("success")) for result in results
                     ),
-                    None,
-                ),
-                "placement_error_m": summary.get("placement_error_m"),
-                "max_suction_force_n": summary.get("suction", {}).get(
-                    "max_suction_force_n"
-                ),
-                "max_contact_force_n": summary.get("suction", {}).get(
-                    "max_contact_force_n"
-                ),
-                "frames": summary.get("dataset", {}).get("frames", 0),
-                "summary": str(summary_path.resolve()),
-                "log": str(log_path.resolve()),
-            }
-        )
-        _write_json(
-            args.output / "collection-summary.json",
-            {
-                "schema_version": 1,
-                "collection_id": config.get("collection_id"),
-                "requested_episodes": len(episodes),
-                "completed_episodes": len(results),
-                "successful_episodes": sum(
-                    bool(result.get("success")) for result in results
-                ),
-                "results": results,
-                "status": "collecting",
-            },
-        )
+                    "results": results,
+                    "status": "collecting",
+                },
+            )
+    finally:
+        if args.workers > 1:
+            executor.shutdown(wait=True)
 
     merged_root = args.output / "lerobot_dataset"
     merge_error = None

@@ -539,3 +539,15 @@ All six predictions were finite and accepted by the bounded executor, but zero r
 expert execution envelope. The result therefore verifies data, training, checkpoint reload, and
 stage-conditioned ROCm inference while explicitly rejecting direct closed-loop promotion. File hashes
 are in `mobile_bimanual/mobile-v43-smolvla-50step-SHA256SUMS`; model weights remain on the Radeon host.
+
+## Mobile SmolVLA self-improvement v3
+
+`mobile_bimanual/self_improvement_v3/` is the compact, hash-verified record of the completed
+failure-driven cycle. It binds the seven-episode expert curriculum, 4,557-frame dataset audit,
+2,800-step Radeon training log, 42-stage Harness-Lite ablation, split-isolation audit, paired
+100-trial baseline/candidate campaigns, Wilson intervals, and fail-closed promotion decision.
+
+The retained v2 checkpoint scored 96/100; bridge-trained v3 scored 91/100 and was not promoted
+because it failed the registered Wilson non-inferiority gate. Both campaigns had zero 35 N force
+violations and VLA actuation plus single-Radeon/ROCm evidence in every trial. These results cover
+parameter variation over four rigid parcel profiles in simulation, not unseen geometry or sim-to-real.

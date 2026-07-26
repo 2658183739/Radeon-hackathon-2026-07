@@ -100,7 +100,10 @@ def main() -> int:
         ),
         "runs": compact_runs,
         "claim_boundary": (
-            "frozen small-sample holdout gate; not the planned 100-episode final campaign"
+            "frozen 100-trial parameter-generalization campaign over the configured four "
+            "rigid parcel profiles in simulation; not unseen-geometry or sim-to-real evidence"
+            if trials >= 100
+            else "frozen small-sample holdout gate; not a 100-trial final campaign"
         ),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -8,6 +8,12 @@ passed a 36-sample action-envelope ablation and controls bounded base residuals 
 approach and 30 cm transport. A frozen five-run unseen-parameter gate achieved 4/5 successes with
 zero force violations; its wide Wilson interval means the planned 100-run campaign is still required.
 Arm residual control and broad generalization remain unverified.
+The [resumable self-improvement cycle](docs/MOBILE_SELF_IMPROVEMENT_CYCLE.md) now connects
+failure curriculum, Radeon retraining, paired 100-run frozen evaluation, and isolated
+promotion; a candidate cannot replace the checkpoint without the 80%, safety, and ROCm gates.
+The cycle has now completed: v2 scored 96/100 and bridge-trained v3 scored 91/100. v3 placed
+successful parcels more precisely but failed Wilson non-inferiority, so it was isolated and
+did not replace v2.
 
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis
