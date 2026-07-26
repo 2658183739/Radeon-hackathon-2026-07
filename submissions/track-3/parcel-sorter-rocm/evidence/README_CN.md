@@ -9,6 +9,9 @@
 | `mobile_bimanual/mobile-suction-lift-v40-success.log` | 成功抬升的 Genesis/ROCm 运行日志 |
 | `mobile_bimanual/mobile-suction-transport-v41-success.json` | 抓取、30 cm 运输、放置和释放的完整回合 |
 | `mobile_bimanual/mobile-suction-transport-v41-success.log` | 完整移动回合的 Genesis/ROCm 运行日志 |
+| `mobile_bimanual/arm_residual_v1/holdout-gate.json` | 左臂残差冻结 100+100 配对门禁；94/100 对 94/100，精度门禁拒绝 |
+| `mobile_bimanual/arm_residual_v1/holdout-*-audit.json` | 同参数基线/候选逐回合结果、Wilson、Radeon/ROCm 与执行审计 |
+| `mobile_bimanual/arm_residual_v1/SHA256SUMS` | 开发、冻结协议和最终门禁证据哈希 |
 | `expert/randomized-120-summary.json` | 正式 120 回合随机专家结果 |
 | `expert/fixed-10-summary.json` | 固定种子专家回归基线 |
 | `expert/final-approach-001-120-summary.json` | 被拒绝的 0.01 m 候选，同组 120 回合 |

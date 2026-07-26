@@ -140,11 +140,11 @@ No parameter was changed after the frozen v2 result.
 
 ## Remaining gates
 
-The next promotion gate requires expanding the frozen protocol to at least 100
-trials, at least 80% raw task success, reported Wilson confidence bounds, zero
-force violations, and matched expert/raw/clipped/Harness variants. Arm
-residual actuation, right-cradle cooperation, RGB-D input ablation, unseen
-geometry, and sim-to-real remain unverified.
+The subsequent self-improvement cycle expanded the frozen protocol to 100 trials:
+v2 scored 96/100 and v3 scored 91/100 and was not promoted. A new 100-trial
+paired arm-residual holdout also preserved 94/100 success but failed the placement
+accuracy gate, so the mode remains disabled. Right-cradle cooperation, unseen
+geometry, and sim-to-real remain unverified; the completed RGB-D ablation retained RGB.
 
 ## Evidence
 

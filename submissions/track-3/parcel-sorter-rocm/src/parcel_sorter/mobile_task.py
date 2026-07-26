@@ -181,6 +181,33 @@ def limit_mobile_arm_step(
     return ArmCartesianCommand(bounded, command.quaternion_wxyz, command.gripper)
 
 
+def clamp_position_residual_to_anchor(
+    target_position_m: Iterable[float],
+    anchor_position_m: Iterable[float],
+    *,
+    max_residual_m: float = 0.01,
+) -> tuple[float, float, float]:
+    """Bound cumulative learned arm drift around a frozen expert anchor."""
+
+    target = tuple(float(value) for value in target_position_m)
+    anchor = tuple(float(value) for value in anchor_position_m)
+    if len(target) != 3 or len(anchor) != 3:
+        raise ValueError("arm target and anchor must be 3-D")
+    if any(not math.isfinite(value) for value in (*target, *anchor)):
+        raise ValueError("arm target and anchor must be finite")
+    if not math.isfinite(max_residual_m) or max_residual_m <= 0.0:
+        raise ValueError("max_residual_m must be finite and positive")
+    delta = tuple(value - origin for value, origin in zip(target, anchor, strict=True))
+    norm = math.sqrt(sum(value * value for value in delta))
+    if norm <= max_residual_m:
+        return target  # type: ignore[return-value]
+    scale = max_residual_m / norm
+    return tuple(
+        origin + scale * value
+        for origin, value in zip(anchor, delta, strict=True)
+    )  # type: ignore[return-value]
+
+
 def _decode_arm(values: tuple[float, ...]) -> ArmCartesianCommand:
     quat = values[3:7]
     norm = math.sqrt(sum(value * value for value in quat))

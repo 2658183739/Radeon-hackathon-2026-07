@@ -11,6 +11,9 @@ the full dataset or checkpoint.
 | `mobile_bimanual/mobile-suction-lift-v40-success.log` | Genesis/ROCm runtime log for the successful lift | `fb62b3f198acb5f809d1b954394b86f1e38d10d522e6e1282ecdd906fd807064` |
 | `mobile_bimanual/mobile-suction-transport-v41-success.json` | Full pickup, 30 cm transport, place, and release episode | `2415635be0470ffcc2af143e3964930bf2bafbe6634717b540c25b6fae76bce8` |
 | `mobile_bimanual/mobile-suction-transport-v41-success.log` | Genesis/ROCm runtime log for the full mobile episode | `e2a00722db6a0c177f9a68ce5e89b8162810b82177d4725053000a8eb8daa3c7` |
+| `mobile_bimanual/arm_residual_v1/holdout-gate.json` | Frozen 100+100 paired arm-residual gate; 94/100 versus 94/100, rejected on placement accuracy | `ad975139533b24ae9a98d0a746ea979a52e062bc84e466a56e5bf59df679eff9` |
+| `mobile_bimanual/arm_residual_v1/holdout-baseline-audit.json` | Per-trial base-residual holdout audit with Wilson and Radeon/ROCm provenance | `5053acd554d2b92e8791bd303af5c5c016b4ba9c70ed9456bd24605f16961369` |
+| `mobile_bimanual/arm_residual_v1/holdout-candidate-audit.json` | Per-trial arm-residual execution, IK, safety, and task audit | `acbc8793d8e76e87e6bb234ff360049e1daf6ea83223fa99ea63304507889e81` |
 | `expert/randomized-120-summary.json` | Formal 120-episode randomized expert result | `67fde67024579c317b375ea26a9a4b0a2d4890399d0bc5cf6e800051493e3cf5` |
 | `expert/fixed-10-summary.json` | Fixed-seed expert regression baseline | `582844f397103668be4f52155ff87be3ceffec3b638937f36f0a77d4f89928a5` |
 | `expert/final-approach-001-120-summary.json` | Rejected 0.01 m approach candidate, matched 120 episodes | `e1b63e28560958f3c2db5e0643665c85c6b5e7117fbe0f6df95e3f6428b4813f` |

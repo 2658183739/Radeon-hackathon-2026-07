@@ -34,7 +34,9 @@ def _validate_episode(item: dict[str, Any], seen: set[str]) -> None:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    temporary.replace(path)
 
 
 def _cli_float(value: Any) -> str:
@@ -54,7 +56,9 @@ def main() -> int:
     parser.add_argument("--audit-only", action="store_true")
     parser.add_argument("--smolvla-checkpoint", type=Path)
     parser.add_argument(
-        "--policy-mode", choices=("shadow", "base_residual"), default="shadow"
+        "--policy-mode",
+        choices=("shadow", "base_residual", "base_arm_residual"),
+        default="shadow",
     )
     parser.add_argument("--policy-hz", type=int, default=3)
     parser.add_argument(

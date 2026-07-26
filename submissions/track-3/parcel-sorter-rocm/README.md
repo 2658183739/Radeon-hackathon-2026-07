@@ -5,9 +5,9 @@ Latest mobile result: [Harness-Lite and failure-driven self-improvement](docs/MO
 Mobile extension: [43-D state / 19-D action SmolVLA status](docs/MOBILE_VLA_STATUS.md).
 The v2 checkpoint was trained for 2,400 steps on six successful expert episodes. Harness-Lite
 passed a 36-sample action-envelope ablation and controls bounded base residuals during grasp
-approach and 30 cm transport. A frozen five-run unseen-parameter gate achieved 4/5 successes with
-zero force violations; its wide Wilson interval means the planned 100-run campaign is still required.
-Arm residual control and broad generalization remain unverified.
+approach and 30 cm transport. The early five-run gate achieved 4/5; a later independent
+100-run baseline achieved 96/100 and was audited by the self-improvement cycle below. Broad
+unseen-geometry generalization remains unverified.
 The [resumable self-improvement cycle](docs/MOBILE_SELF_IMPROVEMENT_CYCLE.md) now connects
 failure curriculum, Radeon retraining, paired 100-run frozen evaluation, and isolated
 promotion; a candidate cannot replace the checkpoint without the 80%, safety, and ROCm gates.
@@ -17,6 +17,11 @@ did not replace v2.
 The [paired RGB-D ablation](docs/MOBILE_RGBD_ABLATION.md) verifies two-image SmolVLA training and
 online control on ROCm. RGB-D completed one development task but regressed paired Harness MAE by
 1.35% and added 9.65% offline latency, so the gate retained RGB and blocked a 100-trial campaign.
+The [paired left-arm residual ablation](docs/MOBILE_ARM_RESIDUAL_ABLATION.md) executed bounded
+SmolVLA arm-position residuals during transport. Baseline and candidate both scored 94/100 with
+zero force violations and 2,306/0 accepted/rejected candidate IK updates, but mean placement
+error increased from 1.40 cm to 2.45 cm. The preregistered gate rejected the mode, so v2 remains
+base-residual only.
 
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis

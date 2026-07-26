@@ -125,6 +125,29 @@ def build_frozen_holdout_config(
 ) -> dict[str, Any]:
     if trials < 100:
         raise ValueError("promotion holdout must contain at least 100 trials")
+    return build_randomized_mobile_campaign_config(
+        campaign_id=f"mobile-suction-{cycle_id}-holdout",
+        episode_prefix=f"{cycle_id}-holdout",
+        split="frozen_before_training_do_not_train",
+        trials=trials,
+        seed=seed,
+    )
+
+
+def build_randomized_mobile_campaign_config(
+    *,
+    campaign_id: str,
+    episode_prefix: str,
+    split: str,
+    trials: int,
+    seed: int,
+) -> dict[str, Any]:
+    """Freeze a balanced parameter campaign without reading task outcomes."""
+
+    if not campaign_id.strip() or not episode_prefix.strip() or not split.strip():
+        raise ValueError("campaign identifiers and split must be non-empty")
+    if trials < len(PROFILE_RANGES) or trials % len(PROFILE_RANGES) != 0:
+        raise ValueError("trials must be a positive multiple of the profile count")
     rng = random.Random(seed)
     profiles = tuple(PROFILE_RANGES)
     episodes = []
@@ -139,7 +162,7 @@ def build_frozen_holdout_config(
         assert isinstance(mass_range, tuple) and isinstance(friction_range, tuple)
         episodes.append(
             {
-                "episode_id": f"{cycle_id}-holdout-{index:03d}",
+                "episode_id": f"{episode_prefix}-{index:03d}",
                 "profile": profile,
                 "size_m": size_m,
                 "mass_kg": round(rng.uniform(*mass_range), 4),
@@ -149,8 +172,8 @@ def build_frozen_holdout_config(
         )
     return {
         "schema_version": 1,
-        "collection_id": f"mobile-suction-{cycle_id}-holdout",
-        "split": "frozen_before_training_do_not_train",
+        "collection_id": campaign_id,
+        "split": split,
         "seed": seed,
         "episodes": episodes,
     }

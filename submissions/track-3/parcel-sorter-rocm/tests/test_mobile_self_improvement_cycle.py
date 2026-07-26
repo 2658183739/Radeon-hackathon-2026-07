@@ -1,13 +1,16 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from parcel_sorter.mobile_self_improvement_cycle import (
     build_curriculum_config,
     build_frozen_holdout_config,
+    build_randomized_mobile_campaign_config,
     build_replay_from_campaign_audit,
     promotion_gate,
     validate_split_isolation,
 )
-from scripts.collect_mobile_suction_dataset_rocm import _cli_float
+from scripts.collect_mobile_suction_dataset_rocm import _cli_float, _write_json
 
 
 def _audit(*, successes: int, force_violations: int = 0) -> dict:
@@ -25,9 +28,35 @@ def _audit(*, successes: int, force_violations: int = 0) -> dict:
 
 
 class MobileSelfImprovementCycleTests(unittest.TestCase):
+    def test_builds_balanced_outcome_blind_development_campaign(self) -> None:
+        config = build_randomized_mobile_campaign_config(
+            campaign_id="arm-residual-dev-v1",
+            episode_prefix="arm-dev",
+            split="development_do_not_train",
+            trials=12,
+            seed=20260729,
+        )
+        self.assertEqual(len(config["episodes"]), 12)
+        counts = {
+            profile: sum(item["profile"] == profile for item in config["episodes"])
+            for profile in {item["profile"] for item in config["episodes"]}
+        }
+        self.assertEqual(set(counts.values()), {3})
+        self.assertNotIn("success", str(config))
+
     def test_cli_float_never_uses_exponent_syntax(self) -> None:
         self.assertEqual(_cli_float(-9e-05), "-0.00009")
         self.assertEqual(_cli_float(0.0), "0")
+
+    def test_campaign_summary_write_is_atomic(self) -> None:
+        with TemporaryDirectory() as directory:
+            output = Path(directory) / "collection-summary.json"
+            _write_json(output, {"status": "collecting", "completed_episodes": 7})
+            self.assertEqual(
+                output.read_text(encoding="utf-8"),
+                '{\n  "status": "collecting",\n  "completed_episodes": 7\n}',
+            )
+            self.assertFalse((output.parent / f".{output.name}.tmp").exists())
 
     def test_failure_becomes_bridge_and_consumes_source_holdout(self) -> None:
         source = {

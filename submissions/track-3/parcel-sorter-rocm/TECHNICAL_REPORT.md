@@ -9,13 +9,12 @@ friction, position, and orientation, and the controller must pick each parcel,
 transport it to the assigned bin, release it, and verify the result without
 exceeding a force safety boundary.
 
-The application uses Genesis for rigid-body physics and rendering, a Franka
-Panda robot model, RGB-D and proprioceptive observations, an inverse-kinematics
-expert, a closed-loop safety supervisor, LeRobotDataset for demonstrations, and
-an ACT visual imitation policy. Physics, expert execution, training, inference,
-and benchmarks were run on one `gfx1100` Radeon with ROCm 7.2.1. The submission
-includes source, pinned upstream revisions, a clean-build container definition,
-tests, configuration, and step-by-step reproduction commands.
+The current embodiment has a three-DoF holonomic base, two Franka Panda arms,
+three left-arm suction cups, and a right-arm V-cradle. It combines Genesis,
+RGB-D and proprioception, an IK expert, a closed-loop safety supervisor,
+LeRobotDataset, and SmolVLA; the earlier single-arm ACT path remains a controlled
+baseline. Physics, expert execution, training, inference, and benchmarks ran on
+one `gfx1100` Radeon with ROCm 7.2.1.
 
 ## 2. Target application and value
 
@@ -36,16 +35,15 @@ hard-coded to one object instance.
 
 The application is divided into five boundaries:
 
-1. **Simulation and sensing.** Genesis advances rigid-body physics at 240 Hz,
-   executes control at 30 Hz, and renders the camera at 10 Hz. The scene
-   contains the Franka robot, parcel, plane, and two destination bins.
-2. **Task supervision.** A deterministic state machine implements detect,
-   approach, grasp, verify, lift, place, release, complete, and abort stages.
-3. **Action generation.** The scripted IK expert or a supported LeRobot policy
-   produces a high-level Cartesian target and gripper command. ACT is verified;
-   Diffusion is the next controlled comparison.
-4. **Low-level execution.** Cartesian targets are step-limited, solved through
-   IK, and executed by arm PD control and force-ramped gripper control.
+1. **Simulation and sensing.** Genesis advances mobile dual-arm physics at
+   240 Hz and renders overhead RGB-D observations.
+2. **Task supervision.** A deterministic state machine implements navigation,
+   approach, grasp, verify, lift, transport, place, release, and abort stages.
+3. **Action generation.** The IK expert provides nominal actions. SmolVLA emits
+   a 19-D base/dual-arm action at 3 Hz, and Harness-Lite permits only verified
+   bounded residuals. ACT remains the single-arm baseline.
+4. **Low-level execution.** Base speeds and Cartesian targets are bounded,
+   solved through IK, and executed by arm PD and tri-suction control.
 5. **Evidence and evaluation.** Audit trajectories, LeRobot episodes, MP4
    recordings, runtime provenance, task metrics, and performance measurements
    are persisted for reproduction.
@@ -88,6 +86,11 @@ boundaries). Genesis creates actual Box or Cylinder geometry. A
 20-episode block has an exact profile allocation, and profile-specific
 evaluation uses stable episode IDs even when the evaluator filters profiles.
 
+The mobile mainline augments the upstream Bi-Franka MJCF with an original
+`x/y/yaw` base, physical chassis collision, three compliant left-arm cups, and
+a right-arm V-cradle for 21 DoF total. Current successful transport uses the
+left suction arm; cooperative right-cradle load sharing is not yet verified.
+
 ## 5. Perception and action contracts
 
 The simulator exposes RGB, metric depth, seven arm joint positions, seven-value
@@ -101,6 +104,12 @@ quaternion, and gripper command. Before execution, the adapter rejects non-
 finite or incorrectly shaped outputs, normalizes the quaternion, limits the
 Cartesian displacement, and applies the supervisor's stage-dependent gripper
 command. This prevents a malformed policy output from bypassing task safety.
+
+Mobile SmolVLA consumes a 43-D non-privileged state, 224x224 overhead RGB, and
+task text and emits three base velocities plus two eight-value Cartesian/tool
+commands. The selected v2 executes base residuals only; tool commands, arm
+orientation, and high-risk stages remain expert-locked. Metric depth is recorded
+and was evaluated in a separate paired RGB-D ablation.
 
 ## 6. Expert control and closed-loop behaviour
 
@@ -118,8 +127,14 @@ XY gate, hysteresis, and geometry window and regressed from 80% to 75%.
 
 The supervisor retries failed grasp verification and short contact losses. It
 aborts on a simulator fault or excessive contact force. This behaviour is
-present for both expert and ACT execution, so learned inference remains inside
-the same control and safety envelope.
+present for expert, ACT, and SmolVLA execution, so learned inference remains
+inside the same control and safety envelope.
+
+The mobile loop combines a 3 Hz SmolVLA/Harness slow loop with a 240 Hz physics
+and safety loop. Harness generates five residual scales and checks progress,
+speed, displacement, finite values, and the 35 N boundary. Three physical cups
+use contact, compliant force, and breakable constraints to seal, lift, carry a
+parcel for 30 cm, place it, and release it.
 
 ### 6.1 Experimental geometry-aware grasp planner
 
@@ -167,14 +182,18 @@ training entry point retains an explicit switch so augmentation can be evaluated
 as a matched ablation rather than assumed to be beneficial. The recorded
 5,000-step run used the previous enabled setting and remains the baseline.
 
-A Radeon training entry is provided for Diffusion, the conventional imitation
-comparison; it completed a one-step training-path smoke but has no formal
-capability result. VLA-Adapter 0.5B is the preferred language-conditioned
-compatibility study after transitive-license and ROCm operator audits. It is not
-integrated. SmolVLA is held from the strict-open path because its current
-checkpoint metadata does not declare a license. A generic checkpoint adapter
-places supported LeRobot policies behind the same supervisor, IK/PD execution,
-and 35 N force boundary.
+The mobile mainline uses Apache-2.0 LeRobot SmolVLA initialized from
+`HuggingFaceTB/SmolVLM2-500M-Video-Instruct`. It consumes a 224x224 overhead
+view, 43-D non-privileged state, and task text and emits a 19-D base/dual-arm
+action. The selected v2 checkpoint trained for 2,400 steps on six successful
+expert episodes. Harness-Lite executes bounded base residuals while deterministic
+arm, suction, and safety control remains active. A real RGB-D SmolVLA train and
+online run was also completed and retained RGB after the paired gate found no gain.
+
+Diffusion has a Radeon training entry but only a one-step path smoke. VLA-Adapter
+0.5B remains an unintegrated compatibility candidate. Third-party source, base
+checkpoint, and derived-weight provenance are recorded in `THIRD_PARTY_NOTICES.md`
+and `UPSTREAM_LOCK.json`.
 
 ## 8. AMD Radeon and ROCm use
 
@@ -185,9 +204,10 @@ PyTorch executes ACT through ROCm. The application uses the same single GPU for:
 - Genesis physics kernel compilation and stepping;
 - headless RGB-D rendering;
 - ACT forward and backward passes;
+- SmolVLA RGB/RGB-D mixed-precision training and 3 Hz online inference;
 - mixed-precision training;
 - checkpoint loading and real-time inference;
-- batched simulation throughput measurements.
+- batched simulation throughput and four-worker isolated closed-loop evaluation.
 
 ROCm PyTorch intentionally uses the `torch.cuda` compatibility namespace.
 Runtime evidence also records the HIP version and device name so a CUDA build
@@ -231,11 +251,17 @@ from being dominated by episode zero.
 | Parallel Genesis, 128 environments | 46,582 environment-steps/s |
 | Peak observed GPU utilization | 83% |
 | Twelve-profile catalog v2 one-episode regression | 8 complete; not a formal success rate |
-| Deterministic unit tests | 71 passing on Radeon |
+| Mobile SmolVLA v2, frozen 100 trials | 96/100; zero force violations |
+| Failure-bridge SmolVLA v3, same frozen set | 91/100; failed Wilson non-inferiority and was not promoted |
+| Paired RGB-D, 42 stages | Harness MAE +1.35%, latency +9.65%; RGB retained |
+| Left-arm residual, new frozen 100+100 | 94/100 vs 94/100; 1.40 cm vs 2.45 cm placement error; not promoted |
+| Mobile-focused unit tests | 41 passing on Radeon |
 
-The larger 120-episode expert run is the primary task-capability result. The
-fixed 10-seed result is useful for regression testing but is not presented as a
-replacement for the larger sample.
+The 96/100 mobile SmolVLA v2 holdout is the primary learned-policy result. The
+120-episode single-arm expert and ACT runs remain historical controlled baselines.
+The v3, RGB-D, and arm-residual candidates were all rejected by machine gates;
+selection therefore follows frozen closed-loop task, safety, and accuracy evidence
+rather than training loss, modality count, or nominal action freedom.
 
 The ACT policy demonstrates a complete ROCm learning path: dataset ingestion,
 training, checkpointing, reload, visual inference, and closed-loop physical
@@ -266,9 +292,11 @@ Other current limitations are:
 - The retained tube contact strategy lifted the fixed tube center from 30.9 mm
   to 66.4 mm but did not complete transfer and placement. Higher close-force
   candidates were rejected for crossing the 35 N safety boundary.
-- Diffusion has only a one-step path smoke; VLA-Adapter is not integrated and
-  SmolVLA is held by its checkpoint-license gate. None has formal closed-loop
-  capability evidence.
+- Diffusion has only a one-step path smoke and VLA-Adapter is not integrated.
+- Selected SmolVLA controls base residuals only. The tested left-arm residual is
+  disabled after its accuracy regression, and right-cradle cooperation is unverified.
+- The 100-trial randomization covers size, mass, friction, and offset and does not
+  establish unseen-geometry generalization.
 - Evaluation is simulation-only; sim-to-real calibration is outside this
   submission's current evidence.
 - The formal container definition is reproducible but the primary validated
@@ -284,10 +312,11 @@ single isolated model. Its main design choices are:
 - deterministic, replayable domain randomization for failure reproduction;
 - separation of policy state from privileged simulator state;
 - one safety and action contract shared by expert and learned policies;
+- bounded Harness-Lite policy drift and isolated failure-driven promotion;
 - complete audit retention even when failures are excluded from imitation data;
 - disjoint episode-range evaluation to reduce checkpoint-selection bias;
-- explicit multi-geometry parcel strata and geometry-aware control;
-- one-GPU ROCm execution spanning simulation, training, and inference;
+- a tri-suction mobile dual-arm embodiment with explicit parcel strata;
+- one-GPU ROCm execution spanning simulation, training, inference, and holdout;
 - explicit performance and limitation reporting alongside task success.
 
 ## 13. Deliverables
@@ -296,8 +325,8 @@ This source directory contains the complete original application code, tests,
 configuration, pinned dependency metadata, ROCm bootstrap scripts, Dockerfile,
 training and evaluation commands, benchmark tools, architecture notes, Chinese
 operator documentation, and this report. Generated artifacts include JSONL
-audit trajectories, LeRobotDataset episodes, ACT checkpoints, summary JSON,
-benchmark JSON, logs, and MP4 demonstrations.
+audit trajectories, LeRobotDataset episodes, ACT/SmolVLA checkpoints, frozen
+gate and summary JSON, benchmark JSON, logs, and MP4 demonstrations.
 
 Large generated datasets and weights are not committed to Git. They are
 reproducible from the documented commands and can be attached to the final

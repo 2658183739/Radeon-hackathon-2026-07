@@ -19,6 +19,7 @@ from parcel_sorter.mobile_bimanual import (
     joint_dof_indices,
 )
 from parcel_sorter.mobile_suction import MobileTriSuctionController
+from parcel_sorter.mobile_task import clamp_position_residual_to_anchor
 from parcel_sorter.mobile_vla_controller import MobileSmolVLAHarnessController
 from parcel_sorter.provenance import runtime_report
 from parcel_sorter.suction import rotate_vector
@@ -73,7 +74,9 @@ def main() -> int:
     parser.add_argument("--task-text")
     parser.add_argument("--smolvla-checkpoint", type=Path)
     parser.add_argument(
-        "--policy-mode", choices=("shadow", "base_residual"), default="shadow"
+        "--policy-mode",
+        choices=("shadow", "base_residual", "base_arm_residual"),
+        default="shadow",
     )
     parser.add_argument("--policy-hz", type=int, default=5)
     args = parser.parse_args()
@@ -90,7 +93,7 @@ def main() -> int:
     if args.policy_hz <= 0 or 30 % args.policy_hz != 0:
         parser.error("policy-hz must be a positive divisor of 30")
     if args.policy_mode != "shadow" and args.smolvla_checkpoint is None:
-        parser.error("base_residual mode requires --smolvla-checkpoint")
+        parser.error("residual policy modes require --smolvla-checkpoint")
 
     gs, torch, np = initialize_genesis(args.backend)
     source = Path(gs.__file__).resolve().parent / "assets/xml/franka_sim/bi-franka_panda.xml"
@@ -287,6 +290,15 @@ def main() -> int:
     latest_policy_action: tuple[float, ...] | None = None
     latest_policy_stage: str | None = None
     policy_applied_physics_steps = 0
+    latest_policy_left_arm_qpos = None
+    latest_policy_arm_stage: str | None = None
+    transport_arm_anchor_position = None
+    transport_arm_anchor_quaternion = None
+    transport_arm_anchor_base = None
+    arm_policy_update_attempts = 0
+    arm_policy_update_accepts = 0
+    arm_policy_update_rejections = 0
+    arm_policy_applied_physics_steps = 0
 
     def record_control_frame(
         *,
@@ -303,6 +315,9 @@ def main() -> int:
     ) -> None:
         nonlocal recorded_frames, recorded_physics_steps
         nonlocal latest_policy_action, latest_policy_stage
+        nonlocal latest_policy_left_arm_qpos, latest_policy_arm_stage
+        nonlocal arm_policy_update_attempts, arm_policy_update_accepts
+        nonlocal arm_policy_update_rejections
         if writer is None and policy_controller is None:
             return
         recorded_physics_steps += 1
@@ -358,9 +373,82 @@ def main() -> int:
                 stage=stage,
             )
             latest_policy_stage = stage
+            arm_residual_telemetry = {
+                "enabled": args.policy_mode == "base_arm_residual",
+                "stage_authorized": stage == "transport",
+                "ik_accepted": False,
+                "target_position_m": None,
+                "anchor_position_m": None,
+                "residual_norm_m": None,
+                "rejection": None,
+            }
+            if args.policy_mode == "base_arm_residual" and stage == "transport":
+                arm_policy_update_attempts += 1
+                if (
+                    transport_arm_anchor_position is None
+                    or transport_arm_anchor_quaternion is None
+                    or transport_arm_anchor_base is None
+                ):
+                    arm_policy_update_rejections += 1
+                    arm_residual_telemetry["rejection"] = "transport_anchor_unavailable"
+                elif telemetry["emergency_stop"]:
+                    arm_policy_update_rejections += 1
+                    arm_residual_telemetry["rejection"] = "harness_emergency_stop"
+                else:
+                    current_base = np.asarray(_flat(robot.get_qpos()))[base_dofs]
+                    dynamic_anchor = np.asarray(transport_arm_anchor_position).copy()
+                    dynamic_anchor[:2] += current_base[:2] - np.asarray(
+                        transport_arm_anchor_base
+                    )[:2]
+                    target_position = np.asarray(
+                        clamp_position_residual_to_anchor(
+                            latest_policy_action[3:6],
+                            dynamic_anchor,
+                            max_residual_m=0.01,
+                        )
+                    )
+                    try:
+                        arm_solution = robot.inverse_kinematics(
+                            link=hand,
+                            pos=target_position,
+                            quat=np.asarray(transport_arm_anchor_quaternion),
+                            init_qpos=np.asarray(_flat(robot.get_qpos())),
+                            respect_joint_limit=True,
+                            max_samples=4,
+                            max_solver_iters=40,
+                            damping=0.03,
+                            max_step_size=0.08,
+                            dofs_idx_local=left_arm_dofs,
+                        )
+                        candidate_qpos = np.asarray(_flat(arm_solution))[left_arm_dofs]
+                        if not np.isfinite(candidate_qpos).all():
+                            raise ValueError("IK returned non-finite joint targets")
+                    except (RuntimeError, ValueError) as exc:
+                        latest_policy_left_arm_qpos = None
+                        latest_policy_arm_stage = None
+                        arm_policy_update_rejections += 1
+                        arm_residual_telemetry["rejection"] = str(exc)
+                    else:
+                        latest_policy_left_arm_qpos = candidate_qpos
+                        latest_policy_arm_stage = stage
+                        arm_policy_update_accepts += 1
+                        arm_residual_telemetry.update(
+                            {
+                                "ik_accepted": True,
+                                "target_position_m": target_position.tolist(),
+                                "anchor_position_m": dynamic_anchor.tolist(),
+                                "residual_norm_m": float(
+                                    np.linalg.norm(target_position - dynamic_anchor)
+                                ),
+                            }
+                        )
+            elif args.policy_mode == "base_arm_residual":
+                latest_policy_left_arm_qpos = None
+                latest_policy_arm_stage = None
             policy_trace.append(
                 {
                     **telemetry,
+                    "arm_residual": arm_residual_telemetry,
                     "observation_frame": recorded_frames,
                     "physics_step": recorded_physics_steps,
                     "actuation_mode": args.policy_mode,
@@ -443,7 +531,7 @@ def main() -> int:
             base_speed = 0.05
         expert_base_velocity_xy = base_velocity_xy.copy()
         if (
-            args.policy_mode == "base_residual"
+            args.policy_mode in {"base_residual", "base_arm_residual"}
             and latest_policy_action is not None
             and latest_policy_stage == "grasp_approach"
         ):
@@ -571,6 +659,9 @@ def main() -> int:
     if lift_success:
         transport_start_base = np.asarray(_flat(robot.get_qpos()))[base_dofs]
         transport_target_base = transport_start_base + transport_delta
+        transport_arm_anchor_position = np.asarray(_flat(hand.get_pos()))
+        transport_arm_anchor_quaternion = np.asarray(_flat(hand.get_quat()))
+        transport_arm_anchor_base = transport_start_base.copy()
         for physics_step in range(1, 2401):
             current_base = np.asarray(_flat(robot.get_qpos()))[base_dofs]
             error_xy = transport_target_base[:2] - current_base[:2]
@@ -582,7 +673,7 @@ def main() -> int:
                 speed_m_s = 0.05
             expert_velocity_xy = velocity_xy.copy()
             if (
-                args.policy_mode == "base_residual"
+                args.policy_mode in {"base_residual", "base_arm_residual"}
                 and latest_policy_action is not None
                 and latest_policy_stage == "transport"
             ):
@@ -592,7 +683,15 @@ def main() -> int:
             robot.control_dofs_velocity(
                 np.asarray((velocity_xy[0], velocity_xy[1], 0.0)), base_dofs
             )
-            robot.control_dofs_position(target_arm_qpos, left_arm_dofs)
+            arm_command = target_arm_qpos
+            if (
+                args.policy_mode == "base_arm_residual"
+                and latest_policy_left_arm_qpos is not None
+                and latest_policy_arm_stage == "transport"
+            ):
+                arm_command = latest_policy_left_arm_qpos
+                arm_policy_applied_physics_steps += 1
+            robot.control_dofs_position(arm_command, left_arm_dofs)
             suction.update()
             scene.step()
             record_control_frame(
@@ -782,9 +881,25 @@ def main() -> int:
             int(item["tool_command_corrections"]) for item in policy_trace
         ),
         "applied_physics_steps": policy_applied_physics_steps,
+        "arm_residual": {
+            "enabled": args.policy_mode == "base_arm_residual",
+            "authorized_stages": ["transport"],
+            "max_cumulative_position_residual_m": 0.01,
+            "orientation_control": "expert_locked",
+            "tool_control": "expert_locked",
+            "ik_update_attempts": arm_policy_update_attempts,
+            "ik_update_accepts": arm_policy_update_accepts,
+            "ik_update_rejections": arm_policy_update_rejections,
+            "applied_physics_steps": arm_policy_applied_physics_steps,
+        },
         "actuation_scope": (
             "grasp-approach and transport base velocity residual only"
             if args.policy_mode == "base_residual" and policy_controller is not None
+            else (
+                "grasp-approach/transport base velocity plus anchored transport left-arm "
+                "position residual"
+            )
+            if args.policy_mode == "base_arm_residual" and policy_controller is not None
             else "none; shadow evaluation"
             if policy_controller is not None
             else "deterministic expert"

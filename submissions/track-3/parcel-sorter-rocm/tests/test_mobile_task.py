@@ -5,12 +5,22 @@ from parcel_sorter.mobile_task import (
     MOBILE_BIMANUAL_ACTION_DIM,
     MobileBimanualTaskSupervisor,
     MobileTaskObservation,
+    clamp_position_residual_to_anchor,
     decode_mobile_bimanual_action,
     limit_mobile_arm_step,
 )
 
 
 class MobileBimanualActionTests(unittest.TestCase):
+    def test_clamps_cumulative_arm_residual_about_frozen_anchor(self) -> None:
+        anchor = (0.40, 0.10, 0.30)
+        bounded = clamp_position_residual_to_anchor((0.43, 0.10, 0.30), anchor)
+        self.assertAlmostEqual(math.dist(bounded, anchor), 0.01)
+        self.assertEqual(
+            clamp_position_residual_to_anchor((0.405, 0.10, 0.30), anchor),
+            (0.405, 0.10, 0.30),
+        )
+
     def test_decodes_normalizes_and_bounds_nineteen_dimensional_action(self) -> None:
         arm = (0.4, 0.1, 0.2, 2.0, 0.0, 0.0, 0.0, -0.2)
         action = decode_mobile_bimanual_action((1.0, 1.0, 4.0, *arm, *arm))
