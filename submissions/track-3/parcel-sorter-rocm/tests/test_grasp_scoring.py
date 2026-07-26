@@ -11,6 +11,8 @@ from parcel_sorter.grasp_scoring import (
     evaluate_ranked_grasp_predictions,
     grasp_candidate_feature_vector,
     grasp_prediction_rank_key,
+    grouped_grasp_row_indices,
+    groupwise_grasp_preference_pairs,
     load_grasp_collection_activation_policy,
     load_grasp_split_protocol,
 )
@@ -134,6 +136,42 @@ class GraspScoringTests(unittest.TestCase):
         ranked = sorted((risky_success, safe_failure), key=grasp_prediction_rank_key)
 
         self.assertEqual(ranked[0]["candidate_id"], "safe")
+
+    def test_groupwise_pairs_preserve_lexicographic_safety(self) -> None:
+        rows = [
+            {
+                "group_id": "b",
+                "labels": {"safety_aborted": False, "success": True},
+            },
+            {
+                "group_id": "a",
+                "labels": {"safety_aborted": False, "success": False},
+            },
+            {
+                "group_id": "a",
+                "labels": {"safety_aborted": True, "success": False},
+            },
+            {
+                "group_id": "a",
+                "labels": {"safety_aborted": False, "success": True},
+            },
+            {
+                "group_id": "b",
+                "labels": {"safety_aborted": False, "success": False},
+            },
+        ]
+
+        self.assertEqual(grouped_grasp_row_indices(rows), ((1, 2, 3), (0, 4)))
+        pairs = groupwise_grasp_preference_pairs(rows)
+
+        self.assertEqual(pairs["safety"], (((1, 2), (3, 2)),))
+        self.assertEqual(pairs["success"], (((3, 1),), ((0, 4),)))
+
+    def test_groupwise_pairs_reject_missing_group_id(self) -> None:
+        with self.assertRaisesRegex(ValueError, "group_id"):
+            grouped_grasp_row_indices(
+                [{"labels": {"safety_aborted": False, "success": True}}]
+            )
 
     def test_evaluation_rejects_prediction_order_mismatch(self) -> None:
         rows = counterfactual_rows(payload(), source="source.json", split="smoke")

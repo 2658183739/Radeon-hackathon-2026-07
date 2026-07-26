@@ -1255,3 +1255,21 @@ gained the already-enforced activation policy field so dry-run artifacts are
 self-describing. Train is now the only admissible physical split. Development,
 model fitting, and the one-shot holdout remain sequential gates; vision/VLA
 work remains paused.
+
+### Record 80: Add a capacity-matched groupwise safety-first objective
+
+The preregistered v2 comparison required a groupwise ranker, but the existing
+trainer optimized four labels pointwise across all candidate rows. The new
+objective retains the same 6,276-parameter network and feature schema. It
+weights physical episode groups equally, ranks every safe candidate ahead of
+force-aborted candidates, and ranks successful candidates ahead of failures
+only within the safe set. Pointwise probability, force, and duration losses
+remain for calibration. The pointwise baseline is behaviorally unchanged.
+
+Pure tests verify stable grouping and that no pair crosses an episode or lets
+success override safety. A five-step ROCm smoke on the first two completed
+train groups produced a valid HIP 7.2 checkpoint in 1.39 seconds. In-sample it
+avoided both static safety aborts and recovered one success, but this is only
+wiring evidence; it is explicitly excluded from model selection. Exact model
+hyperparameters will be frozen before development is run, and holdout remains
+closed.

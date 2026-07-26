@@ -299,6 +299,65 @@ def build_grasp_candidate_dataset(
     return result
 
 
+def grouped_grasp_row_indices(
+    rows: Sequence[Mapping[str, Any]],
+) -> tuple[tuple[int, ...], ...]:
+    """Return stable candidate indices grouped by physical episode."""
+    if not rows:
+        raise ValueError("grasp rows cannot be empty")
+    groups: dict[str, list[int]] = {}
+    for index, row in enumerate(rows):
+        group_id = str(row.get("group_id", ""))
+        if not group_id:
+            raise ValueError("every grasp row requires a group_id")
+        groups.setdefault(group_id, []).append(index)
+    return tuple(tuple(groups[group_id]) for group_id in sorted(groups))
+
+
+def groupwise_grasp_preference_pairs(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, tuple[tuple[tuple[int, int], ...], ...]]:
+    """Build within-episode lexicographic safety and success preferences.
+
+    Each pair is ``(preferred, disfavored)``. Safety pairs compare every safe
+    candidate against every force-aborted candidate. Success pairs compare
+    successful candidates only against other safe candidates, so success can
+    never compensate for a safety violation.
+    """
+    safety_groups: list[tuple[tuple[int, int], ...]] = []
+    success_groups: list[tuple[tuple[int, int], ...]] = []
+    for indices in grouped_grasp_row_indices(rows):
+        safe = [
+            index
+            for index in indices
+            if not bool(rows[index]["labels"]["safety_aborted"])
+        ]
+        unsafe = [
+            index
+            for index in indices
+            if bool(rows[index]["labels"]["safety_aborted"])
+        ]
+        safety_pairs = tuple((left, right) for left in safe for right in unsafe)
+        if safety_pairs:
+            safety_groups.append(safety_pairs)
+
+        successful = [
+            index for index in safe if bool(rows[index]["labels"]["success"])
+        ]
+        safe_failures = [
+            index for index in safe if not bool(rows[index]["labels"]["success"])
+        ]
+        success_pairs = tuple(
+            (left, right) for left in successful for right in safe_failures
+        )
+        if success_pairs:
+            success_groups.append(success_pairs)
+    return {
+        "safety": tuple(safety_groups),
+        "success": tuple(success_groups),
+    }
+
+
 def grasp_prediction_rank_key(
     prediction: Mapping[str, Any],
     *,

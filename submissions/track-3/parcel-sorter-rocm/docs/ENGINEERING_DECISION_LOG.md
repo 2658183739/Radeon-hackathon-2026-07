@@ -2026,3 +2026,25 @@ hyperparameters are frozen.
 fewer than 15/16 development groups produce complete labels, or the selected
 scorer fails the registered development safety, task, per-profile, or Radeon
 latency gate.
+
+### 84. Compare training objectives at fixed model capacity
+
+**Question.** Should v2 add a larger model, or directly optimize the deployed
+within-parcel candidate choice?
+
+**Alternatives.** A larger MLP confounds objective and capacity and is poorly
+supported by 32 train groups. Pointwise BCE/regression is calibrated but gives
+no direct within-group preference. An unconstrained scalar reward can trade a
+successful unsafe candidate against safety.
+
+**Decision and reason.** Keep the identical 6,276-parameter network and add
+group-balanced pairwise safety and safe-success losses. Safety is lexicographic:
+safe always outranks force-aborted, and success pairs are formed only among
+safe candidates. This matches the runtime decision while preserving calibrated
+heads and hard external feasibility gates.
+
+**Evidence and boundary.** Pure grouping tests and a five-step two-group ROCm
+smoke passed. The smoke is in-sample integration evidence, not a result. Freeze
+the two exact training recipes before development; use development once for
+the registered promotion gate and keep holdout locked until one recipe is
+selected.
