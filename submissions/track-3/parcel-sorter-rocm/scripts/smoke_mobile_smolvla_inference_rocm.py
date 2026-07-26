@@ -327,6 +327,12 @@ def main() -> int:
         "checkpoint": str(args.checkpoint.resolve()),
         "dataset_root": str(args.dataset_root.resolve()),
         "policy_type": config.type,
+        "input_features": sorted(config.input_features),
+        "observation_modality": (
+            "rgbd"
+            if "observation.images.overhead_depth_rgb" in config.input_features
+            else "rgb"
+        ),
         "state_shape": list(config.input_features["observation.state"].shape),
         "action_shape": list(config.output_features["action"].shape),
         "max_state_dim": int(config.max_state_dim),

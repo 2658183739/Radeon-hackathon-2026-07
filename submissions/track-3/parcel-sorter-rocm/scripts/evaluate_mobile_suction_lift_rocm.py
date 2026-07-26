@@ -351,6 +351,7 @@ def main() -> int:
         if policy_controller is not None and recorded_frames % policy_stride_frames == 0:
             latest_policy_action, telemetry = policy_controller.select(
                 rgb=np.asarray(rgb)[..., :3],
+                depth=np.asarray(depth, dtype=np.float32),
                 state=state_vector,
                 task=task_text,
                 expert_action=action_vector,

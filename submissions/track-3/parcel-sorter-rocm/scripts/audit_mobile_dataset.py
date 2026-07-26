@@ -9,10 +9,11 @@ import json
 import math
 from pathlib import Path
 
-
-POLICY_INPUT_FEATURES = (
-    "observation.state",
-    "observation.images.overhead_rgb",
+from parcel_sorter.dataset import metric_depth_to_visual_rgb
+from parcel_sorter.mobile_dataset import (
+    MOBILE_DEPTH_KEY,
+    MOBILE_DEPTH_RGB_KEY,
+    mobile_policy_visual_keys,
 )
 
 
@@ -27,6 +28,7 @@ def main() -> int:
     parser.add_argument("--dataset-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--min-episodes", type=int, default=1)
+    parser.add_argument("--policy-modality", choices=("rgb", "rgbd"), default="rgb")
     args = parser.parse_args()
     if args.min_episodes < 1:
         parser.error("min-episodes must be positive")
@@ -42,6 +44,10 @@ def main() -> int:
         raise FileNotFoundError(f"incomplete mobile dataset: {root}")
     info = json.loads(info_path.read_text(encoding="utf-8"))
     table = pq.read_table(parquet_files)
+    policy_input_features = (
+        "observation.state",
+        *mobile_policy_visual_keys(args.policy_modality),
+    )
     states = _fixed_list_array(table, "observation.state", 43, np)
     actions = _fixed_list_array(table, "action", 19, np)
     stage_ids = np.asarray(
@@ -85,8 +91,12 @@ def main() -> int:
     depth_min = math.inf
     depth_max = -math.inf
     depth_values = []
-    depth_column = table["observation.images.overhead_depth"].combine_chunks()
-    for item in depth_column:
+    depth_column = table[MOBILE_DEPTH_KEY].combine_chunks()
+    depth_rgb_column = table[MOBILE_DEPTH_RGB_KEY].combine_chunks()
+    depth_rgb_check_stride = max(1, len(depth_column) // 64)
+    depth_rgb_checked_frames = 0
+    depth_rgb_mismatch_count = 0
+    for frame_index, item in enumerate(depth_column):
         encoded = item.as_py()["bytes"]
         depth = np.asarray(Image.open(io.BytesIO(encoded)), dtype=np.float32)
         if depth.shape != (224, 224) or not np.isfinite(depth).all():
@@ -94,6 +104,15 @@ def main() -> int:
         depth_min = min(depth_min, float(depth.min()))
         depth_max = max(depth_max, float(depth.max()))
         depth_values.append(depth.reshape(-1)[::64])
+        if frame_index % depth_rgb_check_stride == 0:
+            encoded_rgb = depth_rgb_column[frame_index].as_py()["bytes"]
+            stored_rgb = np.asarray(Image.open(io.BytesIO(encoded_rgb)), dtype=np.uint8)[..., :3]
+            expected_rgb = metric_depth_to_visual_rgb(depth, np)
+            depth_rgb_checked_frames += 1
+            depth_rgb_mismatch_count += int(
+                stored_rgb.shape != expected_rgb.shape
+                or not np.array_equal(stored_rgb, expected_rgb)
+            )
     depth_sample = np.concatenate(depth_values)
     depth_percentiles = np.percentile(depth_sample, (1, 50, 99)).tolist()
 
@@ -129,7 +148,11 @@ def main() -> int:
         errors.append("tool_command_domain")
     if not 0.05 < depth_min < depth_max <= 20.001:
         errors.append("metric_depth_range")
-    if "observation.privileged_state" in POLICY_INPUT_FEATURES:
+    if depth_rgb_mismatch_count:
+        errors.append("derived_depth_rgb_mismatch")
+    if any(key not in info["features"] for key in policy_input_features):
+        errors.append("missing_policy_input_feature")
+    if "observation.privileged_state" in policy_input_features:
         errors.append("privileged_policy_leakage")
 
     payload = {
@@ -151,7 +174,10 @@ def main() -> int:
         "depth_min_m": depth_min,
         "depth_max_m": depth_max,
         "depth_percentiles_m": depth_percentiles,
-        "policy_input_features": list(POLICY_INPUT_FEATURES),
+        "depth_rgb_checked_frames": depth_rgb_checked_frames,
+        "depth_rgb_mismatch_count": depth_rgb_mismatch_count,
+        "policy_modality": args.policy_modality,
+        "policy_input_features": list(policy_input_features),
         "privileged_state_in_policy": False,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

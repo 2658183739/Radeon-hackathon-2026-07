@@ -9,6 +9,22 @@ from typing import Any
 from .dataset import DEPTH_RGB_KEY, metric_depth_to_visual_rgb
 
 
+MOBILE_RGB_KEY = "observation.images.overhead_rgb"
+MOBILE_DEPTH_KEY = "observation.images.overhead_depth"
+MOBILE_DEPTH_RGB_KEY = DEPTH_RGB_KEY
+MOBILE_POLICY_MODALITIES = ("rgb", "rgbd")
+
+
+def mobile_policy_visual_keys(modality: str) -> tuple[str, ...]:
+    """Return the audited camera contract for a mobile policy modality."""
+
+    if modality == "rgb":
+        return (MOBILE_RGB_KEY,)
+    if modality == "rgbd":
+        return (MOBILE_RGB_KEY, MOBILE_DEPTH_RGB_KEY)
+    raise ValueError(f"unsupported mobile policy modality: {modality!r}")
+
+
 MOBILE_STATE_NAMES = (
     "base_x",
     "base_y",
@@ -126,20 +142,20 @@ class MobileBimanualLeRobotWriter:
                 "names": ["stage_id"],
                 "info": {"stages": list(MOBILE_STAGE_NAMES), "policy_input": False},
             },
-            "observation.images.overhead_rgb": {
+            MOBILE_RGB_KEY: {
                 "dtype": "image",
                 "shape": (height, width, 3),
                 "names": ["height", "width", "channels"],
             },
         }
         if include_depth:
-            features["observation.images.overhead_depth"] = {
+            features[MOBILE_DEPTH_KEY] = {
                 "dtype": "image",
                 "shape": (height, width, 1),
                 "names": ["height", "width", "channels"],
                 "info": {"is_depth_map": True, "depth_unit": "m"},
             }
-            features[DEPTH_RGB_KEY] = {
+            features[MOBILE_DEPTH_RGB_KEY] = {
                 "dtype": "image",
                 "shape": (height, width, 3),
                 "names": ["height", "width", "channels"],
@@ -170,17 +186,17 @@ class MobileBimanualLeRobotWriter:
             "observation.stage_id": np.asarray(
                 [MOBILE_STAGE_NAMES.index(frame.stage)], dtype=np.int64
             ),
-            "observation.images.overhead_rgb": np.asarray(frame.rgb, dtype=np.uint8)[..., :3],
+            MOBILE_RGB_KEY: np.asarray(frame.rgb, dtype=np.uint8)[..., :3],
             "task": frame.task,
         }
         if self._include_depth:
             if frame.depth is None:
                 raise ValueError("mobile RGB-D recording requires a depth image")
             depth = np.asarray(frame.depth, dtype=np.float32)
-            payload["observation.images.overhead_depth"] = (
+            payload[MOBILE_DEPTH_KEY] = (
                 depth[..., None] if depth.ndim == 2 else depth
             )
-            payload[DEPTH_RGB_KEY] = metric_depth_to_visual_rgb(depth, np)
+            payload[MOBILE_DEPTH_RGB_KEY] = metric_depth_to_visual_rgb(depth, np)
         self._dataset.add_frame(payload)
 
     def save_episode(self) -> None:

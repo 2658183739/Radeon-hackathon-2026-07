@@ -12,6 +12,9 @@ SmolVLA v2在六个成功专家回合上训练2400步，完成36样本动作包�
 配对 100 回合冻结评估和隔离晋级串成一条可恢复命令；候选未过 80%/安全/ROCm 门时不会替换权重。
 该周期已实际跑完：v2 基线为 96/100，桥接训练后的 v3 为 91/100；v3 放置误差更低但未通过
 Wilson 不劣性门，因此自动隔离且未替换 v2。
+新的[配对 RGB-D 消融](docs/MOBILE_RGBD_ABLATION_CN.md)已验证 ROCm 双图 SmolVLA 训练和在线控制。
+RGB-D 完成一个开发任务，但 Harness 配对 MAE 回归 1.35%、离线延迟增加 9.65%，因此门禁保留 RGB，
+不启动 100 回合 campaign。
 
 英文 [README.md](README.md) 是评审复现的主入口；中文正式报告见
 [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)。优化顺序见

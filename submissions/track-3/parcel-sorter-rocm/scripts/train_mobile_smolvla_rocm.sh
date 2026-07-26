@@ -8,6 +8,7 @@ VLM_PATH="${SMOLVLA_VLM_PATH:-${ROOT_DIR}/third_party/models/smolvlm2-500m-video
 STEPS="${MOBILE_SMOLVLA_STEPS:-10}"
 BATCH_SIZE="${MOBILE_SMOLVLA_BATCH_SIZE:-1}"
 NUM_WORKERS="${MOBILE_SMOLVLA_NUM_WORKERS:-0}"
+MODALITY="${MOBILE_SMOLVLA_MODALITY:-rgb}"
 
 export HIP_VISIBLE_DEVICES="${HIP_VISIBLE_DEVICES:-0}"
 export PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
@@ -27,7 +28,18 @@ test -f "${VLM_PATH}/OPEN_SOURCE_MANIFEST.json" || {
 
 # LeRobot 0.6.1 defaults max_state_dim to 32. The audited mobile contract is
 # 43-D, so pad to 48 explicitly; 19-D actions fit below max_action_dim=32.
-POLICY_INPUT_FEATURES='{observation.state: {type: STATE, shape: [43]}, observation.images.overhead_rgb: {type: VISUAL, shape: [3, 224, 224]}}'
+case "${MODALITY}" in
+  rgb)
+    POLICY_INPUT_FEATURES='{observation.state: {type: STATE, shape: [43]}, observation.images.overhead_rgb: {type: VISUAL, shape: [3, 224, 224]}}'
+    ;;
+  rgbd)
+    POLICY_INPUT_FEATURES='{observation.state: {type: STATE, shape: [43]}, observation.images.overhead_rgb: {type: VISUAL, shape: [3, 224, 224]}, observation.images.overhead_depth_rgb: {type: VISUAL, shape: [3, 224, 224]}}'
+    ;;
+  *)
+    echo "ERROR: MOBILE_SMOLVLA_MODALITY must be rgb or rgbd, received: ${MODALITY}" >&2
+    exit 4
+    ;;
+esac
 POLICY_OUTPUT_FEATURES='{action: {type: ACTION, shape: [19]}}'
 
 lerobot-train \
@@ -50,7 +62,7 @@ lerobot-train \
   --policy.chunk_size 30 \
   --policy.n_action_steps 10 \
   --output_dir "${OUTPUT_DIR}" \
-  --job_name mobile-bimanual-smolvla-rocm-smoke \
+  --job_name "mobile-bimanual-smolvla-${MODALITY}-rocm" \
   --batch_size "${BATCH_SIZE}" \
   --num_workers "${NUM_WORKERS}" \
   --steps "${STEPS}" \

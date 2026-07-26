@@ -551,3 +551,10 @@ The retained v2 checkpoint scored 96/100; bridge-trained v3 scored 91/100 and wa
 because it failed the registered Wilson non-inferiority gate. Both campaigns had zero 35 N force
 violations and VLA actuation plus single-Radeon/ROCm evidence in every trial. These results cover
 parameter variation over four rigid parcel profiles in simulation, not unseen geometry or sim-to-real.
+
+## Mobile RGB-D v1 paired ablation
+
+`mobile_bimanual/rgbd_v1/` binds the passed 4,557-frame RGB-D audit, 2,800-step Radeon log,
+42-stage paired ablation, automatic modality gate, one online development integration run, and
+remote checkpoint hashes. RGB-D was operational but did not improve Harness MAE, so RGB remains
+selected and no broad RGB-D task-success claim is made.

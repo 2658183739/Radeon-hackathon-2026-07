@@ -7,6 +7,8 @@ from pathlib import Path
 import time
 from typing import Any, Iterable
 
+from .dataset import metric_depth_to_visual_rgb
+from .mobile_dataset import MOBILE_DEPTH_RGB_KEY, MOBILE_RGB_KEY
 from .mobile_harness import MobileHarnessConfig, select_mobile_harness_action
 
 
@@ -31,6 +33,14 @@ class MobileSmolVLAHarnessController:
             raise RuntimeError("SmolVLA checkpoint must consume the 43-D mobile state")
         if config.output_features["action"].shape != (19,):
             raise RuntimeError("SmolVLA checkpoint must emit the 19-D mobile action")
+        visual_keys = {
+            key for key in config.input_features if key.startswith("observation.images.")
+        }
+        supported_visual_keys = {MOBILE_RGB_KEY, MOBILE_DEPTH_RGB_KEY}
+        if MOBILE_RGB_KEY not in visual_keys or not visual_keys <= supported_visual_keys:
+            raise RuntimeError(
+                f"unsupported mobile SmolVLA visual contract: {sorted(visual_keys)}"
+            )
         config.device = "cuda"
         config.n_action_steps = 1
         self._torch = torch
@@ -42,6 +52,7 @@ class MobileSmolVLAHarnessController:
             self._policy.config, pretrained_path=str(checkpoint)
         )
         self._harness_config = harness_config
+        self._uses_depth_rgb = MOBILE_DEPTH_RGB_KEY in visual_keys
         self._seed = int(seed)
         self._calls = 0
         self._reset()
@@ -50,6 +61,7 @@ class MobileSmolVLAHarnessController:
         self,
         *,
         rgb: Any,
+        depth: Any | None = None,
         state: Iterable[float],
         task: str,
         expert_action: Iterable[float],
@@ -64,11 +76,19 @@ class MobileSmolVLAHarnessController:
         image_tensor = (
             torch.from_numpy(image.copy()).permute(2, 0, 1).float().div_(255.0)
         )
-        batch = {
+        batch: dict[str, Any] = {
             "observation.state": torch.tensor(state_values, dtype=torch.float32).unsqueeze(0).cuda(),
-            "observation.images.overhead_rgb": image_tensor.unsqueeze(0).cuda(),
+            MOBILE_RGB_KEY: image_tensor.unsqueeze(0).cuda(),
             "task": [task],
         }
+        if self._uses_depth_rgb:
+            if depth is None:
+                raise ValueError("RGB-D SmolVLA checkpoint requires metric depth")
+            depth_rgb = metric_depth_to_visual_rgb(depth, np)
+            depth_tensor = (
+                torch.from_numpy(depth_rgb.copy()).permute(2, 0, 1).float().div_(255.0)
+            )
+            batch[MOBILE_DEPTH_RGB_KEY] = depth_tensor.unsqueeze(0).cuda()
         call_seed = self._seed + self._calls
         torch.manual_seed(call_seed)
         torch.cuda.manual_seed_all(call_seed)
@@ -94,6 +114,7 @@ class MobileSmolVLAHarnessController:
             "call_index": self._calls - 1,
             "seed": call_seed,
             "stage": stage,
+            "observation_modality": "rgbd" if self._uses_depth_rgb else "rgb",
             "latency_ms": latency_ms,
             "finite": len(predicted) == 19 and all(math.isfinite(value) for value in predicted),
             "selected_scale": decision.selected.scale,
@@ -110,10 +131,17 @@ class MobileSmolVLAHarnessController:
         return decision.selected.action, telemetry
 
     def warmup(
-        self, *, rgb: Any, state: Iterable[float], task: str, expert_action: Iterable[float]
+        self,
+        *,
+        rgb: Any,
+        depth: Any | None = None,
+        state: Iterable[float],
+        task: str,
+        expert_action: Iterable[float],
     ) -> None:
         self.select(
             rgb=rgb,
+            depth=depth,
             state=state,
             task=task,
             expert_action=expert_action,

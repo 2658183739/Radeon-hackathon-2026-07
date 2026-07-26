@@ -6,6 +6,7 @@ from parcel_sorter.mobile_dataset import (
     MOBILE_STAGE_NAMES,
     MOBILE_STATE_NAMES,
     MobileBimanualFrame,
+    mobile_policy_visual_keys,
 )
 
 
@@ -28,6 +29,21 @@ class MobileDatasetContractTests(unittest.TestCase):
             MobileBimanualFrame(
                 0, 0.0, "unknown", (0.0,) * 43, (0.0,) * 19, (0.0,) * 7, "task"
             )
+
+    def test_declares_distinct_rgb_and_rgbd_policy_contracts(self) -> None:
+        self.assertEqual(
+            mobile_policy_visual_keys("rgb"),
+            ("observation.images.overhead_rgb",),
+        )
+        self.assertEqual(
+            mobile_policy_visual_keys("rgbd"),
+            (
+                "observation.images.overhead_rgb",
+                "observation.images.overhead_depth_rgb",
+            ),
+        )
+        with self.assertRaisesRegex(ValueError, "unsupported"):
+            mobile_policy_visual_keys("depth-only")
 
 
 if __name__ == "__main__":

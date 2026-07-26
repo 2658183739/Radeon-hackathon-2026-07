@@ -14,6 +14,9 @@ promotion; a candidate cannot replace the checkpoint without the 80%, safety, an
 The cycle has now completed: v2 scored 96/100 and bridge-trained v3 scored 91/100. v3 placed
 successful parcels more precisely but failed Wilson non-inferiority, so it was isolated and
 did not replace v2.
+The [paired RGB-D ablation](docs/MOBILE_RGBD_ABLATION.md) verifies two-image SmolVLA training and
+online control on ROCm. RGB-D completed one development task but regressed paired Harness MAE by
+1.35% and added 9.65% offline latency, so the gate retained RGB and blocked a 100-trial campaign.
 
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis
