@@ -2192,3 +2192,18 @@ force, rolling, lift retention, or placement.
 **Revisit trigger.** A separately frozen feasibility screen must show useful
 coverage in both profiles with bounded P95 planning cost. Any candidate-family
 redesign uses a new development namespace and leaves this audit immutable.
+
+### 92. Freeze the cylinder static screen before using the Radeon
+
+**Decision and reason.** Use 24 evenly spaced keys from the outcome-free source
+population and bind the planner, adapter, runner, Genesis evaluator, catalog,
+and source evidence. Require per-profile feasibility rather than allowing the
+easier shape to hide the harder one.
+
+**Concurrency boundary.** Do not execute while V5 runs. Both jobs construct
+Genesis scenes on the only Radeon, so concurrent execution would contaminate
+latency and could destabilize collection. Code and tests may be frozen now;
+physical/static GPU work waits for V5 completion.
+
+**Interpretation.** Passing is static reachability evidence only and cannot be
+reported as a grasp, lift, or parcel-sorting result.

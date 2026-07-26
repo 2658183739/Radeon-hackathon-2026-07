@@ -1,0 +1,47 @@
+[metadata]
+protocol_id = "cylinder-static-ik-collision-screen-v1"
+stage = "static-rocm-ik-fk-mesh-collision"
+created_utc = "2026-07-26T05:35:00Z"
+
+[population]
+profile_ids = ["upright_canister", "mailing_tube"]
+episode_offsets = [0, 5, 11, 17, 23, 29, 35, 41, 47, 53, 59, 63]
+expected_samples = 24
+
+[population.episode_starts]
+upright_canister = 10100000
+mailing_tube = 10200000
+
+[planner]
+min_aperture_margin_m = 0.001
+min_horizontal_rolling_friction = 0.001
+max_parallel_jaw_length_m = 0.320
+max_axis_tilt_deg = 20.0
+include_symmetric_wrist = true
+upright_radial_yaw_count = 4
+max_upright_vertical_offset_m = 0.020
+min_upright_side_overlap_m = 0.020
+max_horizontal_axial_offset_m = 0.050
+min_horizontal_end_margin_m = 0.060
+horizontal_radial_angles_deg = [0.0, -20.0, 20.0]
+
+[gates]
+min_feasible_sample_fraction_per_profile = 0.75
+max_restore_error = 1.0e-7
+max_screen_compute_p95_ms = 5000.0
+
+[implementation]
+planner = "src/parcel_sorter/cylinder_grasp_planning.py"
+planner_sha256 = "3fe04012ae8026cfa13974f541f0de94c9f48922fcad2e7c21652b7d761a4ce1"
+screen_module = "src/parcel_sorter/cylinder_static_screen.py"
+screen_module_sha256 = "597895b0ce32b24604bc6c748d3e5e580cd7daf1b0266286f14c7ef5b26291e9"
+runner = "scripts/run_cylinder_static_screen.py"
+runner_sha256 = "7378fe629b5ba02af749456afd9d4a462951bfff41227292b830134bac9e6184"
+genesis_env = "src/parcel_sorter/genesis_env.py"
+genesis_env_sha256 = "4d3cab0946bc232bfb3da92bda66dc0527195db926f3f2d277b9ed39c3a7a0eb"
+grasp_planning = "src/parcel_sorter/grasp_planning.py"
+grasp_planning_sha256 = "5237ac059c52628cefab617264edc3d762f69cfcd5f0c3a6a2b8afc09c5b8bef"
+catalog = "configs/catalog_v2.toml"
+catalog_sha256 = "05bd0931cfb2ba48e15c1fbd83411220f99ca1ddc59c6991ef3255f682f73ca0"
+source_audit = "evidence/planning/cylinder-candidate-audit-v1.json"
+source_audit_sha256 = "1c19e5a0f5d35b1d2f8a234053057af40f5049ab96e23607b64f20fea16adf2c"
