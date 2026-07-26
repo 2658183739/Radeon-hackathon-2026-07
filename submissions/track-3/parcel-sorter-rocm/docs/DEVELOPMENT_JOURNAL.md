@@ -1364,3 +1364,20 @@ ranker requires a fully disjoint, preregistered v3 population and train-only
 capacity/calibration selection. V2 development is historical design evidence,
 not reusable tuning or promotion data. See
 `docs/GRASP_SCORER_V2_DEVELOPMENT_RESULTS.md`.
+
+### Record 85: Freeze conservative memory train-only CV before execution
+
+The v2 failure showed that absolute MLP outputs can confidently underpredict
+dynamic contact risk, so the next step does not increase network capacity. The
+new module uses same-profile KNN memory, train-fold robust scaling,
+per-profile leave-one-group-out OOD distance, a 35 N neighbor-force upper
+bound, a success-support gate, and static-baseline fallback. It reads only the
+hash-frozen v2 train dataset, never development or holdout.
+
+The protocol fixes four profile-balanced folds, six KNN/static-rank/OOD
+quantile combinations, and zero safety regression per fold and profile. Even
+a CV-selected candidate cannot authorize physics; a separate disjoint v3
+population is required. SHA-256 binds the implementation, runner, and feature
+code; protocol hash is `80911bf...3b02`. Before any CV result was observed,
+seven directed tests, compilation, protocol self-audit, and all 293 tests
+passed, with one environment skip.
