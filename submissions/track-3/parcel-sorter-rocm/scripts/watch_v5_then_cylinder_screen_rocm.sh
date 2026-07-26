@@ -61,14 +61,18 @@ cd "${ROOT_DIR}"
 source scripts/activate_radeon_env.sh
 python - "${V5_RESULT}" <<'PY'
 import json
+from collections.abc import Mapping
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1])
 payload = json.loads(path.read_text(encoding="utf-8"))
-status = payload.get("status")
-if not isinstance(status, str) or not status:
-    raise SystemExit("V5 result is missing a non-empty status")
+decision = payload.get("decision")
+if not isinstance(decision, Mapping):
+    raise SystemExit("V5 result is missing its decision object")
+status = decision.get("status")
+if status not in {"confirmation_passed", "confirmation_failed"}:
+    raise SystemExit(f"V5 result has an unexpected decision status: {status!r}")
 print(f"validated V5 final result: status={status} path={path}")
 PY
 

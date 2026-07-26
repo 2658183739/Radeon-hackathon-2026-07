@@ -1557,3 +1557,9 @@ handoff lock, reruns the Radeon preflight, and then invokes the already frozen
 cylinder protocol with `--resume`. An abnormal V5 exit or missing result stops
 the handoff rather than launching a GPU job. The script passed `bash -n` on the
 remote shell; it has not yet launched the cylinder screen.
+
+Pre-handoff source review then found that V5 stores its final status under
+`decision.status`, not at the JSON root. This was corrected before V5 exited;
+the first watcher was stopped and replaced without touching the GPU or reading
+partial outcomes. Validation now accepts only the two terminal decisions
+`confirmation_passed` and `confirmation_failed`.

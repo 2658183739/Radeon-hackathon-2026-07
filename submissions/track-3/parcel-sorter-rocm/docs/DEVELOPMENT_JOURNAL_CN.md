@@ -1145,3 +1145,7 @@ V5 与圆柱筛查共享唯一一张 Radeon，手工启动第二个任务会产�
 `confirmation-result.json` 可解析，使用 `flock` 互斥锁，重新做 Radeon 预检，然后以
 `--resume` 调用已冻结的圆柱协议。V5 异常退出或结果缺失时交接会停止，不会启动 GPU 任务。
 脚本已在远端 shell 通过 `bash -n`；圆柱筛查尚未启动。
+
+交接前源码审查随后发现，V5 最终状态位于 `decision.status`，而不是 JSON 顶层。该问题在 V5
+退出前已修正；首个 watcher 被停止并替换，期间没有占用 GPU，也没有读取部分结果。校验现在只
+接受 `confirmation_passed` 和 `confirmation_failed` 两种终态。
