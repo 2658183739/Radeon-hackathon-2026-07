@@ -2340,6 +2340,20 @@ class GenesisParcelEnv:
                     self.robot.get_dofs_control_force(self.finger_dofs)
                 )
             ),
+            "robot_qpos": list(self._flat_tuple(self.robot.get_qpos())),
+            "robot_dof_velocity": list(
+                self._flat_tuple(self.robot.get_dofs_velocity())
+            ),
+            "robot_dof_actual_force_n": list(
+                self._flat_tuple(self.robot.get_dofs_force())
+            ),
+            "robot_dof_control_force_n": list(
+                self._flat_tuple(self.robot.get_dofs_control_force())
+            ),
+            "parcel_qpos": list(self._flat_tuple(self.parcel.get_qpos())),
+            "parcel_dof_velocity": list(
+                self._flat_tuple(self.parcel.get_dofs_velocity())
+            ),
             "contact_count": len(rows),
             "parcel_contact_count": sum(
                 bool(row["finger_parcel_contact"]) for row in rows

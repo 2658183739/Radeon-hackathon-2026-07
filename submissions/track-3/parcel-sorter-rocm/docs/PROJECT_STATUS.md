@@ -496,3 +496,20 @@ not density, length, force, or controller tuning on this observed episode.
 The synchronized Radeon tree compiles and passes all 259 tests.
 See `docs/PARCEL_GRIPPER_ADAPTER_INERTIA.md` and
 `evidence/expert/radeon-parcel-gripper-adapter-inertia-development-v2.json`.
+
+## Latest simulator diagnosis: reduced replays remain bounded
+
+The original mass-aware closed-loop failure remains exactly repeatable at
+162.19 N and 115.55 mm penetration. A preregistered static zero-velocity replay
+and a second exact qpos/qvel plus open-loop force replay did not reproduce it.
+The dynamic pair stayed below 10.59 N and 0.53 mm; only a bounded 5.49 N force
+difference appeared.
+
+This narrows the missing mechanism to closed-loop or solver state not exposed
+by generalized positions, velocities, and post-step control forces. The result
+does not justify a simulator-wide bug claim or stock-inertia deployment. The
+mass-aware adapter remains default off, 35 N remains unchanged, and no new
+episode or holdout was opened. See `docs/GENESIS_FINGER_REPRO_RESULTS.md` and
+`evidence/expert/genesis-finger-reproduction-development-v1.json`.
+
+The synchronized Radeon tree passes all 268 tests.

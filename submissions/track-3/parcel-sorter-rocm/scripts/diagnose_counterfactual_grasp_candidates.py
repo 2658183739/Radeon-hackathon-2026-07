@@ -392,6 +392,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 else None
             ),
             "contact_branch_changes_controller": False,
+            "contact_branch_dynamic_state_fields": [
+                "robot_qpos",
+                "robot_dof_velocity",
+                "robot_dof_actual_force_n",
+                "robot_dof_control_force_n",
+                "parcel_qpos",
+                "parcel_dof_velocity",
+            ],
             "contact_wrench_changes_controller": False,
             "contact_wrench_changes_ranking": False,
             "only_intervention": "reject every generated candidate ID except the target",

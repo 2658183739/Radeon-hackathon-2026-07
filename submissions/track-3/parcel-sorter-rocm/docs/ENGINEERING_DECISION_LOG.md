@@ -1939,3 +1939,30 @@ lengths, gains, or thresholds. No new episode or holdout was opened. Next work
 requires a minimal upstream Genesis reproduction and a newly preregistered,
 documented solver intervention; VLA or visual training cannot precede a stable
 physical baseline. The synchronized Radeon tree compiled and passed 264 tests.
+
+### 81. Keep exact dynamic-state telemetry; do not promote either reproduction as a fix
+
+**Question.** Can the mass-aware impulse be reproduced without the sorter by
+restoring the observed generalized state and replaying exposed controller
+forces?
+
+**Code capability.** High-rate telemetry now includes complete robot and parcel
+qpos/qvel plus nine-DOF actual/controller forces. A validator rejects missing,
+non-finite, wrongly sized, non-consecutive, or wrong-start source sequences. A
+fresh-scene runner restores state exactly and replays the recorded force
+sequence for either inertia model under unchanged force/penetration gates.
+
+**Evidence.** The full source rerun exactly reproduced 162.186 N and 115.546 mm
+penetration. Static reductions showed no registered difference. Dynamic replay
+restored all four state vectors with zero measured error, yet stock and
+mass-aware peaks were only 10.586 N and 7.316 N. Their first and only registered
+divergence was a 5.491 N contact-force difference at 198/3.
+
+**Decision and reason.** Retain the telemetry, validators, runners, protocols,
+and hashed negative results. Do not treat stock inertia as a physical fix and
+do not blame adapter mass alone. Generalized state and exposed post-step forces
+are insufficient; a causal claim requires position-control target/mode or
+supported complete-scene-state capture under a new protocol. Do not scan the
+observed failure. Holdout and all new episodes remain closed.
+
+**Verification.** The final synchronized Radeon tree passed all 268 tests.

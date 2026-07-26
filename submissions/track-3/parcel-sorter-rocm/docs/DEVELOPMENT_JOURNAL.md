@@ -1175,3 +1175,32 @@ is retained with duplicate-key validation and correct complete-support-loss
 semantics. Next work is a minimal upstream Genesis reproduction under a new
 protocol, not model training. The synchronized Radeon tree compiled and passed
 264 tests.
+
+### Record 77: Reduce the failure twice and preserve both negative results
+
+The upstream audit first excluded the recent MJCF armature bug as a candidate.
+The locked Genesis revision already contains PR #3072, and Panda explicitly
+authors armature 0.1 through its inherited default class. The equality warning
+was traced to the generic `2 * substep_dt` sanitizer; the already rejected
+0.010 s intervention was not scanned.
+
+A preregistered static reproduction reconstructed the observed frame-196 hand
+and parcel poses, reset every velocity, held the arm, and applied `[-20,-20] N`
+for 64 physics steps. Stock and mass-aware conditions stayed near 5.08 N and
+below 0.27 mm penetration with no registered divergence.
+
+The next protocol added read-only full robot/parcel qpos, qvel, actual force,
+and controller force. One source rerun exactly reproduced the original
+162.186 N / 115.546 mm failure. Paired fresh scenes then restored the source
+state with measured zero error and replayed the same nine-DOF force sequence.
+Both stayed safe. Stock peaked at 10.586 N and mass-aware at 7.316 N; the only
+registered difference was 5.491 N contact force at 198/3.
+
+The result narrows the missing mechanism to state not represented by qpos,
+qvel, or exposed post-step controller forces, such as PD targets/modes or
+solver warm-start state. It does not justify a Genesis-wide bug claim. No
+parameter, frame, episode, or holdout was scanned, and the 35 N gate remains
+unchanged. The next step requires another protocol; visual/VLA work remains
+behind the physical baseline gate.
+
+The final synchronized Radeon tree compiled and passed all 268 tests.

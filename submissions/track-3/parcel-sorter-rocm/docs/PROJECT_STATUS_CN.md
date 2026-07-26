@@ -352,3 +352,16 @@ VLA 接入继续放在后面，必须先让结构化物理评分器证明留出�
 Radeon 源码编译通过，全量 259 项测试全部通过。详见 `docs/PARCEL_GRIPPER_ADAPTER_INERTIA_CN.md`
 和
 `evidence/expert/radeon-parcel-gripper-adapter-inertia-development-v2.json`。
+
+## 最新仿真器诊断：缩减回放保持有界
+
+原来的质量感知完整闭环故障仍可精确重复，峰值 162.19 N、穿透 115.55 mm。预注册的静态零速度
+回放，以及第二项精确 qpos/qvel 加开环力回放，都没有重现故障。动态配对保持在 10.59 N 和
+0.53 mm 以下，只出现一项有界的 5.49 N 力差。
+
+这把缺失机理缩小到广义位置、速度和事后控制力没有暴露的闭环或求解器状态。该结果不能支持全局
+仿真器缺陷声明，也不能支持部署 stock 惯量消融。质量感知适配器继续默认关闭，35 N 门禁不变，
+没有打开新 episode 或 holdout。详见 `docs/GENESIS_FINGER_REPRO_RESULTS_CN.md` 和
+`evidence/expert/genesis-finger-reproduction-development-v1.json`。
+
+同步后的 Radeon 源代码树通过全部 268 项测试。

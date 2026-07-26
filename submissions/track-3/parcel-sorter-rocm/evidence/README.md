@@ -414,3 +414,20 @@ and failed earlier at frame 134 with 105.85 N. An earlier generated-file-only
 run is explicitly excluded because environment construction overwrote the
 setting. No adjacent value, rate, task parameter, episode, or holdout was
 opened. The synchronized Radeon tree compiled and passed 264 tests.
+
+## Genesis finger minimal and dynamic reproductions
+
+`expert/genesis-finger-reproduction-development-v1.json` binds seven
+Git-ignored raw artifacts from two preregistered reductions. A static
+zero-velocity replay showed no registered difference across 64 aligned
+substeps. A one-time full source capture then exactly reproduced the original
+162.19 N / 115.55 mm failure and added complete generalized-state fields.
+
+Paired dynamic scenes restored qpos/qvel with zero measured error and replayed
+the same nine-DOF force sequence. Both remained below the independent gates;
+only a 5.49 N contact-force difference occurred. The evidence therefore narrows
+the missing mechanism to uncaptured closed-loop or solver state without
+claiming a Genesis-wide defect. No new episode, holdout, or parameter scan was
+opened.
+
+The final synchronized Radeon tree passed all 268 tests.
