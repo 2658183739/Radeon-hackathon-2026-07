@@ -348,6 +348,7 @@ def _patch_mobile_tool_chain(
     if gripper is None:
         raise ValueError(f"Bi-Franka chain is missing {gripper_name}")
     if tool == "tri_suction":
+        _disable_stock_gripper_collisions(gripper)
         _append_tri_suction_geometries(gripper)
     elif tool == "v_cradle":
         _append_v_cradle_geometries(gripper)
@@ -355,6 +356,21 @@ def _patch_mobile_tool_chain(
         raise ValueError(f"unsupported mobile tool: {tool}")
     chain_tree.write(output_path, encoding="utf-8", xml_declaration=True)
     include.set("file", str(output_path.resolve()))
+
+
+def _disable_stock_gripper_collisions(gripper: ET.Element) -> None:
+    """Turn the Panda gripper into a dedicated suction tool without hidden contacts."""
+
+    for geom in gripper.findall("./geom"):
+        if geom.attrib.get("class", "").endswith("_col"):
+            geom.set("contype", "0")
+            geom.set("conaffinity", "0")
+    for finger in gripper.findall("./body"):
+        for geom in finger.findall(".//geom"):
+            if geom.attrib.get("class", "").endswith("_viz"):
+                continue
+            geom.set("contype", "0")
+            geom.set("conaffinity", "0")
 
 
 def _append_tri_suction_geometries(gripper: ET.Element) -> None:

@@ -121,7 +121,12 @@ class MobileBimanualTests(unittest.TestCase):
             for name in ("basic_scene.xml", "assets.xml", "gripper_assets.xml", "actuator0.xml", "actuator1.xml"):
                 (assets / name).write_text("<mujoco/>", encoding="utf-8")
             (assets / "chain0.xml").write_text(
-                '<mujocoinclude><body name="panda0_gripper"/></mujocoinclude>',
+                '<mujocoinclude><body name="panda0_gripper">'
+                '<geom name="stock_hand_collision" class="panda_col"/>'
+                '<body name="panda0_leftfinger">'
+                '<geom name="stock_finger_visual" class="panda_viz"/>'
+                '<geom name="stock_finger_collision" type="box"/>'
+                '</body></body></mujocoinclude>',
                 encoding="utf-8",
             )
             (assets / "chain1.xml").write_text(
@@ -157,6 +162,23 @@ class MobileBimanualTests(unittest.TestCase):
             self.assertEqual(
                 len([geom for geom in right_geoms if "v_cradle" in geom.attrib.get("name", "") and "collision" in geom.attrib.get("name", "")]),
                 2,
+            )
+            left_root = ET.parse(left_include.attrib["file"]).getroot()
+            gripper = left_root.find(".//body[@name='panda0_gripper']")
+            self.assertIsNotNone(gripper)
+            stock_collision_geoms = [
+                geom
+                for geom in gripper.findall("./geom") + gripper.findall("./body//geom")
+                if "suction_cup" not in geom.attrib.get("name", "")
+                and not geom.attrib.get("class", "").endswith("_viz")
+            ]
+            self.assertTrue(stock_collision_geoms)
+            self.assertTrue(
+                all(
+                    geom.attrib.get("contype") == "0"
+                    and geom.attrib.get("conaffinity") == "0"
+                    for geom in stock_collision_geoms
+                )
             )
 
 

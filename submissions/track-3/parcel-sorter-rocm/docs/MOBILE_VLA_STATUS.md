@@ -6,7 +6,9 @@ recorded on one `gfx1100` Radeon. LeRobot SmolVLA was configured with `max_state
 completed one ROCm forward/backward/optimizer update, checkpoint save, reload, and finite 19-D
 inference.
 
-This is an interface smoke, not a learned task-success result. The mobile physical suction lift
-remains failed: the top-down dynamic approach diverged before a two-cup seal formed. The next
-controlled change is bounded Cartesian tracking from the already verified synchronized pregrasp,
-followed by pick/lift/place data collection and matched Harness/failure-replay ablations.
+The VLA result remains an interface smoke, not learned task success. The separate v40 physical
+experiment formed two cup seals, latched the 0.4 kg parcel, and lifted it 0.0811 m without breaking
+the attachment. Peak compliant suction force was 10.10 N and peak physical cup contact was 2.37 N,
+both below the 35 N task limit. This verifies mobile suction pickup and lift, not transport or place.
+The next controlled step is base transport and release, followed by multi-profile data collection,
+real SmolVLA fine-tuning, and matched Harness/failure-replay ablations.

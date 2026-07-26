@@ -5,6 +5,8 @@
 
 | 文件 | 内容 |
 | --- | --- |
+| `mobile_bimanual/mobile-suction-lift-v40-success.json` | 单张 Radeon 双杯密封与 8.11 cm 物理抬升原始结果 |
+| `mobile_bimanual/mobile-suction-lift-v40-success.log` | 成功抬升的 Genesis/ROCm 运行日志 |
 | `expert/randomized-120-summary.json` | 正式 120 回合随机专家结果 |
 | `expert/fixed-10-summary.json` | 固定种子专家回归基线 |
 | `expert/final-approach-001-120-summary.json` | 被拒绝的 0.01 m 候选，同组 120 回合 |

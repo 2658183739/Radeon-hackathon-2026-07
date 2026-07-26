@@ -3,8 +3,8 @@
 Latest result: [slow-fast SmolVLA](docs/SLOW_FAST_VLA_RESULT_2026-07-26.md), a matched single-Radeon validation of visual-language residual control inside the 30 Hz safety loop.
 
 Mobile extension: [43-D state / 19-D action SmolVLA status](docs/MOBILE_VLA_STATUS.md).
-The Radeon training and checkpoint-reload interface is verified; physical mobile suction lift
-is still reported as failed rather than as a completed task.
+The Radeon training and checkpoint-reload interface is verified. A separate physical experiment
+verified a two-cup latch and 8.11 cm lift; mobile transport and place remain incomplete.
 
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis
@@ -542,7 +542,8 @@ The raw result is tracked in
 `evidence/mobile_bimanual/mobile-bimanual-smoke-v3.json`,
 `mobile-navigation-v1.json`, `mobile-bimanual-arms-v2.json`,
 `mobile-bimanual-hybrid-tools-v1.json`, and the retained
-`mobile-bimanual-pick-v3-failure.json` negative result.
+`mobile-bimanual-pick-v3-failure.json` negative result. The first successful physical suction lift
+is `mobile-suction-lift-v40-success.json`.
 
 ## Development process
 
