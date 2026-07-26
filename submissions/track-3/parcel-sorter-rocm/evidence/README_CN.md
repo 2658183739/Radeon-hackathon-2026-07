@@ -360,3 +360,13 @@ Git 忽略原始产物。静态零速度回放在 64 个对齐子步中没有达
 文件 SHA-256 为 `1c19e5a0...adf2c`。它只证明确定性候选覆盖；选择契约明确没有构建场景、推进
 物理、执行动作或读取结果。静态 IK/碰撞筛查仍待执行。详见
 `docs/CYLINDER_CANDIDATE_AUDIT_RESULTS_CN.md`。
+
+## 移动 v43 数据集与 50 步 SmolVLA pilot
+
+`mobile_bimanual/mobile-suction-dataset-v43-audit.json` 保存一个完整 655 帧、六阶段 RGB-D 专家回合
+的通过审计。`mobile-smolvla-50step-training.log` 与冻结配置记录单张 Radeon 上全部 50 次 AMP 更新；
+`mobile-smolvla-50step-six-stage-v1.json` 保存每个阶段中位帧的固定种子推理。
+
+六个预测均为有限值且可被有界执行器接收，但没有一个原始动作满足专家执行包络。因此该结果只验证
+数据、训练、检查点重载和分阶段 ROCm 推理，并明确拒绝直接闭环晋级。文件哈希见
+`mobile_bimanual/mobile-v43-smolvla-50step-SHA256SUMS`；模型权重保留在 Radeon 主机。

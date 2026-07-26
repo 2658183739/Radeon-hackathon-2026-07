@@ -5,9 +5,9 @@ AMD Radeon GPU 和 ROCm 上完成 Genesis 物理仿真、Franka Panda 机械臂�
 RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 
 移动扩展的最新状态见[43 维状态 / 19 维动作 SmolVLA 状态](docs/MOBILE_VLA_STATUS_CN.md)：
-Radeon 训练和 checkpoint 重载链已验证；独立物理实验已完成双杯密封和 8.11 cm 抬升，
-并完成 30 cm 底盘携物运输、放置和释放，最终误差 1.18 cm。该结果是单个专家回合，
-移动 VLA 泛化仍未验证。
+完整 655 帧专家回合、50 步 Radeon 训练 pilot 和固定种子的六阶段检查点评估均已验证；专家完成
+双杯密封、8.11 cm 抬升、30 cm 底盘携物运输、放置和释放，最终误差 1.18 cm。欠训练检查点在
+六个阶段都需要安全限幅，因此尚未验证移动 VLA 闭环成功或泛化。
 
 英文 [README.md](README.md) 是评审复现的主入口；中文正式报告见
 [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)。优化顺序见

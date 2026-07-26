@@ -46,6 +46,14 @@ MOBILE_PRIVILEGED_STATE_NAMES = (
     "parcel_qy",
     "parcel_qz",
 )
+MOBILE_STAGE_NAMES = (
+    "pregrasp",
+    "grasp_approach",
+    "lift",
+    "transport",
+    "place",
+    "release",
+)
 
 
 @dataclass(frozen=True)
@@ -61,6 +69,8 @@ class MobileBimanualFrame:
     depth: Any | None = None
 
     def __post_init__(self) -> None:
+        if self.stage not in MOBILE_STAGE_NAMES:
+            raise ValueError(f"unknown mobile task stage: {self.stage}")
         if len(self.state) != len(MOBILE_STATE_NAMES):
             raise ValueError(
                 f"mobile state must have {len(MOBILE_STATE_NAMES)} values, got {len(self.state)}"
@@ -110,6 +120,12 @@ class MobileBimanualLeRobotWriter:
                 "shape": (len(MOBILE_PRIVILEGED_STATE_NAMES),),
                 "names": list(MOBILE_PRIVILEGED_STATE_NAMES),
             },
+            "observation.stage_id": {
+                "dtype": "int64",
+                "shape": (1,),
+                "names": ["stage_id"],
+                "info": {"stages": list(MOBILE_STAGE_NAMES), "policy_input": False},
+            },
             "observation.images.overhead_rgb": {
                 "dtype": "image",
                 "shape": (height, width, 3),
@@ -151,6 +167,9 @@ class MobileBimanualLeRobotWriter:
             "observation.privileged_state": np.asarray(
                 frame.privileged_state, dtype=np.float32
             ),
+            "observation.stage_id": np.asarray(
+                [MOBILE_STAGE_NAMES.index(frame.stage)], dtype=np.int64
+            ),
             "observation.images.overhead_rgb": np.asarray(frame.rgb, dtype=np.uint8)[..., :3],
             "task": frame.task,
         }
@@ -172,4 +191,3 @@ class MobileBimanualLeRobotWriter:
 
     def finalize(self) -> None:
         self._dataset.finalize()
-

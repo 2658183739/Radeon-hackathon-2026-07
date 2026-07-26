@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""Audit a mobile bimanual LeRobotDataset before policy training."""
+
+from __future__ import annotations
+
+import argparse
+import io
+import json
+import math
+from pathlib import Path
+
+
+POLICY_INPUT_FEATURES = (
+    "observation.state",
+    "observation.images.overhead_rgb",
+)
+
+
+def _fixed_list_array(table: object, name: str, width: int, np: object) -> object:
+    column = table[name].combine_chunks()
+    values = column.values.to_numpy(zero_copy_only=False)
+    return np.asarray(values, dtype=np.float32).reshape(-1, width)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dataset-root", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+
+    import numpy as np
+    import pyarrow.parquet as pq
+    from PIL import Image
+
+    root = args.dataset_root.resolve()
+    info_path = root / "meta/info.json"
+    parquet_files = sorted((root / "data").rglob("*.parquet"))
+    if not info_path.is_file() or not parquet_files:
+        raise FileNotFoundError(f"incomplete mobile dataset: {root}")
+    info = json.loads(info_path.read_text(encoding="utf-8"))
+    table = pq.read_table(parquet_files)
+    states = _fixed_list_array(table, "observation.state", 43, np)
+    actions = _fixed_list_array(table, "action", 19, np)
+    stage_ids = np.asarray(
+        table["observation.stage_id"].combine_chunks().to_numpy(), dtype=np.int64
+    )
+    timestamps = np.asarray(
+        table["timestamp"].combine_chunks().to_numpy(), dtype=np.float64
+    )
+    stage_names = tuple(
+        info["features"]["observation.stage_id"]["info"]["stages"]
+    )
+    stage_counts = {
+        name: int(np.count_nonzero(stage_ids == index))
+        for index, name in enumerate(stage_names)
+    }
+
+    quaternion_slices = (slice(6, 10), slice(14, 18))
+    quaternion_norm_error = max(
+        float(np.abs(np.linalg.norm(actions[:, indices], axis=1) - 1.0).max())
+        for indices in quaternion_slices
+    )
+    base_speed = np.linalg.norm(actions[:, :2], axis=1)
+    tool_values = sorted(
+        set(float(value) for value in np.concatenate((actions[:, 10], actions[:, 18])))
+    )
+
+    depth_min = math.inf
+    depth_max = -math.inf
+    depth_values = []
+    depth_column = table["observation.images.overhead_depth"].combine_chunks()
+    for item in depth_column:
+        encoded = item.as_py()["bytes"]
+        depth = np.asarray(Image.open(io.BytesIO(encoded)), dtype=np.float32)
+        if depth.shape != (224, 224) or not np.isfinite(depth).all():
+            raise ValueError("invalid mobile metric depth frame")
+        depth_min = min(depth_min, float(depth.min()))
+        depth_max = max(depth_max, float(depth.max()))
+        depth_values.append(depth.reshape(-1)[::64])
+    depth_sample = np.concatenate(depth_values)
+    depth_percentiles = np.percentile(depth_sample, (1, 50, 99)).tolist()
+
+    expected_frames = int(info["total_frames"])
+    errors = []
+    if int(info["total_episodes"]) != 1 or len(table) != expected_frames:
+        errors.append("episode_or_frame_count")
+    if states.shape != (expected_frames, 43) or actions.shape != (expected_frames, 19):
+        errors.append("state_action_shape")
+    if not np.isfinite(states).all() or not np.isfinite(actions).all():
+        errors.append("non_finite_state_or_action")
+    if any(count <= 0 for count in stage_counts.values()):
+        errors.append("missing_task_stage")
+    if len(timestamps) > 1 and float(np.abs(np.diff(timestamps) - 1.0 / 30.0).max()) > 1e-4:
+        errors.append("timestamp_cadence")
+    if float(base_speed.max()) > 0.050001:
+        errors.append("base_speed_limit")
+    if quaternion_norm_error > 1e-4:
+        errors.append("action_quaternion_norm")
+    if not set(tool_values).issubset({-1.0, 1.0}):
+        errors.append("tool_command_domain")
+    if not 0.05 < depth_min < depth_max <= 20.001:
+        errors.append("metric_depth_range")
+    if "observation.privileged_state" in POLICY_INPUT_FEATURES:
+        errors.append("privileged_policy_leakage")
+
+    payload = {
+        "schema_version": 1,
+        "status": "passed" if not errors else "failed",
+        "errors": errors,
+        "dataset_root": str(root),
+        "episodes": int(info["total_episodes"]),
+        "frames": expected_frames,
+        "fps": int(info["fps"]),
+        "stage_counts": stage_counts,
+        "state_shape": list(states.shape),
+        "action_shape": list(actions.shape),
+        "base_action_speed_max_m_s": float(base_speed.max()),
+        "action_quaternion_norm_error_max": quaternion_norm_error,
+        "tool_command_values": tool_values,
+        "depth_tiff_unit": "m",
+        "depth_min_m": depth_min,
+        "depth_max_m": depth_max,
+        "depth_percentiles_m": depth_percentiles,
+        "policy_input_features": list(POLICY_INPUT_FEATURES),
+        "privileged_state_in_policy": False,
+    }
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(json.dumps(payload))
+    return 0 if not errors else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

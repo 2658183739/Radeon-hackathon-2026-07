@@ -3,9 +3,10 @@
 Latest result: [slow-fast SmolVLA](docs/SLOW_FAST_VLA_RESULT_2026-07-26.md), a matched single-Radeon validation of visual-language residual control inside the 30 Hz safety loop.
 
 Mobile extension: [43-D state / 19-D action SmolVLA status](docs/MOBILE_VLA_STATUS.md).
-The Radeon training and checkpoint-reload interface is verified. A separate physical experiment
-verified two-cup pickup, an 8.11 cm lift, 30 cm base transport, placement, and release with 1.18 cm
-final error. This is one expert episode; mobile VLA generalization remains unverified.
+The full 655-frame expert episode, 50-step Radeon training pilot, and seeded six-stage checkpoint
+evaluation are verified. The expert completed pickup, an 8.11 cm lift, 30 cm base transport,
+placement, and release with 1.18 cm final error. The undertrained checkpoint required safety
+clipping in all six sampled stages, so mobile VLA closed-loop success remains unverified.
 
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis

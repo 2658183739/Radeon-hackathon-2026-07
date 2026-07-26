@@ -31,6 +31,7 @@ POLICY_OUTPUT_FEATURES='{action: {type: ACTION, shape: [19]}}'
 lerobot-train \
   --dataset.repo_id local/mobile-bimanual-parcel-expert \
   --dataset.root "${DATASET_ROOT}" \
+  --dataset.depth_output_unit m \
   --dataset.image_transforms.enable false \
   --policy.type smolvla \
   --policy.device cuda \

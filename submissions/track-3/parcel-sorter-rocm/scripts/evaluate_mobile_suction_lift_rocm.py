@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 
 from parcel_sorter.genesis_env import initialize_genesis
+from parcel_sorter.mobile_dataset import MobileBimanualFrame, MobileBimanualLeRobotWriter
 from parcel_sorter.mobile_bimanual import (
     ARM_JOINT_NAMES,
     BASE_JOINT_NAMES,
@@ -54,7 +55,15 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", choices=("rocm", "cuda"), default="rocm")
     parser.add_argument("--output", type=Path, default=Path("outputs/mobile-suction-lift"))
+    parser.add_argument(
+        "--record-dataset",
+        type=Path,
+        help="record the successful full task as a 30 Hz RGB-D LeRobot episode",
+    )
+    parser.add_argument("--image-size", type=int, default=224)
     args = parser.parse_args()
+    if args.image_size < 32:
+        parser.error("image-size must be at least 32")
 
     gs, torch, np = initialize_genesis(args.backend)
     source = Path(gs.__file__).resolve().parent / "assets/xml/franka_sim/bi-franka_panda.xml"
@@ -97,6 +106,15 @@ def main() -> int:
         material=gs.materials.Rigid(friction=0.8),
     )
     robot = scene.add_entity(gs.morphs.MJCF(file=str(asset)))
+    camera = None
+    if args.record_dataset is not None:
+        camera = scene.add_camera(
+            res=(args.image_size, args.image_size),
+            pos=(0.0, -2.4, 3.1),
+            lookat=(-0.45, 0.65, 1.25),
+            fov=52,
+            GUI=False,
+        )
     scene.build()
     parcel.set_mass(0.40)
 
@@ -104,12 +122,9 @@ def main() -> int:
     left_arm_dofs = np.asarray(joint_dof_indices(robot, ARM_JOINT_NAMES["left"]))
     right_arm_dofs = np.asarray(joint_dof_indices(robot, ARM_JOINT_NAMES["right"]))
     arm_dofs = np.asarray((*left_arm_dofs.tolist(), *right_arm_dofs.tolist()))
-    finger_dofs = np.asarray(
-        (
-            *joint_dof_indices(robot, FINGER_JOINT_NAMES["left"]),
-            *joint_dof_indices(robot, FINGER_JOINT_NAMES["right"]),
-        )
-    )
+    left_finger_dofs = np.asarray(joint_dof_indices(robot, FINGER_JOINT_NAMES["left"]))
+    right_finger_dofs = np.asarray(joint_dof_indices(robot, FINGER_JOINT_NAMES["right"]))
+    finger_dofs = np.asarray((*left_finger_dofs.tolist(), *right_finger_dofs.tolist()))
     hand = robot.get_link(END_EFFECTOR_LINK_NAMES["left"])
     robot.set_dofs_kp(np.zeros(3), base_dofs)
     robot.set_dofs_kv(np.asarray((600.0, 600.0, 300.0)), base_dofs)
@@ -214,9 +229,102 @@ def main() -> int:
         dofs_idx_local=arm_dofs,
     )
     pregrasp_values = np.asarray(_flat(pregrasp_solution))
+    writer = None
+    if args.record_dataset is not None:
+        writer = MobileBimanualLeRobotWriter(
+            args.record_dataset,
+            fps=30,
+            image_size=(args.image_size, args.image_size),
+            include_depth=True,
+        )
+    recorded_frames = 0
+    recorded_physics_steps = 0
+    task_text = (
+        "Classify the carton parcel, pick it with tri-suction, transport it to "
+        "the carton sorting station, and place it safely."
+    )
+
+    def record_control_frame(
+        *,
+        stage: str,
+        base_action: object,
+        left_position: object,
+        left_quaternion: object,
+        left_tool_command: float,
+        right_position: object,
+        right_quaternion: object,
+        right_tool_command: float,
+        suction_controller: object | None = None,
+    ) -> None:
+        nonlocal recorded_frames, recorded_physics_steps
+        if writer is None:
+            return
+        recorded_physics_steps += 1
+        if recorded_physics_steps % 8 != 0:
+            return
+        if camera is None:
+            raise RuntimeError("dataset recording requires an RGB-D camera")
+        left_contact_force_n = 0.0
+        if suction_controller is not None:
+            _, left_contact_force_n = suction_controller.contact_snapshot()
+        rgb, depth, _, _ = camera.render(rgb=True, depth=True)
+        current_qpos = np.asarray(_flat(robot.get_qpos()))
+        base_velocity = _flat(robot.get_dofs_velocity(base_dofs))
+        left_pose = (*_flat(left_hand.get_pos()), *_flat(left_hand.get_quat()))
+        right_pose = (*_flat(right_hand.get_pos()), *_flat(right_hand.get_quat()))
+        parcel_pose = (*_flat(parcel.get_pos()), *_flat(parcel.get_quat()))
+        state_vector = (
+            *current_qpos[base_dofs].tolist(),
+            *base_velocity,
+            *current_qpos[left_arm_dofs].tolist(),
+            *current_qpos[left_finger_dofs].tolist(),
+            *current_qpos[right_arm_dofs].tolist(),
+            *current_qpos[right_finger_dofs].tolist(),
+            *left_pose,
+            *right_pose,
+            left_contact_force_n,
+            0.0,
+            float(destination_pedestal_position[0]),
+            float(destination_pedestal_position[1]),
+            0.0,
+        )
+        action_vector = (
+            *_flat(base_action),
+            *_flat(left_position),
+            *_flat(left_quaternion),
+            float(left_tool_command),
+            *_flat(right_position),
+            *_flat(right_quaternion),
+            float(right_tool_command),
+        )
+        writer.add_frame(
+            MobileBimanualFrame(
+                frame_index=recorded_frames,
+                timestamp_seconds=recorded_frames / 30.0,
+                stage=stage,
+                state=tuple(float(value) for value in state_vector),
+                action=tuple(float(value) for value in action_vector),
+                privileged_state=tuple(float(value) for value in parcel_pose),
+                task=task_text,
+                rgb=np.asarray(rgb)[..., :3],
+                depth=np.asarray(depth, dtype=np.float32),
+            )
+        )
+        recorded_frames += 1
+
     robot.control_dofs_position(pregrasp_values[arm_dofs], arm_dofs)
     for _ in range(240 if scene_stable else 0):
         scene.step()
+        record_control_frame(
+            stage="pregrasp",
+            base_action=np.zeros(3),
+            left_position=pregrasp_targets[0],
+            left_quaternion=pregrasp_quaternions[0],
+            left_tool_command=-1.0,
+            right_position=pregrasp_targets[1],
+            right_quaternion=pregrasp_quaternions[1],
+            right_tool_command=1.0,
+        )
     pregrasp_tracking_error_m = (
         math.dist(_flat(left_hand.get_pos()), pregrasp_targets[0].tolist()),
         math.dist(_flat(right_hand.get_pos()), pregrasp_targets[1].tolist()),
@@ -270,6 +378,17 @@ def main() -> int:
         scene.step()
         max_base_speed_m_s = max(max_base_speed_m_s, base_speed)
         sealed, force_n = suction.contact_snapshot()
+        record_control_frame(
+            stage="grasp_approach",
+            base_action=np.asarray((base_velocity_xy[0], base_velocity_xy[1], 0.0)),
+            left_position=dynamic_contact_target,
+            left_quaternion=current_quaternion,
+            left_tool_command=1.0 if sealed >= 2 else -1.0,
+            right_position=pregrasp_targets[1],
+            right_quaternion=pregrasp_quaternions[1],
+            right_tool_command=1.0,
+            suction_controller=suction,
+        )
         actual_hand_position = _flat(hand.get_pos())
         distance_to_contact_m = float(
             np.linalg.norm(np.asarray(actual_hand_position[:2]) - dynamic_contact_target[:2])
@@ -327,6 +446,18 @@ def main() -> int:
             robot.control_dofs_position(command, left_arm_dofs)
             suction.update()
             scene.step()
+            record_control_frame(
+                stage="lift",
+                base_action=np.zeros(3),
+                left_position=start_hand
+                + np.asarray((0.0, 0.0, 0.10 * smooth_progress)),
+                left_quaternion=lift_quaternion,
+                left_tool_command=1.0,
+                right_position=pregrasp_targets[1],
+                right_quaternion=pregrasp_quaternions[1],
+                right_tool_command=1.0,
+                suction_controller=suction,
+            )
             if physics_step % 40 == 0 or suction.attachment is None:
                 lift_trace.append(
                     {
@@ -369,6 +500,17 @@ def main() -> int:
             robot.control_dofs_position(target_arm_qpos, left_arm_dofs)
             suction.update()
             scene.step()
+            record_control_frame(
+                stage="transport",
+                base_action=np.asarray((velocity_xy[0], velocity_xy[1], 0.0)),
+                left_position=_flat(hand.get_pos()),
+                left_quaternion=_flat(hand.get_quat()),
+                left_tool_command=1.0,
+                right_position=_flat(right_hand.get_pos()),
+                right_quaternion=_flat(right_hand.get_quat()),
+                right_tool_command=1.0,
+                suction_controller=suction,
+            )
             if physics_step % 120 == 0 or suction.attachment is None or distance_m <= 0.005:
                 transport_trace.append(
                     {
@@ -424,6 +566,18 @@ def main() -> int:
             robot.control_dofs_position(command, left_arm_dofs)
             suction.update()
             scene.step()
+            record_control_frame(
+                stage="place",
+                base_action=np.zeros(3),
+                left_position=place_start_hand
+                - np.asarray((0.0, 0.0, 0.085 * smooth_progress)),
+                left_quaternion=place_quaternion,
+                left_tool_command=1.0,
+                right_position=_flat(right_hand.get_pos()),
+                right_quaternion=_flat(right_hand.get_quat()),
+                right_tool_command=1.0,
+                suction_controller=suction,
+            )
             if physics_step % 40 == 0 or suction.attachment is None:
                 place_trace.append(
                     {
@@ -448,6 +602,17 @@ def main() -> int:
             released = True
             for _ in range(240):
                 scene.step()
+                record_control_frame(
+                    stage="release",
+                    base_action=np.zeros(3),
+                    left_position=_flat(hand.get_pos()),
+                    left_quaternion=_flat(hand.get_quat()),
+                    left_tool_command=-1.0,
+                    right_position=_flat(right_hand.get_pos()),
+                    right_quaternion=_flat(right_hand.get_quat()),
+                    right_tool_command=1.0,
+                    suction_controller=suction,
+                )
 
     parcel_final_position = np.asarray(_flat(parcel.get_pos()))
     expected_final_position = initial_parcel_position + transport_delta
@@ -461,6 +626,14 @@ def main() -> int:
         and suction.max_force_n < 35.0
         and suction.max_contact_force_n < 35.0
     )
+    dataset_saved = False
+    if writer is not None:
+        if success and recorded_frames > 0:
+            writer.save_episode()
+            writer.finalize()
+            dataset_saved = True
+        else:
+            writer.clear_episode()
     payload = {
         "runtime": runtime_report(),
         "task": "mobile tri-suction parcel pickup, transport, and place",
@@ -495,6 +668,18 @@ def main() -> int:
         "lift_trace": lift_trace,
         "transport_trace": transport_trace,
         "place_trace": place_trace,
+        "dataset": {
+            "requested": args.record_dataset is not None,
+            "saved": dataset_saved,
+            "root": str(args.record_dataset) if args.record_dataset is not None else None,
+            "frames": recorded_frames,
+            "fps": 30,
+            "state_dim": 43,
+            "action_dim": 19,
+            "rgb_shape": [args.image_size, args.image_size, 3],
+            "depth_shape": [args.image_size, args.image_size, 1],
+            "privileged_state_in_policy": False,
+        },
         "suction": suction.summary(),
         "success": success,
     }

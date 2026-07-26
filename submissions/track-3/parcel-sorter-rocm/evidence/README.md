@@ -527,3 +527,15 @@ The file SHA-256 is `1c19e5a0...adf2c`. It proves deterministic candidate
 coverage only: the selection contract records no scene, physics, action, or
 outcome access. Static IK/collision screening remains pending. See
 `docs/CYLINDER_CANDIDATE_AUDIT_RESULTS.md`.
+
+## Mobile v43 dataset and 50-step SmolVLA pilot
+
+`mobile_bimanual/mobile-suction-dataset-v43-audit.json` records the passed audit of one complete
+655-frame, six-stage RGB-D expert episode. `mobile-smolvla-50step-training.log` and its frozen config
+record all 50 AMP updates on one Radeon. `mobile-smolvla-50step-six-stage-v1.json` records seeded
+inference on the middle frame of every task stage.
+
+All six predictions were finite and accepted by the bounded executor, but zero raw actions met the
+expert execution envelope. The result therefore verifies data, training, checkpoint reload, and
+stage-conditioned ROCm inference while explicitly rejecting direct closed-loop promotion. File hashes
+are in `mobile_bimanual/mobile-v43-smolvla-50step-SHA256SUMS`; model weights remain on the Radeon host.

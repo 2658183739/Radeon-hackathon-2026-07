@@ -214,7 +214,7 @@ def main() -> int:
                 MobileBimanualFrame(
                     frame_index=recorded_frames,
                     timestamp_seconds=recorded_frames / 30.0,
-                    stage="synchronized_pregrasp",
+                    stage="pregrasp",
                     state=tuple(float(value) for value in state_vector),
                     action=tuple(float(value) for value in action_vector),
                     privileged_state=(0.0,) * 7,
