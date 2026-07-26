@@ -13,6 +13,8 @@ import math
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
+from .suction import tri_cup_offsets
+
 
 BASE_JOINT_NAMES = ("mobile_base_x", "mobile_base_y", "mobile_base_yaw")
 ARM_JOINT_NAMES = {
@@ -190,6 +192,9 @@ def plan_detour_waypoints(
 def build_mobile_bimanual_mjcf(
     source_path: str | Path,
     output_path: str | Path,
+    *,
+    left_tri_suction: bool = False,
+    right_v_cradle: bool = False,
 ) -> Path:
     """Add an original planar wheeled base to the upstream Bi-Franka model."""
 
@@ -197,6 +202,7 @@ def build_mobile_bimanual_mjcf(
     output = Path(output_path).resolve()
     if not source.is_file():
         raise FileNotFoundError(f"Bi-Franka MJCF source does not exist: {source}")
+    output.parent.mkdir(parents=True, exist_ok=True)
     parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
     tree = ET.parse(source, parser=parser)
     root = tree.getroot()
@@ -212,6 +218,23 @@ def build_mobile_bimanual_mjcf(
         if not include_path.is_file():
             raise FileNotFoundError(f"Bi-Franka include does not exist: {include_path}")
         include.set("file", str(include_path.resolve()))
+
+    if left_tri_suction:
+        _patch_mobile_tool_chain(
+            root,
+            arm_body_name="leftarm",
+            gripper_name="panda0_gripper",
+            output_path=output.parent / "mobile_chain0_tri_suction.xml",
+            tool="tri_suction",
+        )
+    if right_v_cradle:
+        _patch_mobile_tool_chain(
+            root,
+            arm_body_name="rightarm",
+            gripper_name="panda1_gripper",
+            output_path=output.parent / "mobile_chain1_v_cradle.xml",
+            tool="v_cradle",
+        )
 
     torso = root.find(".//body[@name='torso']")
     if torso is None:
@@ -298,9 +321,107 @@ def build_mobile_bimanual_mjcf(
             "upstream Bi-Franka remains Apache-2.0. "
         ),
     )
-    output.parent.mkdir(parents=True, exist_ok=True)
     tree.write(output, encoding="utf-8", xml_declaration=True)
     return output
+
+
+def _patch_mobile_tool_chain(
+    root: ET.Element,
+    *,
+    arm_body_name: str,
+    gripper_name: str,
+    output_path: Path,
+    tool: str,
+) -> None:
+    arm = root.find(f".//body[@name='{arm_body_name}']")
+    if arm is None:
+        raise ValueError(f"Bi-Franka MJCF is missing {arm_body_name}")
+    include = arm.find("include")
+    if include is None:
+        raise ValueError(f"{arm_body_name} must include a chain asset")
+    chain_source = Path(include.attrib["file"])
+    if not chain_source.is_file():
+        raise FileNotFoundError(f"Bi-Franka chain does not exist: {chain_source}")
+    chain_tree = ET.parse(chain_source)
+    chain_root = chain_tree.getroot()
+    gripper = chain_root.find(f".//body[@name='{gripper_name}']")
+    if gripper is None:
+        raise ValueError(f"Bi-Franka chain is missing {gripper_name}")
+    if tool == "tri_suction":
+        _append_tri_suction_geometries(gripper)
+    elif tool == "v_cradle":
+        _append_v_cradle_geometries(gripper)
+    else:
+        raise ValueError(f"unsupported mobile tool: {tool}")
+    chain_tree.write(output_path, encoding="utf-8", xml_declaration=True)
+    include.set("file", str(output_path.resolve()))
+
+
+def _append_tri_suction_geometries(gripper: ET.Element) -> None:
+    radius = 0.012
+    length = 0.012
+    center_z = 0.106
+    size = f"{radius:.9f} {length / 2.0:.9f}"
+    for index, (x, y, _) in enumerate(tri_cup_offsets(0.025)):
+        position = f"{x:.9f} {y:.9f} {center_z:.9f}"
+        ET.SubElement(
+            gripper,
+            "geom",
+            {
+                "name": f"mobile_left_suction_cup_{index}_collision",
+                "type": "cylinder",
+                "size": size,
+                "pos": position,
+                "density": "1100",
+                "group": "3",
+            },
+        )
+        ET.SubElement(
+            gripper,
+            "geom",
+            {
+                "name": f"mobile_left_suction_cup_{index}_visual",
+                "type": "cylinder",
+                "size": size,
+                "pos": position,
+                "group": "2",
+                "contype": "0",
+                "conaffinity": "0",
+                "rgba": "0.08 0.70 0.34 1",
+            },
+        )
+
+
+def _append_v_cradle_geometries(gripper: ET.Element) -> None:
+    for side, sign in (("left", -1.0), ("right", 1.0)):
+        attributes = {
+            "type": "box",
+            "size": "0.012 0.050 0.070",
+            "pos": f"{sign * 0.043:.6f} 0 0.150",
+            "euler": f"0 {sign * 0.55:.6f} 0",
+        }
+        ET.SubElement(
+            gripper,
+            "geom",
+            {
+                **attributes,
+                "name": f"mobile_right_v_cradle_{side}_collision",
+                "density": "1240",
+                "group": "3",
+            },
+        )
+        ET.SubElement(
+            gripper,
+            "geom",
+            {
+                **attributes,
+                "name": f"mobile_right_v_cradle_{side}_visual",
+                "group": "2",
+                "contype": "0",
+                "conaffinity": "0",
+                "rgba": "0.95 0.58 0.10 1",
+            },
+        )
 
 
 def _wrap_angle(angle: float) -> float:

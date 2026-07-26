@@ -386,6 +386,10 @@ NVIDIA 专用算子，否则迁回 ROCm 会增加返工。
 预抓取误差均不超过 1.60 cm，无新增碰撞，底盘漂移 1.35 mm，仿真速度 405 FPS。
 实体快递抓取以及导航到操作的完整成功率仍待实现，当前不作能力宣称。
 
+可选混合末端在左臂安装 3 个实体吸盘碰撞体，在右臂安装两条 V 型托架碰撞轨；该资产
+已在 Radeon 上编译、移动，仿真约 454 FPS。匹配的平行夹爪长箱探针只把箱体推开，
+没有形成双侧接触，因此失败结果被保留，协同抬升能力仍不作宣称。
+
 `mobile_task.py` 将后续微调动作契约固定为 19 维：3 维限幅底盘速度，以及左右各
 8 维笛卡尔位姿/夹爪命令。该模块也提供专家采集器与 SmolVLA 共用的失败闭合状态机，
 覆盖导航、双侧接触确认、抬升、搬运、放置、有限重试和接触力中止。
@@ -396,11 +400,15 @@ python scripts/smoke_mobile_bimanual_rocm.py \
   --output outputs/mobile-bimanual-smoke-v3
 python scripts/smoke_mobile_bimanual_arms_rocm.py \
   --backend rocm --output outputs/mobile-bimanual-arms-v2
+python scripts/smoke_mobile_bimanual_rocm.py --backend rocm --hybrid-tools \
+  --output outputs/mobile-bimanual-hybrid-tools-v1
 ```
 
 原始结果见
 `evidence/mobile_bimanual/mobile-bimanual-smoke-v3.json`、
-`mobile-navigation-v1.json` 和 `mobile-bimanual-arms-v2.json`。
+`mobile-navigation-v1.json`、`mobile-bimanual-arms-v2.json`、
+`mobile-bimanual-hybrid-tools-v1.json`，以及保留的负结果
+`mobile-bimanual-pick-v3-failure.json`。
 
 ## 开发过程
 

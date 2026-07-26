@@ -512,6 +512,12 @@ held base drift to 1.35 mm, and ran at 405 simulation FPS. Physical parcel
 pickup and navigation-to-manipulation success are still pending and are not
 claimed.
 
+The optional hybrid-tool asset mounts three physical suction-cup collision
+geometries on the left arm and a two-rail V cradle on the right arm. It
+compiled and moved on Radeon at 454 FPS. A matched parallel-jaw long-parcel
+probe pushed the parcel but did not establish bilateral contact, so that
+failure is retained and the cooperative-lift claim remains closed.
+
 `mobile_task.py` fixes the retraining contract at 19 actions: three bounded
 base velocities and two eight-dimensional Cartesian/gripper commands. The
 same module provides the fail-closed navigation, bilateral-contact, lift,
@@ -524,11 +530,15 @@ python scripts/smoke_mobile_bimanual_rocm.py \
   --output outputs/mobile-bimanual-smoke-v3
 python scripts/smoke_mobile_bimanual_arms_rocm.py \
   --backend rocm --output outputs/mobile-bimanual-arms-v2
+python scripts/smoke_mobile_bimanual_rocm.py --backend rocm --hybrid-tools \
+  --output outputs/mobile-bimanual-hybrid-tools-v1
 ```
 
 The raw result is tracked in
 `evidence/mobile_bimanual/mobile-bimanual-smoke-v3.json`,
-`mobile-navigation-v1.json`, and `mobile-bimanual-arms-v2.json`.
+`mobile-navigation-v1.json`, `mobile-bimanual-arms-v2.json`,
+`mobile-bimanual-hybrid-tools-v1.json`, and the retained
+`mobile-bimanual-pick-v3-failure.json` negative result.
 
 ## Development process
 

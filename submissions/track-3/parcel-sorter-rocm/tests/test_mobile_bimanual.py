@@ -113,6 +113,52 @@ class MobileBimanualTests(unittest.TestCase):
             self.assertIn("mobile_chassis_collision", geoms)
             self.assertEqual(len([name for name in geoms if name and name.startswith("mobile_wheel_")]), 4)
 
+    def test_generates_hybrid_tri_suction_and_v_cradle_chain_assets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = root / "assets"
+            assets.mkdir()
+            for name in ("basic_scene.xml", "assets.xml", "gripper_assets.xml", "actuator0.xml", "actuator1.xml"):
+                (assets / name).write_text("<mujoco/>", encoding="utf-8")
+            (assets / "chain0.xml").write_text(
+                '<mujocoinclude><body name="panda0_gripper"/></mujocoinclude>',
+                encoding="utf-8",
+            )
+            (assets / "chain1.xml").write_text(
+                '<mujocoinclude><body name="panda1_gripper"/></mujocoinclude>',
+                encoding="utf-8",
+            )
+            source = root / "bi-franka.xml"
+            source.write_text(
+                """<mujoco><include file="assets/basic_scene.xml"/><compiler meshdir=""/>
+                <worldbody><body name="torso"><body name="leftarm"><include file="assets/chain0.xml"/></body>
+                <body name="rightarm"><include file="assets/chain1.xml"/></body></body></worldbody>
+                <include file="assets/actuator0.xml"/><include file="assets/actuator1.xml"/></mujoco>""",
+                encoding="utf-8",
+            )
+            output = root / "generated" / "mobile.xml"
+            build_mobile_bimanual_mjcf(
+                source,
+                output,
+                left_tri_suction=True,
+                right_v_cradle=True,
+            )
+            model = ET.parse(output).getroot()
+            left_include = model.find(".//body[@name='leftarm']/include")
+            right_include = model.find(".//body[@name='rightarm']/include")
+            self.assertIsNotNone(left_include)
+            self.assertIsNotNone(right_include)
+            left_geoms = ET.parse(left_include.attrib["file"]).getroot().findall(".//geom")
+            right_geoms = ET.parse(right_include.attrib["file"]).getroot().findall(".//geom")
+            self.assertEqual(
+                len([geom for geom in left_geoms if "suction_cup" in geom.attrib.get("name", "") and "collision" in geom.attrib.get("name", "")]),
+                3,
+            )
+            self.assertEqual(
+                len([geom for geom in right_geoms if "v_cradle" in geom.attrib.get("name", "") and "collision" in geom.attrib.get("name", "")]),
+                2,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

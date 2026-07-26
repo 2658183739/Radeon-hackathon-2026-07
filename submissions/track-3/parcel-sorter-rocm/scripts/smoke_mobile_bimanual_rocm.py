@@ -16,6 +16,7 @@ def main() -> int:
     parser.add_argument("--backend", choices=("rocm", "cuda"), default="rocm")
     parser.add_argument("--steps", type=int, default=60)
     parser.add_argument("--speed-m-s", type=float, default=0.20)
+    parser.add_argument("--hybrid-tools", action="store_true")
     parser.add_argument("--output", type=Path, default=Path("outputs/mobile-bimanual-smoke"))
     args = parser.parse_args()
     if args.steps < 1 or args.speed_m_s <= 0:
@@ -25,7 +26,12 @@ def main() -> int:
         Path(gs.__file__).resolve().parent
         / "assets/xml/franka_sim/bi-franka_panda.xml"
     )
-    asset = build_mobile_bimanual_mjcf(source, args.output / "mobile_bi_franka.xml")
+    asset = build_mobile_bimanual_mjcf(
+        source,
+        args.output / "mobile_bi_franka.xml",
+        left_tri_suction=args.hybrid_tools,
+        right_v_cradle=args.hybrid_tools,
+    )
     scene = gs.Scene(
         sim_options=gs.options.SimOptions(dt=1.0 / 240.0, substeps=1),
         rigid_options=gs.options.RigidOptions(enable_collision=True),
@@ -56,6 +62,9 @@ def main() -> int:
         "generated_asset": str(asset),
         "base_joint_names": BASE_JOINT_NAMES,
         "dof_count": int(robot.n_dofs),
+        "hybrid_tools": args.hybrid_tools,
+        "left_tri_suction_collision_geoms": 3 if args.hybrid_tools else 0,
+        "right_v_cradle_collision_geoms": 2 if args.hybrid_tools else 0,
         "qpos_before": before,
         "qpos_after": after,
         "delta_x_m": after[0] - before[0],
