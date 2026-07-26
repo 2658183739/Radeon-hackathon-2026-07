@@ -10,7 +10,10 @@ from parcel_sorter.shape_grasp_planning import (
     ShapeGraspPlannerConfig,
     build_shape_grasp_plan,
     generate_shape_grasp_pose_candidates,
+    rank_shape_grasp_pose_evaluations,
+    select_shape_grasp_pose_evaluation,
 )
+from parcel_sorter.grasp_planning import rank_grasp_pose_evaluations
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -121,6 +124,98 @@ class ShapeGraspPlanningTests(unittest.TestCase):
         self.assertFalse(plan.supported)
         self.assertFalse(plan.activation_eligible)
         self.assertEqual(plan.reason, "horizontal_tube_requires_guarded_support")
+
+    def test_box_shape_ranking_is_identical_to_registered_ranker(self) -> None:
+        farther = self._evaluation("farther", joint_distance_rad=0.8)
+        nearer = self._evaluation("nearer", joint_distance_rad=0.2)
+        evaluations = [farther, nearer]
+
+        expected = rank_grasp_pose_evaluations(evaluations)
+        actual = rank_shape_grasp_pose_evaluations(evaluations, shape="box")
+
+        self.assertEqual(
+            [row["candidate_id"] for row in actual],
+            [row["candidate_id"] for row in expected],
+        )
+
+    def test_cylinder_ranking_prefers_low_roll_and_centred_contact_after_hard_gates(self) -> None:
+        risky = self._evaluation(
+            "risky",
+            joint_distance_rad=0.1,
+            rolling_risk_score=0.4,
+            centre_of_mass_moment_arm_m=0.0,
+        )
+        offset = self._evaluation(
+            "offset",
+            joint_distance_rad=0.2,
+            rolling_risk_score=0.0,
+            centre_of_mass_moment_arm_m=0.04,
+        )
+        centred = self._evaluation(
+            "centred",
+            joint_distance_rad=1.0,
+            rolling_risk_score=0.0,
+            centre_of_mass_moment_arm_m=0.0,
+        )
+
+        ranked = rank_shape_grasp_pose_evaluations(
+            [risky, offset, centred],
+            shape="cylinder",
+        )
+
+        self.assertEqual(
+            [row["candidate_id"] for row in ranked],
+            ["centred", "offset", "risky"],
+        )
+
+    def test_cylinder_hard_feasibility_precedes_rolling_prior_and_rejections(self) -> None:
+        infeasible = self._evaluation(
+            "infeasible",
+            rolling_risk_score=0.0,
+            ik_position_error_m=0.010,
+        )
+        first = self._evaluation(
+            "first",
+            rolling_risk_score=0.1,
+            centre_of_mass_moment_arm_m=0.0,
+        )
+        fallback = self._evaluation(
+            "fallback",
+            rolling_risk_score=0.2,
+            centre_of_mass_moment_arm_m=0.0,
+        )
+
+        selected = select_shape_grasp_pose_evaluation(
+            [infeasible, fallback, first],
+            shape="cylinder",
+            rejected_candidate_ids=frozenset({"first"}),
+        )
+
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected["candidate_id"], "fallback")
+
+    @staticmethod
+    def _evaluation(candidate_id: str, **overrides):
+        row = {
+            "candidate_id": candidate_id,
+            "seed_name": "current",
+            "finite": True,
+            "ik_position_error_m": 0.001,
+            "ik_rotation_error_rad": 0.001,
+            "fk_position_error_m": 0.001,
+            "restore_max_abs_error": 0.0,
+            "disallowed_collision_count": 0,
+            "nonfinger_clearance_m": 0.01,
+            "minimum_singular_value": 0.1,
+            "wrist_variant": "canonical",
+            "longitudinal_offset_m": 0.0,
+            "vertical_offset_m": 0.0,
+            "joint_distance_rad": 0.5,
+            "rolling_risk_score": 0.0,
+            "centre_of_mass_moment_arm_m": 0.0,
+        }
+        row.update(overrides)
+        return row
 
 
 if __name__ == "__main__":

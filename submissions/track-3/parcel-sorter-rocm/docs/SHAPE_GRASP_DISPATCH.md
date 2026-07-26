@@ -33,10 +33,13 @@ profiles remain explicitly `cradle_required`.
 
 ## Test and evidence boundary
 
-The six new dispatch tests and the existing cylinder tests cover candidate
+The nine dispatch tests and the existing cylinder tests cover candidate
 family selection, upright and horizontal geometry, disabled planning, low
-rolling friction, and unsupported handling classes. They prove only the pure
-interface. The frozen 24-sample Radeon static screen is still the authority for
+rolling friction, unsupported handling classes, and shape-aware ranking. Box
+ordering is exactly unchanged. Once hard feasibility and collision gates pass,
+cylinder ranking prefers low rolling risk and a small centre-of-mass moment
+arm before joint-travel and manipulability tie-breaks. These tests prove only
+the pure interface. The frozen 24-sample Radeon static screen is still the authority for
 IK/FK and mesh-collision feasibility. A screen pass would authorize a new
 closed-loop protocol; it would not itself prove force safety, lifting, rolling
 retention, or placement.
@@ -48,4 +51,3 @@ box-only candidate call with this dispatcher under a new protocol and source
 hash. The integration must preserve the existing reset gate, candidate
 blacklist, waypoint collision gate, 35 N supervisor, retry re-planning, and
 per-candidate telemetry. The frozen V5 box campaign must remain immutable.
-

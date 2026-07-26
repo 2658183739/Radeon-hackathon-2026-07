@@ -17,6 +17,8 @@ from .cylinder_grasp_planning import plan_cylinder_grasp_candidates
 from .grasp_planning import (
     box_requires_geometry_aware_grasp_planning,
     generate_box_grasp_pose_candidates,
+    grasp_evaluation_is_feasible,
+    grasp_evaluation_rank_key,
 )
 from .randomization import ParcelSample
 
@@ -174,3 +176,92 @@ def generate_shape_grasp_pose_candidates(
         config=config,
     ).candidates
 
+
+def shape_grasp_evaluation_rank_key(
+    evaluation: dict[str, Any],
+    *,
+    shape: str,
+    collision_filter_enabled: bool = True,
+    manipulability_ranking_enabled: bool = True,
+) -> tuple[Any, ...]:
+    """Keep hard feasibility first, then apply a shape-specific physical prior."""
+
+    base = grasp_evaluation_rank_key(
+        evaluation,
+        collision_filter_enabled=collision_filter_enabled,
+        manipulability_ranking_enabled=manipulability_ranking_enabled,
+    )
+    if shape == "box":
+        return base
+    if shape != "cylinder":
+        raise ValueError(f"unsupported parcel shape: {shape}")
+
+    rolling_risk = _finite_nonnegative(
+        evaluation.get("rolling_risk_score", 0.0),
+        "rolling_risk_score",
+    )
+    moment_arm = _finite_nonnegative(
+        evaluation.get("centre_of_mass_moment_arm_m", 0.0),
+        "centre_of_mass_moment_arm_m",
+    )
+    # Preserve the five hard feasibility/collision/error fields from the
+    # registered ranker.  Physical cylinder stability then precedes wrist,
+    # offset, joint-travel, manipulability, and clearance tie-breaks.
+    return (*base[:5], rolling_risk, moment_arm, *base[5:])
+
+
+def rank_shape_grasp_pose_evaluations(
+    evaluations: Sequence[dict[str, Any]],
+    *,
+    shape: str,
+    collision_filter_enabled: bool = True,
+    manipulability_ranking_enabled: bool = True,
+) -> list[dict[str, Any]]:
+    """Rank evaluated candidates while preserving the box ordering contract."""
+
+    return sorted(
+        evaluations,
+        key=lambda evaluation: shape_grasp_evaluation_rank_key(
+            evaluation,
+            shape=shape,
+            collision_filter_enabled=collision_filter_enabled,
+            manipulability_ranking_enabled=manipulability_ranking_enabled,
+        ),
+    )
+
+
+def select_shape_grasp_pose_evaluation(
+    evaluations: Sequence[dict[str, Any]],
+    *,
+    shape: str,
+    rejected_candidate_ids: frozenset[str] = frozenset(),
+    collision_filter_enabled: bool = True,
+    manipulability_ranking_enabled: bool = True,
+) -> dict[str, Any] | None:
+    """Return the first non-rejected feasible candidate in shape-aware order."""
+
+    ranked = rank_shape_grasp_pose_evaluations(
+        evaluations,
+        shape=shape,
+        collision_filter_enabled=collision_filter_enabled,
+        manipulability_ranking_enabled=manipulability_ranking_enabled,
+    )
+    return next(
+        (
+            evaluation
+            for evaluation in ranked
+            if str(evaluation["candidate_id"]) not in rejected_candidate_ids
+            and grasp_evaluation_is_feasible(
+                evaluation,
+                collision_filter_enabled=collision_filter_enabled,
+            )
+        ),
+        None,
+    )
+
+
+def _finite_nonnegative(value: Any, name: str) -> float:
+    result = float(value)
+    if not math.isfinite(result) or result < 0:
+        raise ValueError(f"{name} must be finite and non-negative")
+    return result

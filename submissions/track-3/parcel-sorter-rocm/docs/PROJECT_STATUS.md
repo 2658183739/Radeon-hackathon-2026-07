@@ -67,7 +67,7 @@ therefore disconnected and the six holdout IDs remain locked and unobserved.
 | Balanced collection planning | Implemented and Radeon-checked | Fresh 360-success target, configuration/audit fingerprints, profile-specific budgets, and an expert-diagnostic gate |
 | Structured grasp scorer | Development rejected | 24 train rows/4 groups; the only development group had 6/6 safety aborts; 0.921 ms six-candidate P95; holdout unopened |
 | Industry-size cartons | Evaluation-only profiles | Current parallel gripper cannot claim suction handling |
-| Cylindrical parcel handling | Analytic candidates and shape dispatch verified; physical screen pending | 128/128 outcome-free samples and 16 dispatch/cylinder tests pass; runtime activation is still forbidden and oversized tubes remain `cradle_required` |
+| Cylindrical parcel handling | Analytic candidates and shape dispatch verified; physical screen pending | 128/128 outcome-free samples and 19 dispatch/cylinder tests pass; runtime activation is still forbidden and oversized tubes remain `cradle_required` |
 | VLA | Not in the result path | VLA-Adapter remains a license and ROCm compatibility spike |
 | ROS 2 / cloud service | Not implemented | Add only after the simulator-policy contract is stable |
 

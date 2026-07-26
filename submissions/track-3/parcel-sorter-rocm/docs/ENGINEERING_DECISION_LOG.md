@@ -2254,8 +2254,10 @@ planner and expose capability failures such as `cradle_required`, insufficient
 aperture, and low rolling friction. Do not edit the hash-bound environment or
 static-screen implementation before the Radeon screen completes.
 
-**Evidence and boundary.** Six dispatch tests plus the cylinder unit tests pass
-locally. This proves interface selection only. It does not authorize a scene,
+**Evidence and boundary.** Nine dispatch tests plus the cylinder unit tests pass
+locally. Box ranking is byte-for-byte equivalent at the key level; cylinder
+ranking adds rolling-risk and moment-arm priors only after hard feasibility.
+This proves interface selection only. It does not authorize a scene,
 IK/FK feasibility, force-safe lift, rolling retention, or parcel placement.
 After the static screen, integration requires a new protocol, new source
 hashes, and the existing reset, collision, retry, and 35 N safety gates.
