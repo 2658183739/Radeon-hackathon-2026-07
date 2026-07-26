@@ -4,10 +4,10 @@
 AMD Radeon GPU 和 ROCm 上完成 Genesis 物理仿真、Franka Panda 机械臂控制、
 RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 
-移动扩展的最新状态见[43 维状态 / 19 维动作 SmolVLA 状态](docs/MOBILE_VLA_STATUS_CN.md)：
-完整 655 帧专家回合、50 步 Radeon 训练 pilot 和固定种子的六阶段检查点评估均已验证；专家完成
-双杯密封、8.11 cm 抬升、30 cm 底盘携物运输、放置和释放，最终误差 1.18 cm。欠训练检查点在
-六个阶段都需要安全限幅，因此尚未验证移动 VLA 闭环成功或泛化。
+移动扩展的最新结果见[Harness-Lite 与失败驱动自我改进](docs/MOBILE_HARNESS_SELF_IMPROVEMENT_2026-07-27_CN.md)：
+当前 SmolVLA 在四个成功专家回合上训练1600步，完成24样本动作包络消融，并在抓取接近与30 cm
+运输阶段实际控制有界底盘残差。0.4 kg配对回合完成抬升、放置和释放，最终误差0.92 cm。
+机械臂残差控制和独立留出泛化仍未验证。
 
 英文 [README.md](README.md) 是评审复现的主入口；中文正式报告见
 [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)。优化顺序见

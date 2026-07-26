@@ -1,12 +1,12 @@
 # Parcel Sorter ROCm
 
-Latest result: [slow-fast SmolVLA](docs/SLOW_FAST_VLA_RESULT_2026-07-26.md), a matched single-Radeon validation of visual-language residual control inside the 30 Hz safety loop.
+Latest mobile result: [Harness-Lite and failure-driven self-improvement](docs/MOBILE_HARNESS_SELF_IMPROVEMENT_2026-07-27.md), including a successful SmolVLA base-residual closed loop on one Radeon GPU.
 
 Mobile extension: [43-D state / 19-D action SmolVLA status](docs/MOBILE_VLA_STATUS.md).
-The full 655-frame expert episode, 50-step Radeon training pilot, and seeded six-stage checkpoint
-evaluation are verified. The expert completed pickup, an 8.11 cm lift, 30 cm base transport,
-placement, and release with 1.18 cm final error. The undertrained checkpoint required safety
-clipping in all six sampled stages, so mobile VLA closed-loop success remains unverified.
+The current checkpoint was trained for 1,600 steps on four successful expert episodes. Harness-Lite
+passed a 24-sample action-envelope ablation and then controlled bounded base residuals during grasp
+approach and 30 cm transport. The matched 0.4 kg run completed lift, placement, and release with
+0.92 cm final error. Arm residual control and held-out generalization remain unverified.
 
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis

@@ -26,7 +26,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--min-episodes", type=int, default=1)
     args = parser.parse_args()
+    if args.min_episodes < 1:
+        parser.error("min-episodes must be positive")
 
     import numpy as np
     import pyarrow.parquet as pq
@@ -47,12 +50,26 @@ def main() -> int:
     timestamps = np.asarray(
         table["timestamp"].combine_chunks().to_numpy(), dtype=np.float64
     )
+    episode_indices = np.asarray(
+        table["episode_index"].combine_chunks().to_numpy(), dtype=np.int64
+    )
     stage_names = tuple(
         info["features"]["observation.stage_id"]["info"]["stages"]
     )
     stage_counts = {
         name: int(np.count_nonzero(stage_ids == index))
         for index, name in enumerate(stage_names)
+    }
+    episode_stage_counts = {
+        str(episode_index): {
+            name: int(
+                np.count_nonzero(
+                    (episode_indices == episode_index) & (stage_ids == stage_id)
+                )
+            )
+            for stage_id, name in enumerate(stage_names)
+        }
+        for episode_index in sorted(set(int(value) for value in episode_indices))
     }
 
     quaternion_slices = (slice(6, 10), slice(14, 18))
@@ -82,7 +99,7 @@ def main() -> int:
 
     expected_frames = int(info["total_frames"])
     errors = []
-    if int(info["total_episodes"]) != 1 or len(table) != expected_frames:
+    if int(info["total_episodes"]) < args.min_episodes or len(table) != expected_frames:
         errors.append("episode_or_frame_count")
     if states.shape != (expected_frames, 43) or actions.shape != (expected_frames, 19):
         errors.append("state_action_shape")
@@ -90,8 +107,20 @@ def main() -> int:
         errors.append("non_finite_state_or_action")
     if any(count <= 0 for count in stage_counts.values()):
         errors.append("missing_task_stage")
-    if len(timestamps) > 1 and float(np.abs(np.diff(timestamps) - 1.0 / 30.0).max()) > 1e-4:
-        errors.append("timestamp_cadence")
+    if any(
+        count <= 0
+        for counts in episode_stage_counts.values()
+        for count in counts.values()
+    ):
+        errors.append("missing_episode_task_stage")
+    for episode_index in sorted(set(int(value) for value in episode_indices)):
+        episode_timestamps = timestamps[episode_indices == episode_index]
+        if (
+            len(episode_timestamps) > 1
+            and float(np.abs(np.diff(episode_timestamps) - 1.0 / 30.0).max()) > 1e-4
+        ):
+            errors.append("timestamp_cadence")
+            break
     if float(base_speed.max()) > 0.050001:
         errors.append("base_speed_limit")
     if quaternion_norm_error > 1e-4:
@@ -112,6 +141,7 @@ def main() -> int:
         "frames": expected_frames,
         "fps": int(info["fps"]),
         "stage_counts": stage_counts,
+        "episode_stage_counts": episode_stage_counts,
         "state_shape": list(states.shape),
         "action_shape": list(actions.shape),
         "base_action_speed_max_m_s": float(base_speed.max()),

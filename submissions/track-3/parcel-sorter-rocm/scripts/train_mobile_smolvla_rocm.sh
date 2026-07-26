@@ -6,6 +6,8 @@ DATASET_ROOT="${1:-${ROOT_DIR}/outputs/mobile-bimanual-dataset/lerobot_dataset}"
 OUTPUT_DIR="${2:-${ROOT_DIR}/outputs/train/mobile-smolvla-smoke}"
 VLM_PATH="${SMOLVLA_VLM_PATH:-${ROOT_DIR}/third_party/models/smolvlm2-500m-video-instruct}"
 STEPS="${MOBILE_SMOLVLA_STEPS:-10}"
+BATCH_SIZE="${MOBILE_SMOLVLA_BATCH_SIZE:-1}"
+NUM_WORKERS="${MOBILE_SMOLVLA_NUM_WORKERS:-0}"
 
 export HIP_VISIBLE_DEVICES="${HIP_VISIBLE_DEVICES:-0}"
 export PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
@@ -49,8 +51,8 @@ lerobot-train \
   --policy.n_action_steps 10 \
   --output_dir "${OUTPUT_DIR}" \
   --job_name mobile-bimanual-smolvla-rocm-smoke \
-  --batch_size 1 \
-  --num_workers 0 \
+  --batch_size "${BATCH_SIZE}" \
+  --num_workers "${NUM_WORKERS}" \
   --steps "${STEPS}" \
   --seed 11 \
   --log_freq 1 \

@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 from pathlib import Path
+import statistics
 
 from parcel_sorter.genesis_env import initialize_genesis
 from parcel_sorter.mobile_dataset import MobileBimanualFrame, MobileBimanualLeRobotWriter
@@ -18,6 +19,7 @@ from parcel_sorter.mobile_bimanual import (
     joint_dof_indices,
 )
 from parcel_sorter.mobile_suction import MobileTriSuctionController
+from parcel_sorter.mobile_vla_controller import MobileSmolVLAHarnessController
 from parcel_sorter.provenance import runtime_report
 from parcel_sorter.suction import rotate_vector
 
@@ -61,9 +63,34 @@ def main() -> int:
         help="record the successful full task as a 30 Hz RGB-D LeRobot episode",
     )
     parser.add_argument("--image-size", type=int, default=224)
+    parser.add_argument("--parcel-profile", default="carton")
+    parser.add_argument(
+        "--parcel-size-m", type=float, nargs=3, default=(0.20, 0.12, 0.20)
+    )
+    parser.add_argument("--parcel-mass-kg", type=float, default=0.40)
+    parser.add_argument("--parcel-friction", type=float, default=0.80)
+    parser.add_argument("--parcel-offset-m", type=float, nargs=2, default=(0.0, 0.0))
+    parser.add_argument("--task-text")
+    parser.add_argument("--smolvla-checkpoint", type=Path)
+    parser.add_argument(
+        "--policy-mode", choices=("shadow", "base_residual"), default="shadow"
+    )
+    parser.add_argument("--policy-hz", type=int, default=5)
     args = parser.parse_args()
     if args.image_size < 32:
         parser.error("image-size must be at least 32")
+    if any(not 0.02 <= value <= 0.60 for value in args.parcel_size_m):
+        parser.error("parcel dimensions must be in [0.02, 0.60] m")
+    if not 0.05 <= args.parcel_mass_kg <= 5.0:
+        parser.error("parcel mass must be in [0.05, 5.0] kg")
+    if not 0.1 <= args.parcel_friction <= 2.0:
+        parser.error("parcel friction must be in [0.1, 2.0]")
+    if any(abs(value) > 0.025 for value in args.parcel_offset_m):
+        parser.error("parcel XY offsets must be within 0.025 m")
+    if args.policy_hz <= 0 or 30 % args.policy_hz != 0:
+        parser.error("policy-hz must be a positive divisor of 30")
+    if args.policy_mode != "shadow" and args.smolvla_checkpoint is None:
+        parser.error("base_residual mode requires --smolvla-checkpoint")
 
     gs, torch, np = initialize_genesis(args.backend)
     source = Path(gs.__file__).resolve().parent / "assets/xml/franka_sim/bi-franka_panda.xml"
@@ -82,7 +109,15 @@ def main() -> int:
     pedestal_position = np.asarray((-0.6800, 0.7500, 1.3000))
     transport_delta = np.asarray((0.3000, 0.0, 0.0))
     destination_pedestal_position = pedestal_position + transport_delta
-    initial_parcel_position = np.asarray((-0.6800, 0.7500, 1.4520))
+    parcel_size = np.asarray(args.parcel_size_m, dtype=np.float64)
+    parcel_support_z = pedestal_position[2] + 0.05 + parcel_size[2] / 2.0
+    initial_parcel_position = np.asarray(
+        (
+            pedestal_position[0] + args.parcel_offset_m[0],
+            pedestal_position[1] + args.parcel_offset_m[1],
+            parcel_support_z + 0.002,
+        )
+    )
     scene.add_entity(
         gs.morphs.Box(
             size=(0.16, 0.08, 0.10),
@@ -97,17 +132,16 @@ def main() -> int:
             fixed=True,
         )
     )
-    parcel_size = np.asarray((0.20, 0.12, 0.20))
     parcel = scene.add_entity(
         gs.morphs.Box(
             size=tuple(parcel_size.tolist()),
             pos=tuple(initial_parcel_position.tolist()),
         ),
-        material=gs.materials.Rigid(friction=0.8),
+        material=gs.materials.Rigid(friction=args.parcel_friction),
     )
     robot = scene.add_entity(gs.morphs.MJCF(file=str(asset)))
     camera = None
-    if args.record_dataset is not None:
+    if args.record_dataset is not None or args.smolvla_checkpoint is not None:
         camera = scene.add_camera(
             res=(args.image_size, args.image_size),
             pos=(0.0, -2.4, 3.1),
@@ -116,7 +150,7 @@ def main() -> int:
             GUI=False,
         )
     scene.build()
-    parcel.set_mass(0.40)
+    parcel.set_mass(args.parcel_mass_kg)
 
     base_dofs = np.asarray(joint_dof_indices(robot, BASE_JOINT_NAMES))
     left_arm_dofs = np.asarray(joint_dof_indices(robot, ARM_JOINT_NAMES["left"]))
@@ -172,7 +206,7 @@ def main() -> int:
         settled_parcel_position = np.asarray(_flat(parcel.get_pos()))
         settled_velocity = np.asarray(_flat(parcel.get_dofs_velocity()))
         linear_speed = float(np.linalg.norm(settled_velocity[:3]))
-        supported = bool(settled_parcel_position[2] >= pedestal_position[2] + 0.075)
+        supported = bool(settled_parcel_position[2] >= parcel_support_z - 0.025)
         settle_trace.append(
             {
                 "window": window + 1,
@@ -188,7 +222,7 @@ def main() -> int:
     scene_stable = bool(
         math.isfinite(settle_position_error_m)
         and math.isfinite(settle_linear_speed_m_s)
-        and settled_parcel_position[2] >= pedestal_position[2] + 0.075
+        and settled_parcel_position[2] >= parcel_support_z - 0.025
         and settle_linear_speed_m_s <= 0.01
     )
 
@@ -239,10 +273,20 @@ def main() -> int:
         )
     recorded_frames = 0
     recorded_physics_steps = 0
-    task_text = (
-        "Classify the carton parcel, pick it with tri-suction, transport it to "
-        "the carton sorting station, and place it safely."
+    task_text = args.task_text or (
+        f"Classify the {args.parcel_profile} parcel, pick it with tri-suction, "
+        f"transport it to the {args.parcel_profile} sorting station, and place it safely."
     )
+    policy_controller = (
+        MobileSmolVLAHarnessController(args.smolvla_checkpoint)
+        if args.smolvla_checkpoint is not None
+        else None
+    )
+    policy_stride_frames = 30 // args.policy_hz
+    policy_trace: list[dict[str, object]] = []
+    latest_policy_action: tuple[float, ...] | None = None
+    latest_policy_stage: str | None = None
+    policy_applied_physics_steps = 0
 
     def record_control_frame(
         *,
@@ -255,15 +299,17 @@ def main() -> int:
         right_quaternion: object,
         right_tool_command: float,
         suction_controller: object | None = None,
+        policy_expert_base_action: object | None = None,
     ) -> None:
         nonlocal recorded_frames, recorded_physics_steps
-        if writer is None:
+        nonlocal latest_policy_action, latest_policy_stage
+        if writer is None and policy_controller is None:
             return
         recorded_physics_steps += 1
         if recorded_physics_steps % 8 != 0:
             return
         if camera is None:
-            raise RuntimeError("dataset recording requires an RGB-D camera")
+            raise RuntimeError("mobile observation requires an RGB-D camera")
         left_contact_force_n = 0.0
         if suction_controller is not None:
             _, left_contact_force_n = suction_controller.contact_snapshot()
@@ -288,8 +334,13 @@ def main() -> int:
             float(destination_pedestal_position[1]),
             0.0,
         )
+        expert_base_action = (
+            base_action
+            if policy_expert_base_action is None
+            else policy_expert_base_action
+        )
         action_vector = (
-            *_flat(base_action),
+            *_flat(expert_base_action),
             *_flat(left_position),
             *_flat(left_quaternion),
             float(left_tool_command),
@@ -297,19 +348,38 @@ def main() -> int:
             *_flat(right_quaternion),
             float(right_tool_command),
         )
-        writer.add_frame(
-            MobileBimanualFrame(
-                frame_index=recorded_frames,
-                timestamp_seconds=recorded_frames / 30.0,
-                stage=stage,
-                state=tuple(float(value) for value in state_vector),
-                action=tuple(float(value) for value in action_vector),
-                privileged_state=tuple(float(value) for value in parcel_pose),
-                task=task_text,
+        if policy_controller is not None and recorded_frames % policy_stride_frames == 0:
+            latest_policy_action, telemetry = policy_controller.select(
                 rgb=np.asarray(rgb)[..., :3],
-                depth=np.asarray(depth, dtype=np.float32),
+                state=state_vector,
+                task=task_text,
+                expert_action=action_vector,
+                stage=stage,
             )
-        )
+            latest_policy_stage = stage
+            policy_trace.append(
+                {
+                    **telemetry,
+                    "observation_frame": recorded_frames,
+                    "physics_step": recorded_physics_steps,
+                    "actuation_mode": args.policy_mode,
+                    "executed_base_action": _flat(base_action),
+                }
+            )
+        if writer is not None:
+            writer.add_frame(
+                MobileBimanualFrame(
+                    frame_index=recorded_frames,
+                    timestamp_seconds=recorded_frames / 30.0,
+                    stage=stage,
+                    state=tuple(float(value) for value in state_vector),
+                    action=tuple(float(value) for value in action_vector),
+                    privileged_state=tuple(float(value) for value in parcel_pose),
+                    task=task_text,
+                    rgb=np.asarray(rgb)[..., :3],
+                    depth=np.asarray(depth, dtype=np.float32),
+                )
+            )
         recorded_frames += 1
 
     robot.control_dofs_position(pregrasp_values[arm_dofs], arm_dofs)
@@ -370,6 +440,15 @@ def main() -> int:
         if base_speed > 0.05:
             base_velocity_xy *= 0.05 / base_speed
             base_speed = 0.05
+        expert_base_velocity_xy = base_velocity_xy.copy()
+        if (
+            args.policy_mode == "base_residual"
+            and latest_policy_action is not None
+            and latest_policy_stage == "grasp_approach"
+        ):
+            base_velocity_xy = np.asarray(latest_policy_action[:2], dtype=np.float64)
+            base_speed = float(np.linalg.norm(base_velocity_xy))
+            policy_applied_physics_steps += 1
         robot.control_dofs_velocity(
             np.asarray((base_velocity_xy[0], base_velocity_xy[1], 0.0)),
             base_dofs,
@@ -388,6 +467,9 @@ def main() -> int:
             right_quaternion=pregrasp_quaternions[1],
             right_tool_command=1.0,
             suction_controller=suction,
+            policy_expert_base_action=np.asarray(
+                (expert_base_velocity_xy[0], expert_base_velocity_xy[1], 0.0)
+            ),
         )
         actual_hand_position = _flat(hand.get_pos())
         distance_to_contact_m = float(
@@ -494,6 +576,15 @@ def main() -> int:
             if speed_m_s > 0.05:
                 velocity_xy *= 0.05 / speed_m_s
                 speed_m_s = 0.05
+            expert_velocity_xy = velocity_xy.copy()
+            if (
+                args.policy_mode == "base_residual"
+                and latest_policy_action is not None
+                and latest_policy_stage == "transport"
+            ):
+                velocity_xy = np.asarray(latest_policy_action[:2], dtype=np.float64)
+                speed_m_s = float(np.linalg.norm(velocity_xy))
+                policy_applied_physics_steps += 1
             robot.control_dofs_velocity(
                 np.asarray((velocity_xy[0], velocity_xy[1], 0.0)), base_dofs
             )
@@ -510,6 +601,9 @@ def main() -> int:
                 right_quaternion=_flat(right_hand.get_quat()),
                 right_tool_command=1.0,
                 suction_controller=suction,
+                policy_expert_base_action=np.asarray(
+                    (expert_velocity_xy[0], expert_velocity_xy[1], 0.0)
+                ),
             )
             if physics_step % 120 == 0 or suction.attachment is None or distance_m <= 0.005:
                 transport_trace.append(
@@ -634,11 +728,74 @@ def main() -> int:
             dataset_saved = True
         else:
             writer.clear_episode()
+    policy_latencies = [float(item["latency_ms"]) for item in policy_trace]
+    warm_policy_latencies = policy_latencies[1:]
+    policy_stages = sorted({str(item["stage"]) for item in policy_trace})
+    policy_summary = {
+        "enabled": policy_controller is not None,
+        "mode": args.policy_mode if policy_controller is not None else "expert_only",
+        "checkpoint": (
+            str(args.smolvla_checkpoint.resolve())
+            if args.smolvla_checkpoint is not None
+            else None
+        ),
+        "requested_hz": args.policy_hz if policy_controller is not None else 0,
+        "inference_calls": len(policy_trace),
+        "mean_latency_ms": statistics.fmean(policy_latencies) if policy_latencies else None,
+        "p95_latency_ms": (
+            sorted(policy_latencies)[math.ceil(0.95 * len(policy_latencies)) - 1]
+            if policy_latencies
+            else None
+        ),
+        "cold_start_latency_ms": policy_latencies[0] if policy_latencies else None,
+        "warm_mean_latency_ms": (
+            statistics.fmean(warm_policy_latencies) if warm_policy_latencies else None
+        ),
+        "warm_p95_latency_ms": (
+            sorted(warm_policy_latencies)[
+                math.ceil(0.95 * len(warm_policy_latencies)) - 1
+            ]
+            if warm_policy_latencies
+            else None
+        ),
+        "stages": {
+            stage: sum(str(item["stage"]) == stage for item in policy_trace)
+            for stage in policy_stages
+        },
+        "mean_selected_scale": (
+            statistics.fmean(float(item["selected_scale"]) for item in policy_trace)
+            if policy_trace
+            else None
+        ),
+        "expert_fallback_count": sum(
+            bool(item["fallback_to_expert"]) for item in policy_trace
+        ),
+        "emergency_stop_count": sum(
+            bool(item["emergency_stop"]) for item in policy_trace
+        ),
+        "tool_command_correction_count": sum(
+            int(item["tool_command_corrections"]) for item in policy_trace
+        ),
+        "applied_physics_steps": policy_applied_physics_steps,
+        "actuation_scope": (
+            "grasp-approach and transport base velocity residual only"
+            if args.policy_mode == "base_residual" and policy_controller is not None
+            else "none; shadow evaluation"
+            if policy_controller is not None
+            else "deterministic expert"
+        ),
+        "trace": policy_trace,
+    }
     payload = {
         "runtime": runtime_report(),
         "task": "mobile tri-suction parcel pickup, transport, and place",
-        "parcel_mass_kg": 0.40,
+        "parcel_profile": args.parcel_profile,
+        "parcel_mass_kg": args.parcel_mass_kg,
         "parcel_size_m": parcel_size.tolist(),
+        "parcel_friction": args.parcel_friction,
+        "parcel_offset_m": list(args.parcel_offset_m),
+        "task_text": task_text,
+        "policy": policy_summary,
         "tool_axis_world": tool_axis.tolist(),
         "approach_axis_world": approach_axis.tolist(),
         "precontact_target_m": precontact_target.tolist(),
@@ -672,7 +829,7 @@ def main() -> int:
             "requested": args.record_dataset is not None,
             "saved": dataset_saved,
             "root": str(args.record_dataset) if args.record_dataset is not None else None,
-            "frames": recorded_frames,
+            "frames": recorded_frames if writer is not None else 0,
             "fps": 30,
             "state_dim": 43,
             "action_dim": 19,
