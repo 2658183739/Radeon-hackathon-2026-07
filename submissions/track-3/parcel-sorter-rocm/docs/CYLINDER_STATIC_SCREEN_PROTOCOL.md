@@ -72,3 +72,9 @@ PYTHONPATH=src /workspace/rdna/bin/python \
 
 The 75%, restoration, and latency thresholds cannot change after results are
 observed.
+
+Frozen protocol SHA-256:
+
+```text
+a0497368d29f8ec8b4afb5fdfe1f06c9bbec5c875546747f4b6c384817b6f728
+```

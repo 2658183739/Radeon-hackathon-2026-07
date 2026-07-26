@@ -1515,4 +1515,5 @@ The gate requires 75% feasible samples in each profile, finite evaluations,
 state restoration within `1e-7`, and screen-compute P95 below 5 s. A pass can
 authorize a new physical protocol only. The screen is frozen but deliberately
 not started while V5 occupies the single Radeon. Full protocol is in
-`docs/CYLINDER_STATIC_SCREEN_PROTOCOL.md`.
+`docs/CYLINDER_STATIC_SCREEN_PROTOCOL.md`; its SHA-256 is
+`a0497368...b6f728`.

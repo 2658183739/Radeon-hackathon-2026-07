@@ -72,3 +72,9 @@ PYTHONPATH=src /workspace/rdna/bin/python \
 ```
 
 结果必须按冻结门解释；不能在看到可行率后修改 75%、误差或延迟阈值。
+
+冻结协议 SHA-256：
+
+```text
+a0497368d29f8ec8b4afb5fdfe1f06c9bbec5c875546747f4b6c384817b6f728
+```

@@ -1113,4 +1113,5 @@ SHA-256 为 `1c19e5a0...adf2c`；详见 `docs/CYLINDER_CANDIDATE_AUDIT_RESULTS_C
 
 门禁要求两类 profile 各 75% 样本可行、全部评估有限、状态恢复误差不超过 `1e-7`，且筛查计算
 P95 小于 5 秒。通过只允许新建物理协议。当前只冻结而不启动，以免与 V5 竞争单张 Radeon。完整
-协议见 `docs/CYLINDER_STATIC_SCREEN_PROTOCOL_CN.md`。
+协议见 `docs/CYLINDER_STATIC_SCREEN_PROTOCOL_CN.md`，SHA-256 为
+`a0497368...b6f728`。
