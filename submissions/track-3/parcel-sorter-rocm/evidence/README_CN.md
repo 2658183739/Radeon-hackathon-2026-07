@@ -336,3 +336,13 @@ Git 忽略原始产物。静态零速度回放在 64 个对齐子步中没有达
 最终状态为 `no_cv_candidate`、`selected=null` 和 `new_physics_authorized=false`。没有打开 V3 学习
 总体或 holdout，运行时继续使用静态几何选择器。完整说明见
 `docs/GRASP_MEMORY_V3_CV_RESULTS_CN.md`。
+
+## 控制器保真探针 V4 train-only 安全结果
+
+`training/controller-probe-v4-train-evidence.json` 是冻结 32 组、192 候选放置前探针研究的紧凑索引，
+绑定协议审计、派生数据集和完整结果。`veto-static` 保留 7/32 成功，并通过四次安全放弃把力中止从
+17/32 降到 13/32。
+
+另三个策略会主动重排候选，均未通过已注册的成功或局部安全门。选中机理因此只能解释为安全否决器；
+它尚未部署，不授权新物理，V2 holdout 继续关闭。详见
+`docs/CONTROLLER_FAITHFUL_PROBE_V4_TRAIN_RESULTS_CN.md`。

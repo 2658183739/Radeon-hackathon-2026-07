@@ -561,3 +561,19 @@ micro-lift physics probes with contact/slip state and Radeon-batched rollout.
 The synchronized Radeon tree passes 293 tests and 28 subtests. See
 `docs/GRASP_SCORER_V2_DEVELOPMENT_RESULTS.md` and
 `docs/GRASP_MEMORY_V3_CV_RESULTS.md`.
+
+## Latest train-only mechanism result: a dynamic safety veto advances
+
+A controller-faithful pre-place extractor now truncates each candidate trace
+at the post-lift boundary and summarizes 27 contact, force, lift, and relative
+motion signals. On the frozen 32-group train population, the registered
+`veto-static` policy preserved all seven static successes and reduced force
+aborts from 17 to 13 through four safe abstentions. No profile or fold lost a
+success or gained a safety abort.
+
+This is not a deployment result and did not increase task success. Three
+active dynamic ranking orders all regressed success or local safety and were
+rejected. The runtime therefore remains static geometry; only the early safety
+veto is eligible for a new, disjoint, broader-population protocol. V2
+development and holdout remain closed. The Radeon tree passes 300 tests and 28
+subtests. See `docs/CONTROLLER_FAITHFUL_PROBE_V4_TRAIN_RESULTS.md`.

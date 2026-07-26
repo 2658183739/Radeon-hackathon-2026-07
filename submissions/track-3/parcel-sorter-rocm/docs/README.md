@@ -25,6 +25,7 @@
 | Conservative grasp memory v3 | [Train-only CV protocol](GRASP_MEMORY_V3_CV_PROTOCOL.md) | [Train-only CV 协议](GRASP_MEMORY_V3_CV_PROTOCOL_CN.md) |
 | Conservative grasp memory v3 result | [No-candidate CV result](GRASP_MEMORY_V3_CV_RESULTS.md) | [无候选通过的 CV 结果](GRASP_MEMORY_V3_CV_RESULTS_CN.md) |
 | Controller-faithful probe v4 | [Train-only feasibility protocol](CONTROLLER_FAITHFUL_PROBE_V4_PROTOCOL.md) | [Train-only 可行性协议](CONTROLLER_FAITHFUL_PROBE_V4_PROTOCOL_CN.md) |
+| Controller-faithful probe v4 result | [Train-only safety result](CONTROLLER_FAITHFUL_PROBE_V4_TRAIN_RESULTS.md) | [Train-only 安全结果](CONTROLLER_FAITHFUL_PROBE_V4_TRAIN_RESULTS_CN.md) |
 | Multimodal implementation | [RGB-D optimization record](MULTIMODAL_OPTIMIZATION_2026-07-25.md) | [RGB-D 优化记录](MULTIMODAL_OPTIMIZATION_2026-07-25_CN.md) |
 | End-effector contract | [Capability contract](END_EFFECTOR_CAPABILITY.md) | [末端执行器能力契约](END_EFFECTOR_CAPABILITY_CN.md) |
 | Video | [Video script](VIDEO_SCRIPT.md) | [视频脚本](VIDEO_SCRIPT_CN.md) |

@@ -1426,3 +1426,22 @@ safe abstention, summaries, and promotion gate. A seventh test requires the
 implementation hashes and exact policy grid to remain frozen. All seven pass
 on the Radeon environment. Protocol SHA-256 is `ca941366...e4ff3`; no actual
 train result has been produced yet, and development/holdout remain forbidden.
+
+### Record 88: Advance only the dynamic veto after train-only evidence
+
+After commit `0a9a944` froze the extractor, four policies, and gates, the
+evaluator verified all 32 source hashes and built 192 strictly pre-place probe
+rows. The static baseline produced seven successes and 17 force aborts.
+`veto-static` preserved all seven successes and reduced aborts to 13, with no
+profile or fold safety/success regression. Its selector P95 was 0.006 ms.
+
+The improvement is narrow and interpretable: one medium and three near-limit
+groups safely abstained instead of executing static candidates that later
+force-aborted. A fifth group selected its only probe-eligible candidate, but
+both old and new choices were safe failures. The three active reordering
+policies all caused success or local safety regressions and were rejected.
+
+The decision is not to deploy the probe or open V2 holdout. Only the
+`veto-static` safety mechanism may advance to a newly frozen, disjoint and
+broader parcel population. The active runtime remains static geometry until
+that confirmation exists. Full result SHA-256 is `3df57daf...ba16`.

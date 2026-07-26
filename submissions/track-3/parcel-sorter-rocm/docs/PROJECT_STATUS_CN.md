@@ -402,3 +402,14 @@ holdout 继续锁定。下一条研究路线必须先冻结新的动态信息协
 微抬升物理探针，以及 Radeon 批量 rollout。同步后的 Radeon 树通过 293 项测试和 28 个子测试。
 详见 `docs/GRASP_SCORER_V2_DEVELOPMENT_RESULTS_CN.md` 与
 `docs/GRASP_MEMORY_V3_CV_RESULTS_CN.md`。
+
+## 最新 train-only 机理结果：动态安全否决器进入下一阶段
+
+控制器保真的放置前提取器会在抬升后边界截断每条候选轨迹，并汇总 27 个接触、受力、抬升和相对
+运动信号。在冻结 32 组 train 总体上，注册的 `veto-static` 保留静态基线全部 7 次成功，通过四次
+安全放弃把力中止从 17 降到 13；任一 profile 或任一折都没有成功损失或安全中止增加。
+
+这不是部署结果，也没有增加任务成功。三个主动动态排序顺序均造成成功或局部安全回归，因此被拒绝。
+正式运行时继续保持静态几何；只有早期安全否决机理可以进入新的、完全不重叠且覆盖更广总体的协议。
+V2 development 与 holdout 继续关闭。Radeon 树通过 300 项测试和 28 个子测试。详见
+`docs/CONTROLLER_FAITHFUL_PROBE_V4_TRAIN_RESULTS_CN.md`。

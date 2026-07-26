@@ -2114,3 +2114,21 @@ capacity or opening new physics.
 `ca941366...e4ff3`. Only the v2 train manifest is admissible; development,
 holdout, online execution, and promotion remain unauthorized until a separate
 result and protocol exist.
+
+### 88. Treat the passing probe as a safety veto, not a success ranker
+
+**Evidence.** On 32 frozen train groups, `veto-static` preserved seven
+successes and reduced force aborts from 17 to 13. All four reductions were safe
+abstentions. The three policies that actively reordered candidates produced
+profile, fold, or aggregate regressions and failed.
+
+**Decision and reason.** Advance only the eligibility veto. Do not claim that
+micro-lift metrics rank transport success, do not deploy, and do not open V2
+holdout. This keeps the positive claim aligned with its mechanism: the early
+probe can recognize some candidates for which execution should be withheld,
+but did not demonstrate more completed parcels.
+
+**Revisit trigger.** Freeze and run a disjoint, broader parcel population. The
+veto may advance only if it preserves baseline successes and reduces safety
+aborts without profile concentration. Full train result SHA-256 is
+`3df57daf...ba16`.

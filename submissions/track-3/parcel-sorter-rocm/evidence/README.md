@@ -488,3 +488,15 @@ The final state is `no_cv_candidate`, `selected=null`, and
 `new_physics_authorized=false`. No v3 learning population or holdout was
 opened, and the static geometry selector remains active. See
 `docs/GRASP_MEMORY_V3_CV_RESULTS.md`.
+
+## Controller-faithful probe v4 train-only safety result
+
+`training/controller-probe-v4-train-evidence.json` is the compact index for
+the frozen 32-group, 192-candidate pre-place probe study. It binds the protocol
+audit, derived dataset, and full result. `veto-static` preserved 7/32 successes
+and reduced force aborts from 17/32 to 13/32 through four safe abstentions.
+
+The other three policies actively reordered candidates and failed registered
+success or local safety gates. The selected mechanism is therefore a safety
+veto only. It remains undeployed, new physics is unauthorized, and V2 holdout
+remains closed. See `docs/CONTROLLER_FAITHFUL_PROBE_V4_TRAIN_RESULTS.md`.
