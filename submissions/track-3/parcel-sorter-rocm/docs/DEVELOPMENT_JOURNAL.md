@@ -1546,3 +1546,14 @@ license and ROCm-operator audits. The evaluation harness is treated as a
 protocol reference, not as a model or a drop-in AMD benchmark. The complete
 sample sizes, stop rules, GPU ladder, and paper-ready definition are recorded
 in `docs/FRONTIER_EXECUTION_DECISION_2026-07-26.md`.
+
+### Record 95: Make the V5-to-cylinder handoff deterministic
+
+Because V5 and the cylinder screen share one Radeon, manually starting the
+second job creates a race and can invalidate latency evidence. The new
+`scripts/watch_v5_then_cylinder_screen_rocm.sh` waits for the recorded V5 PID,
+requires a parseable final `confirmation-result.json`, takes an `flock`
+handoff lock, reruns the Radeon preflight, and then invokes the already frozen
+cylinder protocol with `--resume`. An abnormal V5 exit or missing result stops
+the handoff rather than launching a GPU job. The script passed `bash -n` on the
+remote shell; it has not yet launched the cylinder screen.

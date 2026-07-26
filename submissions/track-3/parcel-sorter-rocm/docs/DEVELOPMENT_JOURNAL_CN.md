@@ -1137,3 +1137,11 @@ ACT/Diffusion 实验。VLA-Adapter 只有在递归许可证与 ROCm 算子审计
 兼容性实验；evaluation harness 只作为协议参考，不被当成模型或可直接运行的 AMD 基准。完整
 样本量、停止规则、GPU 优化阶梯和论文就绪定义见
 `docs/FRONTIER_EXECUTION_DECISION_2026-07-26_CN.md`。
+
+### 记录 95：让 V5 到圆柱筛查的交接可复现
+
+V5 与圆柱筛查共享唯一一张 Radeon，手工启动第二个任务会产生竞态并污染延迟证据。新增的
+`scripts/watch_v5_then_cylinder_screen_rocm.sh` 会等待已记录的 V5 PID 退出，要求最终
+`confirmation-result.json` 可解析，使用 `flock` 互斥锁，重新做 Radeon 预检，然后以
+`--resume` 调用已冻结的圆柱协议。V5 异常退出或结果缺失时交接会停止，不会启动 GPU 任务。
+脚本已在远端 shell 通过 `bash -n`；圆柱筛查尚未启动。
