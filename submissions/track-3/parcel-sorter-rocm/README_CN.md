@@ -6,7 +6,8 @@ RGB-D 数据采集、ACT 训练、闭环推理、离屏录像和性能测试。
 
 移动扩展的最新状态见[43 维状态 / 19 维动作 SmolVLA 状态](docs/MOBILE_VLA_STATUS_CN.md)：
 Radeon 训练和 checkpoint 重载链已验证；独立物理实验已完成双杯密封和 8.11 cm 抬升，
-底盘携物运输与分类放置尚未完成。
+并完成 30 cm 底盘携物运输、放置和释放，最终误差 1.18 cm。该结果是单个专家回合，
+移动 VLA 泛化仍未验证。
 
 英文 [README.md](README.md) 是评审复现的主入口；中文正式报告见
 [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)。优化顺序见

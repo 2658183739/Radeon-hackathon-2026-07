@@ -71,11 +71,20 @@ def main() -> int:
     )
     scene.add_entity(gs.morphs.Plane())
     pedestal_position = np.asarray((-0.6800, 0.7500, 1.3000))
+    transport_delta = np.asarray((0.3000, 0.0, 0.0))
+    destination_pedestal_position = pedestal_position + transport_delta
     initial_parcel_position = np.asarray((-0.6800, 0.7500, 1.4520))
     scene.add_entity(
         gs.morphs.Box(
             size=(0.16, 0.08, 0.10),
             pos=tuple(pedestal_position.tolist()),
+            fixed=True,
+        )
+    )
+    scene.add_entity(
+        gs.morphs.Box(
+            size=(0.16, 0.08, 0.10),
+            pos=tuple(destination_pedestal_position.tolist()),
             fixed=True,
         )
     )
@@ -331,18 +340,130 @@ def main() -> int:
             if suction.attachment is None:
                 break
 
-    parcel_final_z = _flat(parcel.get_pos())[2]
-    lift_delta = parcel_final_z - parcel_initial_z
-    success = bool(
+    lift_parcel_z = _flat(parcel.get_pos())[2]
+    lift_delta = lift_parcel_z - parcel_initial_z
+    lift_success = bool(
         latched
         and suction.attachment is not None
         and lift_delta >= 0.08
         and suction.max_force_n < 35.0
         and suction.max_contact_force_n < 35.0
     )
+    transport_trace = []
+    transport_success = False
+    if lift_success:
+        transport_start_base = np.asarray(_flat(robot.get_qpos()))[base_dofs]
+        transport_target_base = transport_start_base + transport_delta
+        for physics_step in range(1, 2401):
+            current_base = np.asarray(_flat(robot.get_qpos()))[base_dofs]
+            error_xy = transport_target_base[:2] - current_base[:2]
+            distance_m = float(np.linalg.norm(error_xy))
+            velocity_xy = error_xy * 2.0
+            speed_m_s = float(np.linalg.norm(velocity_xy))
+            if speed_m_s > 0.05:
+                velocity_xy *= 0.05 / speed_m_s
+                speed_m_s = 0.05
+            robot.control_dofs_velocity(
+                np.asarray((velocity_xy[0], velocity_xy[1], 0.0)), base_dofs
+            )
+            robot.control_dofs_position(target_arm_qpos, left_arm_dofs)
+            suction.update()
+            scene.step()
+            if physics_step % 120 == 0 or suction.attachment is None or distance_m <= 0.005:
+                transport_trace.append(
+                    {
+                        "physics_step": physics_step,
+                        "base_position_xy_m": _flat(robot.get_qpos())[base_dofs[0] : base_dofs[1] + 1],
+                        "distance_to_destination_m": distance_m,
+                        "parcel_position_m": _flat(parcel.get_pos()),
+                        **suction.summary(),
+                    }
+                )
+            if suction.attachment is None or distance_m <= 0.005:
+                break
+        robot.control_dofs_velocity(np.zeros(3), base_dofs)
+        final_base = np.asarray(_flat(robot.get_qpos()))[base_dofs]
+        transport_success = bool(
+            suction.attachment is not None
+            and float(np.linalg.norm(transport_target_base[:2] - final_base[:2])) <= 0.010
+            and math.dist(
+                _flat(parcel.get_pos())[:2],
+                (initial_parcel_position + transport_delta)[:2].tolist(),
+            )
+            <= 0.040
+        )
+
+    place_trace = []
+    placed_before_release = False
+    released = False
+    if transport_success:
+        place_start_hand = np.asarray(_flat(hand.get_pos()))
+        place_start_qpos = np.asarray(_flat(robot.get_qpos()))
+        place_start_arm_qpos = place_start_qpos[left_arm_dofs]
+        place_target = place_start_hand - np.asarray((0.0, 0.0, 0.085))
+        place_quaternion = np.asarray(_flat(hand.get_quat()))
+        place_solution = robot.inverse_kinematics(
+            link=hand,
+            pos=place_target,
+            quat=place_quaternion,
+            init_qpos=place_start_qpos,
+            respect_joint_limit=True,
+            max_samples=8,
+            max_solver_iters=80,
+            damping=0.02,
+            max_step_size=0.15,
+            dofs_idx_local=left_arm_dofs,
+        )
+        place_target_arm_qpos = np.asarray(_flat(place_solution))[left_arm_dofs]
+        for physics_step in range(1, 721):
+            progress = min(physics_step / 480.0, 1.0)
+            smooth_progress = progress * progress * (3.0 - 2.0 * progress)
+            command = place_start_arm_qpos + smooth_progress * (
+                place_target_arm_qpos - place_start_arm_qpos
+            )
+            robot.control_dofs_position(command, left_arm_dofs)
+            suction.update()
+            scene.step()
+            if physics_step % 40 == 0 or suction.attachment is None:
+                place_trace.append(
+                    {
+                        "physics_step": physics_step,
+                        "actual_hand_position_m": _flat(hand.get_pos()),
+                        "parcel_position_m": _flat(parcel.get_pos()),
+                        **suction.summary(),
+                    }
+                )
+            if suction.attachment is None:
+                break
+        expected_placed_position = initial_parcel_position + transport_delta
+        parcel_before_release = np.asarray(_flat(parcel.get_pos()))
+        placed_before_release = bool(
+            suction.attachment is not None
+            and float(np.linalg.norm(parcel_before_release[:2] - expected_placed_position[:2]))
+            <= 0.040
+            and abs(float(parcel_before_release[2] - expected_placed_position[2])) <= 0.025
+        )
+        if placed_before_release:
+            suction.release()
+            released = True
+            for _ in range(240):
+                scene.step()
+
+    parcel_final_position = np.asarray(_flat(parcel.get_pos()))
+    expected_final_position = initial_parcel_position + transport_delta
+    placement_error_m = float(np.linalg.norm(parcel_final_position - expected_final_position))
+    success = bool(
+        lift_success
+        and transport_success
+        and placed_before_release
+        and released
+        and placement_error_m <= 0.040
+        and suction.max_force_n < 35.0
+        and suction.max_contact_force_n < 35.0
+    )
     payload = {
         "runtime": runtime_report(),
-        "task": "mobile left tri-suction physical parcel lift",
+        "task": "mobile tri-suction parcel pickup, transport, and place",
         "parcel_mass_kg": 0.40,
         "parcel_size_m": parcel_size.tolist(),
         "tool_axis_world": tool_axis.tolist(),
@@ -355,16 +476,25 @@ def main() -> int:
         "planned_parcel_position_m": planned_parcel_position.tolist(),
         "parcel_spawn_position_m": parcel_spawn.tolist(),
         "pedestal_position_m": pedestal_position.tolist(),
+        "destination_pedestal_position_m": destination_pedestal_position.tolist(),
         "scene_stable": scene_stable,
         "settle_position_error_m": settle_position_error_m,
         "settle_linear_speed_m_s": settle_linear_speed_m_s,
         "settle_trace": settle_trace,
         "parcel_initial_z_m": parcel_initial_z,
-        "parcel_final_z_m": parcel_final_z,
+        "parcel_lift_z_m": lift_parcel_z,
+        "parcel_final_position_m": parcel_final_position.tolist(),
         "lift_delta_m": lift_delta,
+        "lift_success": lift_success,
+        "transport_success": transport_success,
+        "placed_before_release": placed_before_release,
+        "released": released,
+        "placement_error_m": placement_error_m,
         "latched": latched,
         "approach_trace": approach_trace,
         "lift_trace": lift_trace,
+        "transport_trace": transport_trace,
+        "place_trace": place_trace,
         "suction": suction.summary(),
         "success": success,
     }
