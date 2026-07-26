@@ -2048,3 +2048,25 @@ smoke passed. The smoke is in-sample integration evidence, not a result. Freeze
 the two exact training recipes before development; use development once for
 the registered promotion gate and keep holdout locked until one recipe is
 selected.
+
+### 85. Freeze checkpoints before collecting development
+
+**Question.** How can two learned scorers be compared without turning the
+16-group development split into a hyperparameter search?
+
+**Decision and reason.** Bind two exact recipes, implementation hashes, sample
+counts, profile balance, latency batch, promotion gates, tie-break order, and
+negative-result stopping rule before train completion. Train and hash both
+checkpoints first; only then collect development. This prevents result-driven
+changes to width, seed, learning rate, loss weights, or candidate set.
+
+**Promotion rule.** A candidate needs all development groups, no per-profile
+safety-abort increase, at least one aggregate safety reduction or success gain,
+and six-candidate Radeon warm P95 below 5 ms. Safety abort count is the first
+tie-break, followed by success, mean force, duration, latency, and fixed name.
+If no candidate passes, promote none and do not open holdout.
+
+**Evidence.** The protocol SHA-256 is
+`091c8e28efcab4b59663e07b03ec51daa609d057fbff97a79b26adc9233241ee`.
+Its hash audit and runtime 6,276-parameter assertion passed before development
+execution.

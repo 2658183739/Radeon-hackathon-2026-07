@@ -1417,3 +1417,19 @@ holdout。
 **证据与边界：**纯分组测试和两组五步 ROCm smoke 通过。smoke 是训练内集成证据，不是模型结果。
 在 development 前冻结两套精确训练配方，只使用 development 执行已注册晋级门，并在选定唯一配方
 前保持 holdout 锁定。
+
+### 85. 在采集 development 前冻结检查点
+
+**问题：**怎样比较两个学习评分器，又不把 16 组 development 变成超参数搜索？
+
+**决策与原因：**在 train 完成前绑定两套精确配方、实现哈希、样本数、profile 均衡、延迟 batch、
+晋级门、tie-break 顺序和负结果停止规则。先只用 train 训练并哈希两个检查点，然后才采集
+development。这样禁止根据结果修改宽度、seed、学习率、损失权重或候选集合。
+
+**晋级规则：**候选必须覆盖全部 development 组，任何 profile 都不增加安全中止，总体至少减少
+一次中止或增加一次成功，并且 Radeon 六候选 warm P95 小于 5 ms。tie-break 依次为安全中止数、
+成功数、平均力、耗时、延迟和固定名称。若没有候选通过，则不晋级，也不打开 holdout。
+
+**证据：**协议 SHA-256 为
+`091c8e28efcab4b59663e07b03ec51daa609d057fbff97a79b26adc9233241ee`；其哈希审计与运行时 6,276
+参数断言均在 development 执行前通过。

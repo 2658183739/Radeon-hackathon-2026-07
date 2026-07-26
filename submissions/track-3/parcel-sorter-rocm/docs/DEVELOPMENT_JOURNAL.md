@@ -1273,3 +1273,23 @@ avoided both static safety aborts and recovered one success, but this is only
 wiring evidence; it is explicitly excluded from model selection. Exact model
 hyperparameters will be frozen before development is run, and holdout remains
 closed.
+
+### Record 81: Freeze model recipes and the development promotion gate
+
+Before the complete train collection existed, the project froze exactly two
+capacity-matched recipes: pointwise and groupwise safety-first. Both use 28
+features, 6,276 parameters, 2,000 steps, learning rate 0.001, weight decay
+0.0001, seed 42, and one Radeon. The six relevant implementation files and
+the collection protocol are bound by SHA-256 in a separate model-selection
+TOML.
+
+Evaluation now records paired success gains/losses, safety-abort reductions/
+regressions, selected force and duration, and the same metrics per profile.
+The promotion gate cross-checks profile totals against aggregate totals. It
+requires all 16 development groups, four groups per profile, no profile safety
+regression, aggregate task or safety improvement, and a six-candidate warm P95
+below 5 ms. Eligible candidates use a fixed safety-first tie-break; if neither
+passes, development cannot be reused for tuning and holdout stays closed.
+
+The protocol audit, 18 directed tests, and an independent runtime parameter
+count all passed on Radeon. No development scene or holdout was opened.

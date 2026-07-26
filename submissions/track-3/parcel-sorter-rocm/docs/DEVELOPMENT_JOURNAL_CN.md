@@ -969,3 +969,18 @@ V2 预注册比较要求一个组内排序器，但现有训练器把全部候�
 进行五步 ROCm smoke，在 1.39 秒内生成有效 HIP 7.2 检查点；训练内选择避开两个静态安全中止并
 恢复一次成功，但这只属于接线证据，明确不参与模型选择。精确模型超参数将在 development 执行前
 冻结，holdout 继续关闭。
+
+### 记录 81：冻结模型配方与 development 晋级门
+
+完整 train 采集尚未形成时，项目就冻结了恰好两个同容量配方：pointwise 与
+groupwise-safety-first。二者都使用 28 维特征、6,276 参数、2,000 步、0.001 学习率、0.0001
+权重衰减、seed 42 和单张 Radeon。独立模型选择 TOML 用 SHA-256 绑定 collection 协议与六个
+相关实现文件。
+
+评测现在记录配对成功增益/损失、安全中止减少/回归、选中候选力与耗时，并按 profile 输出同样
+指标。晋级门会交叉核对逐 profile 与总体计数，要求完整 16 个 development 组、每 profile 4 组、
+没有逐 profile 安全回归、总体任务或安全改善，以及 Radeon 六候选 warm P95 小于 5 ms。合格候选
+使用固定安全优先 tie-break；若两个都失败，不得复用 development 调参，holdout 保持关闭。
+
+协议审计、18 项定向测试和独立运行时参数计数均在 Radeon 上通过；没有打开 development 场景或
+holdout。
