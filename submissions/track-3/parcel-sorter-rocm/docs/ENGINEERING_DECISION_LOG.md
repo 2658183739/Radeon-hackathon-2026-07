@@ -2276,6 +2276,7 @@ if any key or field differs. Preserve the old fingerprint as superseded.
 
 **Evidence boundary.** All 24 projections match, two negative tests reject
 input drift, and the protocol self-audit passes. No cylinder scene or outcome
-was observed. Planner logic and every feasibility, coverage, restoration, and
-latency threshold remain unchanged. The active protocol SHA-256 is
-`203e7fed...c0cae1`.
+was observed. The source-audit module/runner are also bound and cross-checked
+against the fingerprints embedded in the source artifact. Planner logic and
+every feasibility, coverage, restoration, and latency threshold remain
+unchanged. The active protocol SHA-256 is `31f1b73d...1dbfc4`.

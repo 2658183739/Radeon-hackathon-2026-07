@@ -13,6 +13,7 @@ from parcel_sorter.cylinder_static_screen import (
 from parcel_sorter.randomization import DomainRandomizer
 from parcel_sorter.cylinder_candidate_audit import initial_cylinder_pose
 from scripts.run_cylinder_static_screen import _sample_matches_source
+from scripts.run_cylinder_static_screen import _load_toml, _validate_protocol
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -295,6 +296,17 @@ class CylinderStaticScreenTests(unittest.TestCase):
         source_row["pose"] = list(initial_cylinder_pose(self.sample))
         source_row["dimensions_m"][0] += 1e-4
         self.assertFalse(_sample_matches_source(self.sample, source_row))
+
+    def test_active_runner_protocol_binds_source_audit_implementation(self) -> None:
+        path = PROJECT_ROOT / "configs" / "cylinder_static_screen_v1.toml"
+        protocol = _load_toml(path)
+
+        self.assertEqual(_validate_protocol(path, protocol), [])
+        protocol["implementation"]["source_audit_module_sha256"] = "0" * 64
+        errors = _validate_protocol(path, protocol)
+
+        self.assertIn("source_audit_module_hash_mismatch", errors)
+        self.assertIn("source_implementation:audit_module", errors)
 
 
 if __name__ == "__main__":

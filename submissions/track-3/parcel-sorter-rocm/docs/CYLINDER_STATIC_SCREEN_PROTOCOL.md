@@ -81,7 +81,7 @@ observed.
 Active frozen protocol SHA-256:
 
 ```text
-203e7feddda57bb20b33ba4e88ed0c95ece84e3c803af9c93954fd5957c0cae1
+31f1b73df7df3b752c8c2b4266cfa249be4048123a4ecc41cf2d9146e21dbfc4
 ```
 
 The earlier pre-execution fingerprints `a0497368...b6f728` and
@@ -92,3 +92,7 @@ not compare the selected sample projection with the outcome-free source audit.
 The active runner now checks dimensions, mass, friction, rolling friction,
 position, yaw, orientation, and initial pose for all 24 keys before creating a
 scene. No feasibility result was observed during either refreeze.
+
+The active protocol also binds the source-audit module and runner and requires
+their hashes to match the implementation fingerprints embedded in the source
+artifact.

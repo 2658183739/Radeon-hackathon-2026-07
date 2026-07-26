@@ -1593,7 +1593,8 @@ Before V5 released the Radeon and before any cylinder scene existed, the
 runner was strengthened to compare dimensions, mass, friction, rolling
 friction, position, yaw, orientation, and initial pose against the frozen
 outcome-free source for all 24 keys. Two negative tests cover yaw, pose, and
-dimension drift. The four input-defining modules are now hash-bound. Protocol
-and sample-contract audits pass; the active SHA-256 is
-`203e7fed...c0cae1`. Candidate generation, IK/FK thresholds, the 75% profile
+dimension drift. The four input-defining modules and both source-audit
+implementations are now hash-bound; embedded source fingerprints must match
+the live files. Protocol and sample-contract audits pass; the active SHA-256 is
+`31f1b73d...1dbfc4`. Candidate generation, IK/FK thresholds, the 75% profile
 gate, and the 5 s latency gate are unchanged.

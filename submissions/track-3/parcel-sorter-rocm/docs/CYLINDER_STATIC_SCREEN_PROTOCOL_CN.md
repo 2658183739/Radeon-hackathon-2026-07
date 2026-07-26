@@ -79,10 +79,12 @@ PYTHONPATH=src /workspace/rdna/bin/python \
 当前有效冻结协议 SHA-256：
 
 ```text
-203e7feddda57bb20b33ba4e88ed0c95ece84e3c803af9c93954fd5957c0cae1
+31f1b73df7df3b752c8c2b4266cfa249be4048123a4ecc41cf2d9146e21dbfc4
 ```
 
 较早的执行前指纹 `a0497368...b6f728` 和 `e2777ccb...adcfeb` 都在任何筛查场景构建前被替代。
 前者没有绑定 backend/HIP 证据；后者没有绑定配置解析器、随机化器、专家抓取间隙和能力门，也没有
 把选中样本投影与无结果标签源审计逐项比较。当前 runner 会在构建场景前，对 24 个键的尺寸、质量、
 摩擦、滚动摩擦、位置、yaw、姿态类别和初始位姿全部进行核对。两次重新冻结都没有观察可行性结果。
+
+当前协议还绑定源审计 module 与 runner，并要求其哈希与源证据内部记录的实现指纹一致。

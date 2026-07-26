@@ -144,6 +144,8 @@ def _validate_protocol(protocol_path: Path, protocol: dict[str, Any]) -> list[st
         "randomization",
         "expert",
         "capabilities",
+        "source_audit_module",
+        "source_audit_runner",
     ):
         path = PROJECT_ROOT / str(implementation[name])
         expected = str(implementation[f"{name}_sha256"])
@@ -163,6 +165,17 @@ def _validate_protocol(protocol_path: Path, protocol: dict[str, Any]) -> list[st
         or source_contract.get("outcome_fields_read") != []
     ):
         errors.append("source_audit_used_physics_or_outcomes")
+    source_implementation = source.get("implementation_sha256", {})
+    for source_name, protocol_name in (
+        ("planner", "planner"),
+        ("catalog", "catalog"),
+        ("audit_module", "source_audit_module"),
+        ("runner", "source_audit_runner"),
+    ):
+        if str(source_implementation.get(source_name, "")) != str(
+            implementation[f"{protocol_name}_sha256"]
+        ):
+            errors.append(f"source_implementation:{source_name}")
     source_keys = {
         (str(row["profile_id"]), int(row["episode"]))
         for row in source.get("samples", ())
@@ -339,6 +352,8 @@ def main() -> int:
                 "randomization",
                 "expert",
                 "capabilities",
+                "source_audit_module",
+                "source_audit_runner",
             )
             },
         }
