@@ -113,6 +113,30 @@ class ShapeGraspPlanningTests(unittest.TestCase):
         self.assertEqual(plan.reason, "cylinder_planner_disabled")
         self.assertEqual(plan.candidates, ())
 
+    def test_zero_offset_and_threshold_ablation_remains_representable(self) -> None:
+        config = ShapeGraspPlannerConfig(
+            cylinder_min_aperture_margin_m=0.0,
+            cylinder_min_horizontal_rolling_friction=0.0,
+            cylinder_max_upright_vertical_offset_m=0.0,
+            cylinder_max_horizontal_axial_offset_m=0.0,
+        )
+
+        upright = build_shape_grasp_plan(
+            self.canister,
+            self.canister_pose,
+            hand_clearance_m=0.105,
+            config=config,
+        )
+        horizontal = build_shape_grasp_plan(
+            self.tube,
+            self.tube_pose,
+            hand_clearance_m=0.105,
+            config=config,
+        )
+
+        self.assertEqual(len(upright.candidates), 8)
+        self.assertEqual(len(horizontal.candidates), 6)
+
     def test_low_rolling_friction_tube_cannot_be_activated(self) -> None:
         unstable = replace(self.tube, rolling_friction=0.0)
         plan = build_shape_grasp_plan(

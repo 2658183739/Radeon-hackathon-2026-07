@@ -1573,13 +1573,18 @@ rejection reason, and candidate payload. This is the smallest reusable
 interface for the later Genesis integration because it preserves the box scope
 gate while making cylinder capability failures explicit.
 
-Nine dispatch tests pass together with the existing cylinder tests. They also
+Ten dispatch tests pass together with the existing cylinder tests. They also
 prove that box ordering is unchanged and that feasible cylinder candidates use
 rolling risk and centre-of-mass moment arm before kinematic tie-breaks. The change
 does not modify the hash-bound static-screen files or the frozen V5 path. It is
 therefore an interface and test result, not a physical cylinder result. After
 the Radeon screen, a new closed-loop protocol must bind the dispatcher and the
 environment before any runtime claim is made.
+
+The dispatch configuration was then corrected to preserve the underlying
+planner's legal zero-valued offset and risk-threshold ablations. A directed
+test proves that zero offsets deterministically collapse the upright and
+horizontal candidate populations rather than failing configuration validation.
 
 ### Record 97: Bind the static-screen input generator before execution
 

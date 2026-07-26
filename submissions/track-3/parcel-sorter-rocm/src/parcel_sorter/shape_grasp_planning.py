@@ -43,6 +43,12 @@ class ShapeGraspPlannerConfig:
     def validate(self) -> None:
         positive = (
             ("cylinder_jaw_aperture_m", self.cylinder_jaw_aperture_m),
+            ("cylinder_min_upright_side_overlap_m", self.cylinder_min_upright_side_overlap_m),
+            ("cylinder_min_horizontal_end_margin_m", self.cylinder_min_horizontal_end_margin_m),
+        )
+        if any(not math.isfinite(float(value)) or float(value) <= 0 for _, value in positive):
+            raise ValueError("cylinder aperture and overlap distances must be positive and finite")
+        nonnegative = (
             ("cylinder_min_aperture_margin_m", self.cylinder_min_aperture_margin_m),
             (
                 "cylinder_min_horizontal_rolling_friction",
@@ -52,12 +58,13 @@ class ShapeGraspPlannerConfig:
                 "cylinder_max_upright_vertical_offset_m",
                 self.cylinder_max_upright_vertical_offset_m,
             ),
-            ("cylinder_min_upright_side_overlap_m", self.cylinder_min_upright_side_overlap_m),
             ("cylinder_max_horizontal_axial_offset_m", self.cylinder_max_horizontal_axial_offset_m),
-            ("cylinder_min_horizontal_end_margin_m", self.cylinder_min_horizontal_end_margin_m),
         )
-        if any(not math.isfinite(float(value)) or float(value) <= 0 for _, value in positive):
-            raise ValueError("cylinder planner distances and friction thresholds must be positive and finite")
+        if any(
+            not math.isfinite(float(value)) or float(value) < 0
+            for _, value in nonnegative
+        ):
+            raise ValueError("cylinder margins, thresholds, and offset limits must be non-negative and finite")
         if self.cylinder_max_parallel_jaw_length_m is not None and (
             not math.isfinite(float(self.cylinder_max_parallel_jaw_length_m))
             or self.cylinder_max_parallel_jaw_length_m <= 0
@@ -69,6 +76,11 @@ class ShapeGraspPlannerConfig:
             raise ValueError("cylinder_upright_radial_yaw_count must be positive")
         if not self.cylinder_horizontal_radial_angles_deg:
             raise ValueError("cylinder_horizontal_radial_angles_deg cannot be empty")
+        if any(
+            not math.isfinite(float(angle)) or abs(float(angle)) >= 90
+            for angle in self.cylinder_horizontal_radial_angles_deg
+        ):
+            raise ValueError("cylinder radial angles must be finite and in (-90, 90)")
 
 
 @dataclass(frozen=True)
