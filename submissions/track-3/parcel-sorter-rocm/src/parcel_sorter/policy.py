@@ -35,6 +35,7 @@ class LeRobotPolicyAdapter:
         config: ExperimentConfig,
         *,
         action_steps_override: int | None = None,
+        action_position_mode: str = "absolute",
     ) -> None:
         try:
             import torch
@@ -49,6 +50,9 @@ class LeRobotPolicyAdapter:
 
         self.torch = torch
         self.config = config
+        if action_position_mode not in {"absolute", "delta"}:
+            raise ValueError("action_position_mode must be absolute or delta")
+        self.action_position_mode = action_position_mode
         self.checkpoint = Path(checkpoint).resolve()
         if not (self.checkpoint / "config.json").is_file():
             raise FileNotFoundError(f"LeRobot checkpoint not found: {self.checkpoint}")
@@ -137,6 +141,15 @@ class LeRobotPolicyAdapter:
             action = self.postprocessor(self.policy.select_action(batch))
             self.torch.cuda.synchronize()
         values = action[0].detach().to("cpu").tolist()
+        if self.action_position_mode == "delta":
+            values[:3] = [
+                float(current) + float(delta)
+                for current, delta in zip(
+                    context.state.end_effector_pose[:3],
+                    values[:3],
+                    strict=True,
+                )
+            ]
         return _safe_cartesian_action(
             values,
             context,

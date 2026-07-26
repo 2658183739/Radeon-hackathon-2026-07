@@ -39,6 +39,12 @@ def main() -> int:
         type=int,
         help="override how many predicted actions are executed before replanning",
     )
+    parser.add_argument(
+        "--action-position-mode",
+        choices=("absolute", "delta"),
+        default="absolute",
+        help="interpret the first three policy outputs as absolute XYZ or XYZ deltas",
+    )
     parser.add_argument("--fail-on-unsuccessful", action="store_true")
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
@@ -54,6 +60,7 @@ def main() -> int:
         args.checkpoint,
         config,
         action_steps_override=args.n_action_steps,
+        action_position_mode=args.action_position_mode,
     )
     randomizer = DomainRandomizer(config.randomization, config.seed, config.parcel_profiles)
     try:
@@ -115,6 +122,7 @@ def main() -> int:
         "checkpoint": str(Path(args.checkpoint).resolve()),
         "policy_type": policy.policy_type,
         "n_action_steps_override": args.n_action_steps,
+        "action_position_mode": args.action_position_mode,
         "evaluation_range": {
             "start_episode": min(spec.episode_index for spec in plan),
             "end_episode": max(spec.episode_index for spec in plan),
