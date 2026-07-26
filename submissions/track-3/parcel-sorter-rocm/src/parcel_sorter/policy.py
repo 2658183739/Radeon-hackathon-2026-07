@@ -29,7 +29,13 @@ class ScriptedExpertPolicy:
 class LeRobotPolicyAdapter:
     """Any supported LeRobot checkpoint behind the safe Cartesian action boundary."""
 
-    def __init__(self, checkpoint: str | Path, config: ExperimentConfig) -> None:
+    def __init__(
+        self,
+        checkpoint: str | Path,
+        config: ExperimentConfig,
+        *,
+        action_steps_override: int | None = None,
+    ) -> None:
         try:
             import torch
             from lerobot.configs.policies import PreTrainedConfig
@@ -50,6 +56,13 @@ class LeRobotPolicyAdapter:
             self.checkpoint,
             local_files_only=True,
         )
+        if action_steps_override is not None:
+            chunk_size = int(getattr(policy_config, "chunk_size", 1))
+            if not 1 <= action_steps_override <= chunk_size:
+                raise ValueError(
+                    f"action_steps_override must be in [1, {chunk_size}]"
+                )
+            policy_config.n_action_steps = action_steps_override
         policy_config.device = "cuda"
         policy_class = get_policy_class(policy_config.type)
         self.policy_type = policy_config.type

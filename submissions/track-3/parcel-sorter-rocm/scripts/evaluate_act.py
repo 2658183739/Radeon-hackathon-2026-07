@@ -34,6 +34,11 @@ def main() -> int:
     parser.add_argument("--output", default="outputs/eval-act")
     parser.add_argument("--nominal", action="store_true")
     parser.add_argument("--record-video", action="store_true")
+    parser.add_argument(
+        "--n-action-steps",
+        type=int,
+        help="override how many predicted actions are executed before replanning",
+    )
     parser.add_argument("--fail-on-unsuccessful", action="store_true")
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
@@ -45,7 +50,11 @@ def main() -> int:
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     writer = JsonlTrajectoryWriter(output / "audit_dataset")
-    policy = LeRobotPolicyAdapter(args.checkpoint, config)
+    policy = LeRobotPolicyAdapter(
+        args.checkpoint,
+        config,
+        action_steps_override=args.n_action_steps,
+    )
     randomizer = DomainRandomizer(config.randomization, config.seed, config.parcel_profiles)
     try:
         plan = build_episode_plan(
@@ -105,6 +114,7 @@ def main() -> int:
         "runtime": runtime_report(),
         "checkpoint": str(Path(args.checkpoint).resolve()),
         "policy_type": policy.policy_type,
+        "n_action_steps_override": args.n_action_steps,
         "evaluation_range": {
             "start_episode": min(spec.episode_index for spec in plan),
             "end_episode": max(spec.episode_index for spec in plan),
