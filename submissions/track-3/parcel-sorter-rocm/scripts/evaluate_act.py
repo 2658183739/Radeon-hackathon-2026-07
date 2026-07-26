@@ -14,6 +14,7 @@ from parcel_sorter.policy import LeRobotPolicyAdapter
 from parcel_sorter.provenance import runtime_report
 from parcel_sorter.randomization import DomainRandomizer
 from parcel_sorter.runner import run_policy_episode, save_episode_writers
+from parcel_sorter.task_conditioning import build_conditioned_task
 
 
 def main() -> int:
@@ -46,6 +47,11 @@ def main() -> int:
         help="interpret the first three policy outputs as absolute XYZ or XYZ deltas",
     )
     parser.add_argument("--fail-on-unsuccessful", action="store_true")
+    parser.add_argument(
+        "--dynamic-task-text",
+        action="store_true",
+        help="condition the policy on parcel profile and destination bin",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -102,6 +108,11 @@ def main() -> int:
                 episode_index,
                 policy,
                 (writer,),
+                task_instruction=(
+                    build_conditioned_task(sample.profile_id, sample.destination)
+                    if args.dynamic_task_text
+                    else None
+                ),
             )
         save_episode_writers(report, writer, None)
         reports.append(report.to_dict())
@@ -123,6 +134,7 @@ def main() -> int:
         "policy_type": policy.policy_type,
         "n_action_steps_override": args.n_action_steps,
         "action_position_mode": args.action_position_mode,
+        "dynamic_task_text": args.dynamic_task_text,
         "evaluation_range": {
             "start_episode": min(spec.episode_index for spec in plan),
             "end_episode": max(spec.episode_index for spec in plan),

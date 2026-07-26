@@ -77,7 +77,9 @@ def run_policy_episode(
     episode_index: int,
     policy: ActionPolicy,
     writers: tuple[FrameWriter, ...] = (),
+    task_instruction: str | None = None,
 ) -> EpisodeReport:
+    task_instruction = task_instruction or config.output.task_instruction
     supervisor = ClosedLoopSupervisor(
         config.task.max_grasp_retries,
         grasp_settle_steps=config.task.grasp_settle_steps,
@@ -115,7 +117,7 @@ def run_policy_episode(
             PolicyContext(
                 decision=decision,
                 state=state,
-                task=config.output.task_instruction,
+                task=task_instruction,
                 rgb=rgb,
                 depth=depth,
             )
@@ -127,7 +129,7 @@ def run_policy_episode(
             stage=decision.stage,
             state=state,
             action=action,
-            task=config.output.task_instruction,
+            task=task_instruction,
             rgb=rgb,
             depth=depth,
         )
