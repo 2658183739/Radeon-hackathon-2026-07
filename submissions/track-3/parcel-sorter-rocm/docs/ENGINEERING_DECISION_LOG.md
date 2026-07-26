@@ -1992,3 +1992,37 @@ candidate ranking under a new frozen protocol.
 
 **Verification.** The pre-execution point is `63ac10b`; the synchronized
 Radeon tree passed 269 tests and 28 subtests.
+
+### 83. Replace outcome-dependent label activation with a frozen geometry population
+
+**Question.** Can candidate learning obtain enough controller-faithful groups
+without selecting episodes from observed task outcomes or weakening reset and
+safety behavior?
+
+**Alternatives.** Enlarging v1 preserves a gate that produced only 5 complete
+groups out of 18. Selecting known failures leaks outcomes. Starting ACT, VLA,
+or visual embeddings adds model capacity before structured state ranking has a
+valid development sample.
+
+**Code capability.** Add an explicit, backward-compatible activation policy;
+a physics-free deterministic selector; an exact v2 TOML; SHA-256 bindings for
+selector, catalog, and evidence; a recomputing protocol auditor; balanced
+32/16/16 splits; and a machine-enforced holdout lock. Collision-checked reset,
+hard feasibility, and the 35 N monitor remain external to learning.
+
+**Evidence.** Commit `af88121` predates selection. The selector produced all 64
+required groups without scene construction or actions. The audit passed exact
+sample and assignment reproduction. Radeon dry-run planned 192 train and 96
+development rollouts under `geometry-eligible`; holdout was rejected before
+planning.
+
+**Decision and reason.** Freeze v2 and proceed with train only. This repairs
+coverage using a pre-existing geometry scope rather than an observed outcome,
+while retaining controller and safety fidelity. Do not execute development
+until train completes, and do not open holdout until one scorer and all
+hyperparameters are frozen.
+
+**Revisit trigger.** Abandon the study if geometry-ineligible samples appear,
+fewer than 15/16 development groups produce complete labels, or the selected
+scorer fails the registered development safety, task, per-profile, or Radeon
+latency gate.

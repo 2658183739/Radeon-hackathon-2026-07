@@ -1232,3 +1232,26 @@ One tooling pitfall was preserved: invoking pytest at repository root collects
 two compatibility files named `test_capabilities.py` and causes an import-file
 mismatch. The authoritative `pytest tests` scope passed 269 tests and 28
 subtests; the duplicate-root collection error is not a failed assertion.
+
+### Record 79: Freeze geometry-eligible candidate learning v2 before physics
+
+V1 generated complete labels for only four of 12 train groups and one of six
+development groups because label generation was tied to an observed reset
+fallback. The v2 protocol changes the population without choosing on task
+outcomes: all stock-hand boxes inside the existing height predicate activate
+candidate planning, while collision-checked reset and every hard safety gate
+remain enabled.
+
+Commit `af88121` froze the selector and activation code first. The selector
+then read deterministic randomization only and chose 32 train, 16 development,
+and 16 holdout groups across four balanced profiles. A hash-bound audit
+recomputed every sample and exact assignment. Radeon dry-run planning verified
+192 maximum train and 96 maximum development rollouts, all with the frozen
+`geometry-eligible` policy. A holdout request was rejected before planning.
+
+The first audit exposed only a tuple/list JSON representation mismatch; the
+comparison was normalized without changing evidence. The CLI summary also
+gained the already-enforced activation policy field so dry-run artifacts are
+self-describing. Train is now the only admissible physical split. Development,
+model fitting, and the one-shot holdout remain sequential gates; vision/VLA
+work remains paused.

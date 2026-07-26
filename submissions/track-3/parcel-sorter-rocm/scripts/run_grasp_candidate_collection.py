@@ -322,6 +322,9 @@ def main() -> int:
                 "dry_run": payload["dry_run"],
                 "planned_episode_count": payload["planned_episode_count"],
                 "planned_max_rollouts": payload["planned_max_rollouts"],
+                "planning_activation_policy": payload[
+                    "planning_activation_policy"
+                ],
                 "manifest": str(args.output_dir.resolve() / args.split / "manifest.json"),
                 "runs": payload["runs"] if args.dry_run else None,
             },
