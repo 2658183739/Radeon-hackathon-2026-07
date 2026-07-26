@@ -2207,3 +2207,18 @@ physical/static GPU work waits for V5 completion.
 
 **Interpretation.** Passing is static reachability evidence only and cannot be
 reported as a grasp, lift, or parcel-sorting result.
+
+### 93. Reject backend-ambiguous static-screen evidence
+
+**Problem.** The first frozen runner defaulted to ROCm but still accepted CPU,
+and its sample files did not bind HIP/device metadata. A nominally passing
+screen could therefore fail to prove the contest platform requirement.
+
+**Decision.** Before any execution, refreeze with a protocol-level ROCm
+requirement, exact one-device gate, HIP presence, and consistent device
+fingerprints across resume. Preserve the old hash as superseded rather than
+silently replacing it.
+
+**Evidence boundary.** No screen scene or feasibility outcome existed during
+this change. The thresholds and 24 sample keys are unchanged. Active protocol
+SHA-256 is `e2777ccb...adcfeb`.

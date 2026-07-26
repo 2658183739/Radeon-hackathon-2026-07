@@ -1115,3 +1115,13 @@ SHA-256 为 `1c19e5a0...adf2c`；详见 `docs/CYLINDER_CANDIDATE_AUDIT_RESULTS_C
 P95 小于 5 秒。通过只允许新建物理协议。当前只冻结而不启动，以免与 V5 竞争单张 Radeon。完整
 协议见 `docs/CYLINDER_STATIC_SCREEN_PROTOCOL_CN.md`，SHA-256 为
 `a0497368...b6f728`。
+
+### 记录 93：补齐强制 HIP 证据后重新冻结静态筛查
+
+执行前审查发现 runner 仍允许 `--backend cpu`，也没有保留设备元数据。在构建任何筛查场景或观察
+可行性结果前，协议被加强为强制 `rocm` 参数、单一可见设备、非空 HIP 版本，并要求每个新建或
+恢复样本的 PyTorch/HIP/Radeon/GCN/显存元数据一致。负向测试证明 CPU、空 HIP 和双设备证据都会
+使汇总失败。
+
+当前有效协议 SHA-256 为 `e2777ccb...adcfeb`；`a0497368...b6f728` 在执行前被替代。这是工作流
+修正，不是观察结果后的阈值修改。

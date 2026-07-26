@@ -1517,3 +1517,16 @@ authorize a new physical protocol only. The screen is frozen but deliberately
 not started while V5 occupies the single Radeon. Full protocol is in
 `docs/CYLINDER_STATIC_SCREEN_PROTOCOL.md`; its SHA-256 is
 `a0497368...b6f728`.
+
+### Record 93: Refreeze the static screen with mandatory HIP evidence
+
+Pre-execution review found that the runner still accepted `--backend cpu` and
+did not retain device metadata. Before any screen scene or feasibility result,
+the protocol was strengthened to require the `rocm` argument, one visible
+device, a non-empty HIP version, and consistent PyTorch/HIP/Radeon/GCN/VRAM
+metadata in every new or resumed sample. A negative test proves CPU, empty HIP,
+and two-device evidence all fail aggregation.
+
+The active protocol SHA-256 is `e2777ccb...adcfeb`; `a0497368...b6f728` is
+superseded pre-execution. This is a workflow correction, not result-driven
+threshold modification.

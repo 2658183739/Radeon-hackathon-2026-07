@@ -30,6 +30,9 @@
 开口。圆柱生成器产生候选后，复用现有 `_evaluate_grasp_pose_candidate` 诊断接口执行完全相同的
 IK、FK、碰撞、可操作度和状态恢复检查。
 
+协议要求恰好一张可见 GPU 且 PyTorch HIP 版本非空。每个样本记录 PyTorch/HIP 版本、可见设备数、
+Radeon 名称、GCN 架构和总显存；CPU 调用或断点续跑期间设备变化都会在汇总前被拒绝。
+
 这里使用下划线接口是有意的诊断适配，不改变共享 `genesis_env.py`。协议绑定该文件哈希，任何
 正式运行前的变化都会使入口拒绝执行。
 
@@ -73,8 +76,11 @@ PYTHONPATH=src /workspace/rdna/bin/python \
 
 结果必须按冻结门解释；不能在看到可行率后修改 75%、误差或延迟阈值。
 
-冻结协议 SHA-256：
+当前有效冻结协议 SHA-256：
 
 ```text
-a0497368d29f8ec8b4afb5fdfe1f06c9bbec5c875546747f4b6c384817b6f728
+e2777ccb01b3d1aafe2ae59ba55aa1f00995c13df8113b85be962cf5f3adcfeb
 ```
+
+较早的执行前指纹 `a0497368...b6f728` 因未绑定 backend 与 HIP 设备元数据而在任何筛查场景构建前
+被替代；重新冻结期间没有观察任何可行性结果。

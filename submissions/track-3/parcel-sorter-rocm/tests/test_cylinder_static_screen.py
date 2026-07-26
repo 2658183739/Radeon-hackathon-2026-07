@@ -96,6 +96,13 @@ class CylinderStaticScreenTests(unittest.TestCase):
                 },
                 "expected_samples": 4,
             },
+            "execution": {
+                "backend": "rocm",
+                "require_single_visible_device": True,
+                "require_hip": True,
+                "defer_initialization_settle": True,
+                "expected_physics_steps": 0,
+            },
             "planner": {
                 "min_aperture_margin_m": 0.001,
                 "min_horizontal_rolling_friction": 0.001,
@@ -157,6 +164,15 @@ class CylinderStaticScreenTests(unittest.TestCase):
                     "maximum_restore_error": 0.0,
                     "screen_compute_ms": 12.0,
                     "scene_build_ms": 100.0,
+                    "device": {
+                        "backend": "rocm",
+                        "torch_version": "test",
+                        "torch_hip_version": "7.2",
+                        "visible_device_count": 1,
+                        "device_name": "AMD Radeon Graphics",
+                        "gcn_arch_name": "gfx1100",
+                        "total_memory_bytes": 1,
+                    },
                 }
             )
 
@@ -183,6 +199,15 @@ class CylinderStaticScreenTests(unittest.TestCase):
                     "maximum_restore_error": 1e-5,
                     "screen_compute_ms": 1.0,
                     "scene_build_ms": 1.0,
+                    "device": {
+                        "backend": "rocm",
+                        "torch_version": "test",
+                        "torch_hip_version": "7.2",
+                        "visible_device_count": 1,
+                        "device_name": "AMD Radeon Graphics",
+                        "gcn_arch_name": "gfx1100",
+                        "total_memory_bytes": 1,
+                    },
                 },
             ),
             self.protocol,
@@ -191,6 +216,45 @@ class CylinderStaticScreenTests(unittest.TestCase):
         self.assertEqual(result["status"], "screen_fail")
         self.assertIn("sample_population_incomplete", result["errors"])
         self.assertIn("state_restore_error", result["errors"])
+
+    def test_summary_rejects_non_rocm_or_multiple_device_evidence(self) -> None:
+        rows = []
+        for profile_id, episode in screen_episode_keys(self.protocol):
+            rows.append(
+                {
+                    "status": "complete",
+                    "profile_id": profile_id,
+                    "episode": episode,
+                    "feasible_candidate_count": 1,
+                    "all_evaluations_finite": True,
+                    "maximum_restore_error": 0.0,
+                    "screen_compute_ms": 1.0,
+                    "scene_build_ms": 1.0,
+                    "device": {
+                        "backend": "rocm",
+                        "torch_version": "test",
+                        "torch_hip_version": "7.2",
+                        "visible_device_count": 1,
+                        "device_name": "AMD Radeon Graphics",
+                        "gcn_arch_name": "gfx1100",
+                        "total_memory_bytes": 1,
+                    },
+                }
+            )
+        rows[0]["device"] = {
+            **rows[0]["device"],
+            "backend": "cpu",
+            "torch_hip_version": "",
+            "visible_device_count": 2,
+        }
+
+        result = summarize_static_screen(rows, self.protocol)
+
+        self.assertEqual(result["status"], "screen_fail")
+        self.assertIn("device_metadata_mismatch", result["errors"])
+        self.assertIn("execution_backend_mismatch", result["errors"])
+        self.assertIn("hip_metadata_missing", result["errors"])
+        self.assertIn("visible_device_count", result["errors"])
 
 
 if __name__ == "__main__":

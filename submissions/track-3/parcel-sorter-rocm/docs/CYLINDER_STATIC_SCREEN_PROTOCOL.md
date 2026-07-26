@@ -32,6 +32,11 @@ the total jaw aperture. The diagnostic adapter reuses the existing
 `_evaluate_grasp_pose_candidate` path for identical IK, FK, mesh collision,
 manipulability, and state-restoration checks.
 
+The protocol requires exactly one visible GPU and a non-empty PyTorch HIP
+version. Every sample records PyTorch version, HIP version, visible device
+count, Radeon name, GCN architecture, and total VRAM. A CPU invocation or a
+device change across resumed samples is rejected before aggregation.
+
 The private interface is intentional for a diagnostic adapter and does not
 modify shared `genesis_env.py`. Its hash is bound by the protocol.
 
@@ -73,8 +78,12 @@ PYTHONPATH=src /workspace/rdna/bin/python \
 The 75%, restoration, and latency thresholds cannot change after results are
 observed.
 
-Frozen protocol SHA-256:
+Active frozen protocol SHA-256:
 
 ```text
-a0497368d29f8ec8b4afb5fdfe1f06c9bbec5c875546747f4b6c384817b6f728
+e2777ccb01b3d1aafe2ae59ba55aa1f00995c13df8113b85be962cf5f3adcfeb
 ```
+
+The earlier pre-execution fingerprint `a0497368...b6f728` was superseded
+before any screen scene was constructed because it did not bind backend and
+HIP device metadata. No feasibility result was observed during the refreeze.

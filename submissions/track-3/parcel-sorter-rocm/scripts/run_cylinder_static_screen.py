@@ -57,10 +57,35 @@ def _sample_sha256(sample: Any) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
+def _device_metadata(env: GenesisParcelEnv, backend: str) -> dict[str, Any]:
+    torch = env.torch
+    properties = torch.cuda.get_device_properties(0)
+    return {
+        "backend": backend,
+        "torch_version": str(torch.__version__),
+        "torch_hip_version": str(torch.version.hip or ""),
+        "visible_device_count": int(torch.cuda.device_count()),
+        "device_name": str(torch.cuda.get_device_name(0)),
+        "gcn_arch_name": str(getattr(properties, "gcnArchName", "unknown")),
+        "total_memory_bytes": int(properties.total_memory),
+    }
+
+
 def _validate_protocol(protocol_path: Path, protocol: dict[str, Any]) -> list[str]:
     errors = []
     if str(protocol["metadata"]["protocol_id"]) != PROTOCOL_ID:
         errors.append("protocol_id")
+    execution = protocol.get("execution", {})
+    if str(execution.get("backend")) != "rocm":
+        errors.append("execution_backend")
+    if bool(execution.get("require_single_visible_device")) is not True:
+        errors.append("single_device_requirement")
+    if bool(execution.get("require_hip")) is not True:
+        errors.append("hip_requirement")
+    if bool(execution.get("defer_initialization_settle")) is not True:
+        errors.append("initialization_settle_not_deferred")
+    if int(execution.get("expected_physics_steps", -1)) != 0:
+        errors.append("physics_step_contract")
     try:
         screen_episode_keys(protocol)
     except (KeyError, TypeError, ValueError) as error:
@@ -114,6 +139,11 @@ def main() -> int:
     protocol_errors = _validate_protocol(args.protocol, protocol)
     if protocol_errors:
         raise ValueError("invalid static-screen protocol: " + ", ".join(protocol_errors))
+    expected_backend = str(protocol["execution"]["backend"])
+    if args.backend != expected_backend:
+        raise ValueError(
+            f"static-screen backend must match frozen protocol: {expected_backend}"
+        )
     protocol_sha256 = sha256_file(args.protocol)
     implementation = protocol["implementation"]
     config = load_config(PROJECT_ROOT / str(implementation["catalog"]))
@@ -131,6 +161,7 @@ def main() -> int:
         "runs": [],
     }
     completed = []
+    frozen_device: dict[str, Any] | None = None
     for profile_id, episode in keys:
         sample = randomizer.sample_profile(profile_id, episode)
         sample_sha256 = _sample_sha256(sample)
@@ -143,7 +174,13 @@ def main() -> int:
                 and existing.get("profile_id") == profile_id
                 and int(existing.get("episode", -1)) == episode
                 and existing.get("sample_sha256") == sample_sha256
+                and existing.get("backend") == expected_backend
+                and isinstance(existing.get("device"), dict)
             ):
+                if frozen_device is None:
+                    frozen_device = dict(existing["device"])
+                elif existing["device"] != frozen_device:
+                    raise ValueError("resumed sample device metadata differs")
                 completed.append(existing)
                 manifest["runs"].append(
                     {
@@ -163,15 +200,32 @@ def main() -> int:
                 config,
                 sample,
                 backend=args.backend,
-                defer_initialization_settle=True,
+                defer_initialization_settle=bool(
+                    protocol["execution"]["defer_initialization_settle"]
+                ),
             ) as env:
                 scene_build_ms = (time.perf_counter_ns() - scene_started) / 1_000_000
+                device = _device_metadata(env, args.backend)
+                if bool(protocol["execution"]["require_hip"]) and not device[
+                    "torch_hip_version"
+                ]:
+                    raise RuntimeError("frozen ROCm screen requires a HIP PyTorch build")
+                if (
+                    bool(protocol["execution"]["require_single_visible_device"])
+                    and device["visible_device_count"] != 1
+                ):
+                    raise RuntimeError("frozen ROCm screen requires one visible GPU")
+                if frozen_device is None:
+                    frozen_device = device
+                elif device != frozen_device:
+                    raise RuntimeError("device metadata changed during static screen")
                 result = screen_cylinder_environment(env, protocol)
             result.update(
                 {
                     "protocol_id": PROTOCOL_ID,
                     "protocol_sha256": protocol_sha256,
                     "backend": args.backend,
+                    "device": device,
                     "sample_sha256": sample_sha256,
                     "scene_build_ms": scene_build_ms,
                 }

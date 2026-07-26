@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import json
 import math
 import time
 from typing import Any, Mapping, Sequence
@@ -154,6 +155,29 @@ def summarize_static_screen(
     if any(float(row["maximum_restore_error"]) > max_restore_error for row in samples):
         errors.append("state_restore_error")
 
+    expected_backend = str(protocol.get("execution", {}).get("backend", ""))
+    device_rows = [row.get("device") for row in samples]
+    if expected_backend:
+        if any(not isinstance(row, Mapping) for row in device_rows):
+            errors.append("device_metadata_missing")
+        else:
+            canonical_devices = {
+                json.dumps(row, sort_keys=True, separators=(",", ":"))
+                for row in device_rows
+            }
+            if len(canonical_devices) != 1:
+                errors.append("device_metadata_mismatch")
+            if any(str(row.get("backend")) != expected_backend for row in device_rows):
+                errors.append("execution_backend_mismatch")
+            if bool(protocol["execution"].get("require_hip")) and any(
+                not str(row.get("torch_hip_version", "")) for row in device_rows
+            ):
+                errors.append("hip_metadata_missing")
+            if bool(protocol["execution"].get("require_single_visible_device")) and any(
+                int(row.get("visible_device_count", 0)) != 1 for row in device_rows
+            ):
+                errors.append("visible_device_count")
+
     profile_summaries = {}
     for profile_id in protocol["population"]["profile_ids"]:
         rows = tuple(row for row in samples if row["profile_id"] == profile_id)
@@ -212,6 +236,7 @@ def summarize_static_screen(
             "robot_action_executed": False,
             "task_outcome_read": False,
         },
+        "device": device_rows[0] if device_rows else None,
         "errors": list(dict.fromkeys(errors)),
     }
 
