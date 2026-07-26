@@ -81,9 +81,14 @@ observed.
 Active frozen protocol SHA-256:
 
 ```text
-e2777ccb01b3d1aafe2ae59ba55aa1f00995c13df8113b85be962cf5f3adcfeb
+203e7feddda57bb20b33ba4e88ed0c95ece84e3c803af9c93954fd5957c0cae1
 ```
 
-The earlier pre-execution fingerprint `a0497368...b6f728` was superseded
-before any screen scene was constructed because it did not bind backend and
-HIP device metadata. No feasibility result was observed during the refreeze.
+The earlier pre-execution fingerprints `a0497368...b6f728` and
+`e2777ccb...adcfeb` were superseded before any screen scene was constructed.
+The first did not bind backend/HIP evidence. The second did not bind the
+configuration parser, randomizer, expert clearance, or capability gate and did
+not compare the selected sample projection with the outcome-free source audit.
+The active runner now checks dimensions, mass, friction, rolling friction,
+position, yaw, orientation, and initial pose for all 24 keys before creating a
+scene. No feasibility result was observed during either refreeze.

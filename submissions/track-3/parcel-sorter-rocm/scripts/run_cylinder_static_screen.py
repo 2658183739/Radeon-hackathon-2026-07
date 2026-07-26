@@ -5,6 +5,7 @@ import argparse
 from dataclasses import asdict
 import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 import time
@@ -16,6 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from parcel_sorter.config import load_config
+from parcel_sorter.cylinder_candidate_audit import initial_cylinder_pose
 from parcel_sorter.cylinder_static_screen import (
     screen_cylinder_environment,
     screen_episode_keys,
@@ -55,6 +57,45 @@ def _sample_sha256(sample: Any) -> str:
         allow_nan=False,
     ).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
+
+
+def _sample_matches_source(sample: Any, source_row: dict[str, Any]) -> bool:
+    """Verify every geometry-affecting source field before scene construction."""
+
+    if str(source_row.get("profile_id")) != str(sample.profile_id):
+        return False
+    if int(source_row.get("episode", -1)) != int(sample.episode_index):
+        return False
+    scalar_fields = (
+        ("mass_kg", sample.mass_kg),
+        ("friction", sample.friction),
+        ("rolling_friction", sample.rolling_friction),
+        ("yaw_rad", sample.yaw_rad),
+    )
+    for field, actual in scalar_fields:
+        expected = source_row.get(field)
+        if expected is None or not math.isclose(
+            float(actual), float(expected), rel_tol=0.0, abs_tol=1e-12
+        ):
+            return False
+    if str(source_row.get("orientation_mode")) != str(sample.orientation_mode):
+        return False
+    for field, actual_values in (
+        ("dimensions_m", sample.dimensions_m),
+        ("position_xy", sample.position_xy),
+        ("pose", initial_cylinder_pose(sample)),
+    ):
+        expected_values = source_row.get(field)
+        if expected_values is None or len(expected_values) != len(actual_values):
+            return False
+        if any(
+            not math.isclose(
+                float(actual), float(expected), rel_tol=0.0, abs_tol=1e-12
+            )
+            for actual, expected in zip(actual_values, expected_values, strict=True)
+        ):
+            return False
+    return True
 
 
 def _device_metadata(env: GenesisParcelEnv, backend: str) -> dict[str, Any]:
@@ -99,6 +140,10 @@ def _validate_protocol(protocol_path: Path, protocol: dict[str, Any]) -> list[st
         "grasp_planning",
         "catalog",
         "source_audit",
+        "config",
+        "randomization",
+        "expert",
+        "capabilities",
     ):
         path = PROJECT_ROOT / str(implementation[name])
         expected = str(implementation[f"{name}_sha256"])
@@ -153,6 +198,29 @@ def main() -> int:
         config.parcel_profiles,
     )
     keys = screen_episode_keys(protocol)
+    source_payload = json.loads(
+        (PROJECT_ROOT / str(implementation["source_audit"])).read_text(
+            encoding="utf-8"
+        )
+    )
+    source_rows = {
+        (str(row["profile_id"]), int(row["episode"])): row
+        for row in source_payload.get("samples", ())
+    }
+    mismatched_source_keys = [
+        key
+        for key in keys
+        if key not in source_rows
+        or not _sample_matches_source(
+            randomizer.sample_profile(key[0], key[1]),
+            source_rows[key],
+        )
+    ]
+    if mismatched_source_keys:
+        raise ValueError(
+            "static-screen sample projection differs from the frozen outcome-free "
+            f"source: {mismatched_source_keys}"
+        )
     manifest = {
         "schema_version": "1.0",
         "protocol_id": PROTOCOL_ID,
@@ -265,9 +333,13 @@ def main() -> int:
                     "runner",
                     "genesis_env",
                     "grasp_planning",
-                    "catalog",
-                    "source_audit",
-                )
+                "catalog",
+                "source_audit",
+                "config",
+                "randomization",
+                "expert",
+                "capabilities",
+            )
             },
         }
     )

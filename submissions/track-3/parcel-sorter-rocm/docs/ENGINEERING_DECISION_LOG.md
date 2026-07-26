@@ -2261,3 +2261,21 @@ This proves interface selection only. It does not authorize a scene,
 IK/FK feasibility, force-safe lift, rolling retention, or parcel placement.
 After the static screen, integration requires a new protocol, new source
 hashes, and the existing reset, collision, retry, and 35 N safety gates.
+
+### 96. Refreeze the static screen when episode keys prove insufficient
+
+**Problem.** Hashing the catalog and checking only source episode keys does not
+prove that the same randomizer and expert clearance generated the scene. Four
+unbound modules could alter dimensions, pose, or hand target without changing
+the selected keys.
+
+**Decision.** Before execution, bind configuration, randomization, expert, and
+capability modules and compare every geometry-affecting sample field with the
+frozen outcome-free audit. Reject the complete run before scene construction
+if any key or field differs. Preserve the old fingerprint as superseded.
+
+**Evidence boundary.** All 24 projections match, two negative tests reject
+input drift, and the protocol self-audit passes. No cylinder scene or outcome
+was observed. Planner logic and every feasibility, coverage, restoration, and
+latency threshold remain unchanged. The active protocol SHA-256 is
+`203e7fed...c0cae1`.

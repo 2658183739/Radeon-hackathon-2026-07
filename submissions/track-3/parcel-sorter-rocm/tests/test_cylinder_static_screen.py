@@ -11,6 +11,8 @@ from parcel_sorter.cylinder_static_screen import (
     summarize_static_screen,
 )
 from parcel_sorter.randomization import DomainRandomizer
+from parcel_sorter.cylinder_candidate_audit import initial_cylinder_pose
+from scripts.run_cylinder_static_screen import _sample_matches_source
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -255,6 +257,44 @@ class CylinderStaticScreenTests(unittest.TestCase):
         self.assertIn("execution_backend_mismatch", result["errors"])
         self.assertIn("hip_metadata_missing", result["errors"])
         self.assertIn("visible_device_count", result["errors"])
+
+    def test_runner_binds_geometry_affecting_sample_projection(self) -> None:
+        source_row = {
+            "profile_id": self.sample.profile_id,
+            "episode": self.sample.episode_index,
+            "orientation_mode": self.sample.orientation_mode,
+            "dimensions_m": list(self.sample.dimensions_m),
+            "mass_kg": self.sample.mass_kg,
+            "friction": self.sample.friction,
+            "rolling_friction": self.sample.rolling_friction,
+            "position_xy": list(self.sample.position_xy),
+            "yaw_rad": self.sample.yaw_rad,
+            "pose": list(initial_cylinder_pose(self.sample)),
+        }
+
+        self.assertTrue(_sample_matches_source(self.sample, source_row))
+        source_row["yaw_rad"] += 1e-4
+        self.assertFalse(_sample_matches_source(self.sample, source_row))
+
+    def test_runner_rejects_source_pose_or_dimensions_drift(self) -> None:
+        source_row = {
+            "profile_id": self.sample.profile_id,
+            "episode": self.sample.episode_index,
+            "orientation_mode": self.sample.orientation_mode,
+            "dimensions_m": list(self.sample.dimensions_m),
+            "mass_kg": self.sample.mass_kg,
+            "friction": self.sample.friction,
+            "rolling_friction": self.sample.rolling_friction,
+            "position_xy": list(self.sample.position_xy),
+            "yaw_rad": self.sample.yaw_rad,
+            "pose": list(initial_cylinder_pose(self.sample)),
+        }
+
+        source_row["pose"][2] += 1e-4
+        self.assertFalse(_sample_matches_source(self.sample, source_row))
+        source_row["pose"] = list(initial_cylinder_pose(self.sample))
+        source_row["dimensions_m"][0] += 1e-4
+        self.assertFalse(_sample_matches_source(self.sample, source_row))
 
 
 if __name__ == "__main__":

@@ -1580,3 +1580,20 @@ does not modify the hash-bound static-screen files or the frozen V5 path. It is
 therefore an interface and test result, not a physical cylinder result. After
 the Radeon screen, a new closed-loop protocol must bind the dispatcher and the
 environment before any runtime claim is made.
+
+### Record 97: Bind the static-screen input generator before execution
+
+A second pre-execution audit found that the static-screen protocol bound the
+catalog but not `config.py`, `randomization.py`, `expert.py`, or
+`capabilities.py`. It also checked only that selected episode keys appeared in
+the source audit, so a changed randomizer could produce different geometry
+under the same keys.
+
+Before V5 released the Radeon and before any cylinder scene existed, the
+runner was strengthened to compare dimensions, mass, friction, rolling
+friction, position, yaw, orientation, and initial pose against the frozen
+outcome-free source for all 24 keys. Two negative tests cover yaw, pose, and
+dimension drift. The four input-defining modules are now hash-bound. Protocol
+and sample-contract audits pass; the active SHA-256 is
+`203e7fed...c0cae1`. Candidate generation, IK/FK thresholds, the 75% profile
+gate, and the 5 s latency gate are unchanged.
