@@ -1470,3 +1470,22 @@ runtime selector or open V2 development/holdout. The protocol audit returned
 `protocol_valid`; the local suite is 304 passed with one environment skip.
 Protocol SHA-256 is
 `062e3ec9d0c4968b1593331ada5aa1aa737e4eadda869e173fe0116e3ab8101e`.
+
+### Record 90: Implement the cylinder planner without contaminating V5
+
+V5 is still collecting frozen box rollouts, so shared box planning and runtime
+files remain unchanged. A new independent module reads the actual cylinder
+quaternion to recover its world axis, checks parallel-jaw aperture, declared
+handling class, length, tilt, and horizontal rolling friction, and only then
+generates candidates. Upright candidates cover radial yaw, contact height, and
+symmetric IK branches. Horizontal candidates align the fingers with the tube
+axis, close across its diameter, vary axial position and radial approach, and
+rank centred top-down grasps first.
+
+The implementation explicitly returns no candidates for `cradle_required`,
+insufficient aperture, excessive tilt/length, or an unguarded low-friction
+tube. A capsule signed-distance helper is included for conservative future
+prefiltering but is not claimed as complete mesh collision proof. Ten directed
+remote tests pass. No cylinder physics result exists yet; the method remains
+"implemented, awaiting physical screening." Full rationale is in
+`docs/CYLINDER_GRASP_PLANNING.md`.

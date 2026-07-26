@@ -2156,3 +2156,24 @@ separate protocol. V2 development and holdout remain forbidden.
 overlap. Protocol audit is valid, dry-run plans 480 rollouts, and 304 tests pass
 with one environment skip. Protocol SHA-256 is
 `062e3ec9d0c4968b1593331ada5aa1aa737e4eadda869e173fe0116e3ab8101e`.
+
+### 90. Keep cylinder planning analytic, explicit, and independent
+
+**Question.** Should upright canisters and horizontal mailing tubes reuse the
+box generator, wait for a learned visual policy, or receive a separate
+geometry-aware candidate family?
+
+**Decision and reason.** Implement a separate analytic module. Recover the
+axis from the actual pose, align horizontal fingers with that axis, enumerate
+radial/axial/symmetric alternatives, and gate unsupported aperture, tool,
+length, tilt, and rolling conditions before IK. This preserves physical
+symmetry and makes capability failure distinguishable from control failure.
+
+**Boundary.** Do not connect the module to the frozen V5 box path. Pure tests
+authorize only later IK/collision screening, not a success claim or runtime
+activation. Low-friction horizontal tubes require guarded support and large
+tubes remain `cradle_required`.
+
+**Evidence.** Ten directed tests pass remotely. Candidate geometry is finite,
+normalized, deterministic, axis-aligned, and explicitly empty at capability
+boundaries. No physical cylinder rollout has yet been used for selection.
