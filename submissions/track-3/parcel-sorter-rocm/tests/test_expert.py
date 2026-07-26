@@ -5,7 +5,12 @@ import unittest
 
 from parcel_sorter.config import load_config
 from parcel_sorter.contracts import ControlDecision, RobotState
-from parcel_sorter.expert import ScriptedPickPlaceExpert, canonical_grasp_yaw, profile_grasp_yaw
+from parcel_sorter.expert import (
+    DOWNWARD_QUATERNION,
+    ScriptedPickPlaceExpert,
+    canonical_grasp_yaw,
+    profile_grasp_yaw,
+)
 from parcel_sorter.randomization import DomainRandomizer
 from parcel_sorter.state_machine import Command
 
@@ -801,6 +806,30 @@ class ScriptedExpertTests(unittest.TestCase):
 
         self.assertEqual(action.target_quaternion, (0.0, 1.0, 0.0, 0.0))
 
+    def test_horizontal_cylinder_aligns_wrist_in_place_at_safe_height(self) -> None:
+        sample = replace(
+            self.sample,
+            shape="cylinder",
+            orientation_mode="horizontal",
+            dimensions_m=(0.18, 0.04, 0.04),
+        )
+        expert = ScriptedPickPlaceExpert(self.config, sample)
+        planned_position = (0.55, 0.12, 0.124)
+        planned_quaternion = (0.0, 0.7071067811865476, 0.7071067811865476, 0.0)
+        expert.set_planned_grasp_pose(planned_position, planned_quaternion)
+        current = (0.64, 0.0, expert._transit_height(planned_position))
+        state = replace(
+            self.state,
+            end_effector_pose=(*current, *DOWNWARD_QUATERNION),
+        )
+
+        action = expert.action(
+            ControlDecision("approach", Command.MOVE_PREGRASP.value, "test", 0),
+            state,
+        )
+
+        self.assertEqual(action.target_position, current)
+        self.assertEqual(action.target_quaternion, planned_quaternion)
 
 if __name__ == "__main__":
     unittest.main()

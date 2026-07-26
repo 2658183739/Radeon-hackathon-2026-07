@@ -33,12 +33,12 @@ class ShapeGraspPlannerConfig:
     cylinder_min_horizontal_rolling_friction: float = 0.001
     cylinder_max_parallel_jaw_length_m: float | None = 0.320
     cylinder_max_axis_tilt_deg: float = 20.0
-    cylinder_upright_radial_yaw_count: int = 4
-    cylinder_max_upright_vertical_offset_m: float = 0.020
+    cylinder_upright_radial_yaw_count: int = 1
+    cylinder_max_upright_vertical_offset_m: float = 0.040
     cylinder_min_upright_side_overlap_m: float = 0.020
     cylinder_max_horizontal_axial_offset_m: float = 0.050
     cylinder_min_horizontal_end_margin_m: float = 0.060
-    cylinder_horizontal_radial_angles_deg: tuple[float, ...] = (0.0, -20.0, 20.0)
+    cylinder_horizontal_radial_angles_deg: tuple[float, ...] = (0.0,)
 
     def validate(self) -> None:
         positive = (

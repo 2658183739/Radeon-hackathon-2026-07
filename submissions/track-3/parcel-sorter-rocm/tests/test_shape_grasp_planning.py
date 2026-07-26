@@ -69,7 +69,11 @@ class ShapeGraspPlanningTests(unittest.TestCase):
         self.assertTrue(plan.supported)
         self.assertTrue(plan.activation_eligible)
         self.assertEqual(plan.reason, "supported")
-        self.assertEqual(len(plan.candidates), 16)
+        self.assertEqual(len(plan.candidates), 4)
+        self.assertEqual(
+            {round(item.vertical_offset_m, 3) for item in plan.candidates},
+            {0.0, 0.04},
+        )
         self.assertTrue(all(item.approach_variant == "upright_top_down_radial" for item in plan.candidates))
 
     def test_dispatches_horizontal_tube_and_preserves_axis_family(self) -> None:
@@ -79,7 +83,7 @@ class ShapeGraspPlanningTests(unittest.TestCase):
             hand_clearance_m=0.105,
         )
 
-        self.assertEqual(len(candidates), 18)
+        self.assertEqual(len(candidates), 6)
         self.assertTrue(all(item.approach_variant == "horizontal_cross_diameter" for item in candidates))
         self.assertEqual(len({item.candidate_id for item in candidates}), len(candidates))
 
@@ -134,8 +138,8 @@ class ShapeGraspPlanningTests(unittest.TestCase):
             config=config,
         )
 
-        self.assertEqual(len(upright.candidates), 8)
-        self.assertEqual(len(horizontal.candidates), 6)
+        self.assertEqual(len(upright.candidates), 2)
+        self.assertEqual(len(horizontal.candidates), 2)
 
     def test_low_rolling_friction_tube_cannot_be_activated(self) -> None:
         unstable = replace(self.tube, rolling_friction=0.0)

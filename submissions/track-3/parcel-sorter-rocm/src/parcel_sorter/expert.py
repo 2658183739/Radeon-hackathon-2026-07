@@ -9,6 +9,8 @@ from .state_machine import Command
 
 
 DOWNWARD_QUATERNION = (0.0, 1.0, 0.0, 0.0)
+SAFE_WRIST_ALIGNMENT_HEIGHT_TOLERANCE_M = 0.010
+SAFE_WRIST_ALIGNMENT_ORIENTATION_TOLERANCE_RAD = 0.05
 
 
 def canonical_grasp_yaw(yaw_rad: float, max_abs_yaw_rad: float = math.pi / 3) -> float:
@@ -153,6 +155,14 @@ class ScriptedPickPlaceExpert:
                     else self.config.task.grasp_planning_transport_step_m
                 )
                 step_limit = min(step_limit, planned_step)
+        target_quaternion = self._grasp_quaternion
+        if command == Command.MOVE_PREGRASP:
+            desired, target_quaternion = self._staged_pregrasp_target(
+                current,
+                state.end_effector_pose[3:7],
+                state.parcel_pose,
+                desired,
+            )
         if (
             command == Command.MOVE_DROP
             and self._planned_transport_contract_active()
@@ -162,18 +172,6 @@ class ScriptedPickPlaceExpert:
             target = self._bounded_transport_reference(current, desired, step_limit)
         else:
             target = self._bounded_step(current, desired, step_limit)
-        target_quaternion = self._grasp_quaternion
-        if command == Command.MOVE_PREGRASP:
-            pregrasp = self.pregrasp_position(state.parcel_pose)
-            transit_z = self._transit_height(pregrasp)
-            horizontal_distance = math.hypot(
-                current[0] - pregrasp[0], current[1] - pregrasp[1]
-            )
-            if (
-                horizontal_distance > self.config.task.position_tolerance_m
-                and current[2] < transit_z - self.config.task.position_tolerance_m
-            ):
-                target_quaternion = DOWNWARD_QUATERNION
         gripper = 1.0 if command in {
             Command.SEARCH,
             Command.MOVE_PREGRASP,
@@ -185,6 +183,64 @@ class ScriptedPickPlaceExpert:
             gripper=gripper,
             command=command.value,
         )
+
+    def _staged_pregrasp_target(
+        self,
+        current: tuple[float, ...],
+        current_quaternion: tuple[float, ...],
+        parcel_pose: tuple[float, ...],
+        desired: tuple[float, float, float],
+    ) -> tuple[
+        tuple[float, float, float],
+        tuple[float, float, float, float],
+    ]:
+        """Separate raise, wrist alignment, and translation for side grasps."""
+        pregrasp = self.pregrasp_position(parcel_pose)
+        transit_z = self._transit_height(pregrasp)
+        horizontal_distance = math.hypot(
+            current[0] - pregrasp[0], current[1] - pregrasp[1]
+        )
+        if horizontal_distance <= self.config.task.position_tolerance_m:
+            return desired, self._grasp_quaternion
+
+        planned_side_grasp = (
+            self._planned_grasp_position is not None
+            and self.sample.shape == "cylinder"
+            and self.sample.orientation_mode == "horizontal"
+        )
+        if not planned_side_grasp or self._descent_committed:
+            if current[2] < transit_z - self.config.task.position_tolerance_m:
+                return desired, DOWNWARD_QUATERNION
+            return desired, self._grasp_quaternion
+
+        if current[2] < transit_z - SAFE_WRIST_ALIGNMENT_HEIGHT_TOLERANCE_M:
+            return (current[0], current[1], transit_z), DOWNWARD_QUATERNION
+
+        if self._quaternion_error_rad(
+            current_quaternion,
+            self._grasp_quaternion,
+        ) > SAFE_WRIST_ALIGNMENT_ORIENTATION_TOLERANCE_RAD:
+            return tuple(float(value) for value in current), self._grasp_quaternion
+
+        return (pregrasp[0], pregrasp[1], transit_z), self._grasp_quaternion
+
+    @staticmethod
+    def _quaternion_error_rad(
+        current: tuple[float, ...],
+        target: tuple[float, ...],
+    ) -> float:
+        current_norm = math.sqrt(sum(float(value) ** 2 for value in current))
+        target_norm = math.sqrt(sum(float(value) ** 2 for value in target))
+        if current_norm <= 1e-12 or target_norm <= 1e-12:
+            return math.inf
+        dot = abs(
+            sum(
+                float(left) * float(right)
+                for left, right in zip(current, target, strict=True)
+            )
+            / (current_norm * target_norm)
+        )
+        return 2.0 * math.acos(min(1.0, max(-1.0, dot)))
 
     def pregrasp_position(self, parcel_pose: tuple[float, ...]) -> tuple[float, float, float]:
         if self._planned_grasp_position is not None:

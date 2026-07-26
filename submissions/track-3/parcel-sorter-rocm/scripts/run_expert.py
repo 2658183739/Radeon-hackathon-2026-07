@@ -126,7 +126,7 @@ def main() -> int:
     parser.add_argument(
         "--geometry-aware-grasp-planning",
         action="store_true",
-        help="select a collision-free box grasp pose with Radeon IK and Jacobian scoring",
+        help="select a collision-free shape-aware grasp pose with Radeon IK and Jacobian scoring",
     )
     parser.add_argument(
         "--parcel-gripper-adapter",

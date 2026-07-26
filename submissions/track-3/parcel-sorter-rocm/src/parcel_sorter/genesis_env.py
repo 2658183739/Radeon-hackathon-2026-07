@@ -23,14 +23,17 @@ from .expert import ScriptedPickPlaceExpert
 from .grasp_planning import (
     box_requires_geometry_aware_grasp_planning,
     effective_rejected_candidate_ids,
-    generate_box_grasp_pose_candidates,
     grasp_evaluation_is_feasible,
     interpolate_joint_segment,
-    rank_grasp_pose_evaluations,
     rejected_candidates_after_retry,
-    select_grasp_pose_evaluation,
 )
 from .randomization import ParcelSample
+from .shape_grasp_planning import (
+    ShapeGraspPlannerConfig,
+    build_shape_grasp_plan,
+    rank_shape_grasp_pose_evaluations,
+    select_shape_grasp_pose_evaluation,
+)
 
 
 _INITIALIZED_BACKEND: str | None = None
@@ -647,10 +650,14 @@ class GenesisParcelEnv:
                 )
             )
         self.expert = ScriptedPickPlaceExpert(config, sample)
+        self._shape_grasp_planner_config = ShapeGraspPlannerConfig(
+            cylinder_jaw_aperture_m=2.0 * config.control.open_width_m,
+        )
         self._geometry_grasp_planning_eligible = (
             box_requires_geometry_aware_grasp_planning(
                 sample, hand_clearance_m=self.expert.grasp_hand_clearance_m()
             )
+            or sample.shape == "cylinder"
         )
         self._geometry_grasp_planning_active = resolve_geometry_grasp_planning_active(
             planning_enabled=config.task.geometry_aware_grasp_planning_enabled,
@@ -1056,20 +1063,23 @@ class GenesisParcelEnv:
     def _plan_grasp_pose(self, state: RobotState, retry_count: int) -> None:
         started = time.perf_counter_ns()
         task = self.config.task
-        candidates = generate_box_grasp_pose_candidates(
+        plan = build_shape_grasp_plan(
             self.sample,
             state.parcel_pose,
             hand_clearance_m=self.expert.grasp_hand_clearance_m(),
             include_symmetric_wrist=task.grasp_planning_symmetric_wrist_enabled,
+            config=self._shape_grasp_planner_config,
         )
+        candidates = plan.candidates if plan.activation_eligible else ()
         seeds = self._grasp_planning_seeds()
         evaluations = [
             self._evaluate_grasp_pose_candidate(candidate, seed_name, seed_qpos)
             for candidate in candidates
             for seed_name, seed_qpos in seeds
         ]
-        ranked = rank_grasp_pose_evaluations(
+        ranked = rank_shape_grasp_pose_evaluations(
             evaluations,
+            shape=plan.shape,
             collision_filter_enabled=task.grasp_planning_collision_filter_enabled,
             manipulability_ranking_enabled=(
                 task.grasp_planning_manipulability_ranking_enabled
@@ -1080,8 +1090,9 @@ class GenesisParcelEnv:
             self._grasp_plan_rejected_candidate_ids,
             self._diagnostic_grasp_candidate_allowlist,
         )
-        selected = select_grasp_pose_evaluation(
+        selected = select_shape_grasp_pose_evaluation(
             ranked,
+            shape=plan.shape,
             rejected_candidate_ids=effective_rejected_ids,
             collision_filter_enabled=task.grasp_planning_collision_filter_enabled,
             manipulability_ranking_enabled=(
@@ -1104,6 +1115,8 @@ class GenesisParcelEnv:
         self._grasp_plan_events.append(
             {
                 "retry_count": retry_count,
+                "shape": plan.shape,
+                "capability_reason": plan.reason,
                 "candidate_count": len(candidates),
                 "seed_count": len(seeds),
                 "evaluation_count": len(evaluations),

@@ -308,6 +308,17 @@ class CylinderStaticScreenTests(unittest.TestCase):
         self.assertIn("source_audit_module_hash_mismatch", errors)
         self.assertIn("source_implementation:audit_module", errors)
 
+    def test_v2_protocol_is_disjoint_and_reduces_candidate_population(self) -> None:
+        v1 = _load_toml(PROJECT_ROOT / "configs" / "cylinder_static_screen_v1.toml")
+        v2_path = PROJECT_ROOT / "configs" / "cylinder_static_screen_v2.toml"
+        v2 = _load_toml(v2_path)
+
+        self.assertEqual(_validate_protocol(v2_path, v2), [])
+        self.assertTrue(set(screen_episode_keys(v1)).isdisjoint(screen_episode_keys(v2)))
+        self.assertEqual(v2["planner"]["upright_radial_yaw_count"], 1)
+        self.assertEqual(v2["planner"]["horizontal_radial_angles_deg"], [0.0])
+        self.assertEqual(v2["planner"]["max_upright_vertical_offset_m"], 0.040)
+
 
 if __name__ == "__main__":
     unittest.main()

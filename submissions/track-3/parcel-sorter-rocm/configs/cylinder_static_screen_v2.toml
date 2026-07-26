@@ -1,7 +1,7 @@
 [metadata]
-protocol_id = "cylinder-static-ik-collision-screen-v1"
-stage = "static-rocm-ik-fk-mesh-collision"
-created_utc = "2026-07-26T05:35:00Z"
+protocol_id = "cylinder-static-ik-collision-screen-v2"
+stage = "disjoint-static-rocm-ik-fk-mesh-collision"
+created_utc = "2026-07-26T02:40:00Z"
 
 [execution]
 backend = "rocm"
@@ -12,7 +12,7 @@ expected_physics_steps = 0
 
 [population]
 profile_ids = ["upright_canister", "mailing_tube"]
-episode_offsets = [0, 5, 11, 17, 23, 29, 35, 41, 47, 53, 59, 63]
+episode_offsets = [1, 7, 13, 19, 25, 31, 37, 43, 49, 55, 61, 62]
 expected_samples = 24
 
 [population.episode_starts]
@@ -25,12 +25,12 @@ min_horizontal_rolling_friction = 0.001
 max_parallel_jaw_length_m = 0.320
 max_axis_tilt_deg = 20.0
 include_symmetric_wrist = true
-upright_radial_yaw_count = 4
-max_upright_vertical_offset_m = 0.020
+upright_radial_yaw_count = 1
+max_upright_vertical_offset_m = 0.040
 min_upright_side_overlap_m = 0.020
 max_horizontal_axial_offset_m = 0.050
 min_horizontal_end_margin_m = 0.060
-horizontal_radial_angles_deg = [0.0, -20.0, 20.0]
+horizontal_radial_angles_deg = [0.0]
 
 [gates]
 min_feasible_sample_fraction_per_profile = 0.75

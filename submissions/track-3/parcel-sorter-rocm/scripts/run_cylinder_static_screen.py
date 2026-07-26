@@ -28,7 +28,12 @@ from parcel_sorter.grasp_scoring import sha256_file
 from parcel_sorter.randomization import DomainRandomizer
 
 
-PROTOCOL_ID = "cylinder-static-ik-collision-screen-v1"
+SUPPORTED_PROTOCOL_IDS = frozenset(
+    {
+        "cylinder-static-ik-collision-screen-v1",
+        "cylinder-static-ik-collision-screen-v2",
+    }
+)
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
@@ -114,7 +119,7 @@ def _device_metadata(env: GenesisParcelEnv, backend: str) -> dict[str, Any]:
 
 def _validate_protocol(protocol_path: Path, protocol: dict[str, Any]) -> list[str]:
     errors = []
-    if str(protocol["metadata"]["protocol_id"]) != PROTOCOL_ID:
+    if str(protocol["metadata"]["protocol_id"]) not in SUPPORTED_PROTOCOL_IDS:
         errors.append("protocol_id")
     execution = protocol.get("execution", {})
     if str(execution.get("backend")) != "rocm":
@@ -198,6 +203,7 @@ def main() -> int:
     if protocol_errors:
         raise ValueError("invalid static-screen protocol: " + ", ".join(protocol_errors))
     expected_backend = str(protocol["execution"]["backend"])
+    protocol_id = str(protocol["metadata"]["protocol_id"])
     if args.backend != expected_backend:
         raise ValueError(
             f"static-screen backend must match frozen protocol: {expected_backend}"
@@ -236,7 +242,7 @@ def main() -> int:
         )
     manifest = {
         "schema_version": "1.0",
-        "protocol_id": PROTOCOL_ID,
+        "protocol_id": protocol_id,
         "protocol_sha256": protocol_sha256,
         "backend": args.backend,
         "runs": [],
@@ -303,7 +309,7 @@ def main() -> int:
                 result = screen_cylinder_environment(env, protocol)
             result.update(
                 {
-                    "protocol_id": PROTOCOL_ID,
+                    "protocol_id": protocol_id,
                     "protocol_sha256": protocol_sha256,
                     "backend": args.backend,
                     "device": device,
@@ -335,7 +341,7 @@ def main() -> int:
     summary = summarize_static_screen(completed, protocol)
     summary.update(
         {
-            "protocol_id": PROTOCOL_ID,
+            "protocol_id": protocol_id,
             "protocol_sha256": protocol_sha256,
             "backend": args.backend,
             "implementation_sha256": {
