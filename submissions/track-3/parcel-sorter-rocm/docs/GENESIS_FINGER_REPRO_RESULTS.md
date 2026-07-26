@@ -70,3 +70,10 @@ the final dynamic capture/replay hashes, so later read-only fields do not blur
 which code produced each artifact.
 
 The synchronized Radeon/ROCm source tree passed all 268 unit tests.
+
+## Registered follow-up
+
+The requested PD target/mode capture has now been executed under the separate
+control-input replay protocol. See `GENESIS_FINGER_CONTROL_REPLAY_RESULTS.md`.
+It reproduces the mass-aware event but invalidates the stock cross-model
+reference, so the adapter remains rejected without further tuning.

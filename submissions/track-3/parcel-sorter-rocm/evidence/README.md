@@ -431,3 +431,19 @@ claiming a Genesis-wide defect. No new episode, holdout, or parameter scan was
 opened.
 
 The final synchronized Radeon tree passed all 268 tests.
+
+## Genesis finger raw-control replay
+
+`expert/genesis-finger-control-replay-development-v1.json` binds the one
+read-only source capture, stock and mass-aware exact-mode replays, comparison,
+and execution code. Commit `63ac10b` froze the bilingual protocol and replay
+implementation before physical execution.
+
+The source used seven position-controlled arm DOFs and two force-controlled
+fingers. Raw target replay reproduced the mass-aware `203/4` failure at
+162.186 N and 115.546 mm in a fresh scene. The stock cross-model reference
+failed earlier at `198/1`, so the registered conclusion is
+`invalid_reference`, not an inertia attribution. No parameter, new episode,
+or holdout was opened. The adapter remains rejected and default off.
+
+The synchronized Radeon tree passed 269 tests and 28 subtests.

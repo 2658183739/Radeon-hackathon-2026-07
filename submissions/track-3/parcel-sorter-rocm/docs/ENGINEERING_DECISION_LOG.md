@@ -1966,3 +1966,29 @@ supported complete-scene-state capture under a new protocol. Do not scan the
 observed failure. Holdout and all new episodes remain closed.
 
 **Verification.** The final synchronized Radeon tree passed all 268 tests.
+
+### 82. Reproduce the mass-aware event with raw control inputs; reject cross-model attribution
+
+**Question.** Are raw control modes and PD targets the missing state in the
+failed dynamic replay, and can the same capture isolate adapter inertia?
+
+**Code capability.** Read Genesis control mode and raw mode-specific targets
+without changing them, validate every nine-DOF event, and replay each target
+through its public position, velocity, or force API. A deterministic result
+summarizer binds raw artifacts, code, and the pre-execution commit by SHA-256.
+
+**Evidence.** The 64-event source contained seven position-controlled arm DOFs
+and two force-controlled fingers. Raw target replay reproduced the mass-aware
+source failure at `203/4`, 162.186 N and 115.546 mm. The stock replay failed
+earlier at `198/1`, 157.787 N and 115.544 mm. The registered comparison was
+therefore `invalid_reference`.
+
+**Decision and reason.** Raw targets are sufficient to reproduce the observed
+mass-aware event, so solver warm-start capture is not the next priority. Do not
+use the unsafe stock cross-model replay for inertia attribution. Keep the
+adapter rejected and default off, stop tuning on episode `4120001`, and return
+the main effort to stock-hand geometry planning and controller-faithful
+candidate ranking under a new frozen protocol.
+
+**Verification.** The pre-execution point is `63ac10b`; the synchronized
+Radeon tree passed 269 tests and 28 subtests.

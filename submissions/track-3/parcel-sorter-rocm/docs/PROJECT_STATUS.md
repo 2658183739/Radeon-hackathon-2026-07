@@ -513,3 +513,26 @@ episode or holdout was opened. See `docs/GENESIS_FINGER_REPRO_RESULTS.md` and
 `evidence/expert/genesis-finger-reproduction-development-v1.json`.
 
 The synchronized Radeon tree passes all 268 tests.
+
+## Latest simulator result: raw control inputs reproduce the failure
+
+A preregistered follow-up captured raw Genesis control modes and targets at
+240 Hz. All 64 source events used seven position-controlled arm DOFs and two
+force-controlled fingers; arm position targets changed at each 30 Hz frame
+boundary. Replaying those inputs from the captured state reproduced the
+mass-aware failure at `203/4`, 162.186 N and 115.546 mm in a fresh scene.
+
+The stock-inertia cross-model replay failed earlier at `198/1`, 157.787 N and
+115.544 mm. The paired classifier therefore returned `invalid_reference`:
+mass-aware state is not a safe stock-model counterfactual. The adapter remains
+rejected and default off, while solver warm-start capture is no longer needed
+to reproduce the mass-aware event. No parameter, new episode, or holdout was
+opened.
+
+This closes tuning on the observed adapter branch. The main research path
+returns to stock-hand geometry planning and controller-faithful candidate
+ranking under a separately frozen multi-profile protocol. See
+`docs/GENESIS_FINGER_CONTROL_REPLAY_RESULTS.md` and
+`evidence/expert/genesis-finger-control-replay-development-v1.json`.
+
+The synchronized Radeon tree passes 269 tests and 28 subtests.

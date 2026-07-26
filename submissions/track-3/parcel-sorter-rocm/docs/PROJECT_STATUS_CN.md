@@ -365,3 +365,22 @@ Radeon 源码编译通过，全量 259 项测试全部通过。详见 `docs/PARC
 `evidence/expert/genesis-finger-reproduction-development-v1.json`。
 
 同步后的 Radeon 源代码树通过全部 268 项测试。
+
+## 最新仿真器结果：原始控制输入可重现故障
+
+预注册后续实验以 240 Hz 捕获 Genesis 原始控制模式与目标。64 个来源事件
+始终为机械臂七轴位置控制、两指力控制；机械臂位置目标在每个 30 Hz 帧边界
+更新。从捕获状态回放这些输入后，新场景在 `203/4` 重现质量感知故障：
+162.186 N、115.546 mm。
+
+原装惯量跨模型回放更早在 `198/1` 失稳，达到 157.787 N 和 115.544 mm，
+因此成对分类器返回 `invalid_reference`：质量感知状态不是原装模型的安全
+反事实。适配器继续被拒绝并默认关闭；重现质量感知事件已不需要求解器暖启动
+捕获。本轮没有打开参数扫描、新 episode 或 holdout。
+
+针对已观察适配器分支的调参到此关闭。研究主线回到原装手爪的几何规划和
+控制器保真候选排序，并另行冻结多 profile 协议。详见
+`docs/GENESIS_FINGER_CONTROL_REPLAY_RESULTS_CN.md` 与
+`evidence/expert/genesis-finger-control-replay-development-v1.json`。
+
+同步后的 Radeon 源代码树通过 269 项测试和 28 个子测试。
