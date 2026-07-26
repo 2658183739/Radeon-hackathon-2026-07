@@ -2238,6 +2238,7 @@ class GenesisParcelEnv:
     def _record_contact_branch(self, physics_substep: int) -> None:
         """Record high-rate contact identities and finger dynamics read-only."""
         started = time.perf_counter_ns()
+        control_inputs = self._robot_dof_control_inputs()
         contacts = self.robot.get_contacts()
         required = {
             "geom_a",
@@ -2350,6 +2351,7 @@ class GenesisParcelEnv:
             "robot_dof_control_force_n": list(
                 self._flat_tuple(self.robot.get_dofs_control_force())
             ),
+            **control_inputs,
             "parcel_qpos": list(self._flat_tuple(self.parcel.get_qpos())),
             "parcel_dof_velocity": list(
                 self._flat_tuple(self.parcel.get_dofs_velocity())
@@ -2371,6 +2373,40 @@ class GenesisParcelEnv:
             time.perf_counter_ns() - started
         ) / 1_000_000
         self._contact_branch_events.append(event)
+
+    def _robot_dof_control_inputs(self) -> dict[str, list[float] | list[int]]:
+        """Read raw Genesis controller modes and targets without changing them."""
+        from genesis.utils.misc import qd_to_torch
+
+        solver = self.scene.rigid_solver
+        start = int(self.robot._dof_start)
+        stop = start + int(self.robot.n_dofs)
+
+        def entity_values(field: Any) -> tuple[float, ...]:
+            values = qd_to_torch(field, transpose=True, copy=True)
+            if values.ndim == 2:
+                if values.shape[0] != 1:
+                    raise RuntimeError(
+                        "contact-branch control capture requires one environment"
+                    )
+                values = values[0]
+            return self._flat_tuple(values[start:stop])
+
+        modes = entity_values(solver.dyn_state.dofs.ctrl_mode)
+        if any(not value.is_integer() or int(value) not in {0, 1, 2} for value in modes):
+            raise RuntimeError(f"unsupported Genesis control modes: {modes}")
+        return {
+            "robot_dof_control_mode": [int(value) for value in modes],
+            "robot_dof_position_target": list(
+                entity_values(solver.dyn_state.dofs.ctrl_pos)
+            ),
+            "robot_dof_velocity_target": list(
+                entity_values(solver.dyn_state.dofs.ctrl_vel)
+            ),
+            "robot_dof_force_target_n": list(
+                entity_values(solver.dyn_state.dofs.ctrl_force)
+            ),
+        }
 
     def _contact_geom_descriptor(self, geom_index: int) -> dict[str, Any]:
         geom = self.scene.rigid_solver.geoms[geom_index]

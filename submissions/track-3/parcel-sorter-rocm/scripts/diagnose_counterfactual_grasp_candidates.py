@@ -400,6 +400,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "parcel_qpos",
                 "parcel_dof_velocity",
             ],
+            "contact_branch_control_input_fields": [
+                "robot_dof_control_mode",
+                "robot_dof_position_target",
+                "robot_dof_velocity_target",
+                "robot_dof_force_target_n",
+            ],
             "contact_wrench_changes_controller": False,
             "contact_wrench_changes_ranking": False,
             "only_intervention": "reject every generated candidate ID except the target",

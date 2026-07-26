@@ -15,7 +15,9 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from parcel_sorter.config import load_config
 from parcel_sorter.finger_constraint_repro import (
+    partition_dynamic_control_inputs,
     summarize_finger_constraint_repro,
+    validate_dynamic_control_replay_source_events,
     validate_dynamic_replay_source_events,
 )
 from parcel_sorter.genesis_env import GenesisParcelEnv
@@ -39,6 +41,11 @@ def parse_args() -> argparse.Namespace:
         required=True,
     )
     parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument(
+        "--replay-mode",
+        choices=("recorded-force", "recorded-control-inputs"),
+        default="recorded-force",
+    )
     parser.add_argument("--backend", choices=("cpu", "rocm"), default="rocm")
     parser.add_argument(
         "--config",
@@ -74,7 +81,11 @@ def _max_abs_difference(left: Any, right: Any) -> float:
     )
 
 
-def _load_source(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def _load_source(
+    path: Path,
+    *,
+    replay_mode: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("status") != "complete":
         raise ValueError("dynamic source capture must be complete")
@@ -101,10 +112,41 @@ def _load_source(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     events = payload["rollouts"][0]["report"]["safety_summary"][
         "contact_branch_events"
     ]
-    return payload, validate_dynamic_replay_source_events(
-        events,
-        expected_start=(196, 0),
-    )
+    if replay_mode == "recorded-control-inputs":
+        expected_control_fields = {
+            "robot_dof_control_mode",
+            "robot_dof_position_target",
+            "robot_dof_velocity_target",
+            "robot_dof_force_target_n",
+        }
+        declared_control_fields = set(
+            contract.get("contact_branch_control_input_fields", ())
+        )
+        if declared_control_fields != expected_control_fields:
+            raise ValueError(
+                "dynamic source contract does not declare exact control-input fields"
+            )
+        validator = validate_dynamic_control_replay_source_events
+    else:
+        validator = validate_dynamic_replay_source_events
+    return payload, validator(events, expected_start=(196, 0))
+
+
+def _apply_control_inputs(env: GenesisParcelEnv, event: dict[str, Any]) -> None:
+    grouped = partition_dynamic_control_inputs(event)
+    methods = {
+        "position": env.robot.control_dofs_position,
+        "velocity": env.robot.control_dofs_velocity,
+        "force": env.robot.control_dofs_force,
+    }
+    for mode, command in grouped.items():
+        indices = command["dof_indices"]
+        if not indices:
+            continue
+        methods[mode](
+            env.np.asarray(command["targets"]),
+            env.np.asarray(indices, dtype=int),
+        )
 
 
 def _variant_config(args: argparse.Namespace) -> tuple[Any, Any]:
@@ -133,7 +175,10 @@ def _variant_config(args: argparse.Namespace) -> tuple[Any, Any]:
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
     source_path = args.source.resolve()
-    source, source_events = _load_source(source_path)
+    source, source_events = _load_source(
+        source_path,
+        replay_mode=args.replay_mode,
+    )
     config, sample = _variant_config(args)
     normalized_sample = json.loads(
         json.dumps(asdict(sample), allow_nan=False)
@@ -185,12 +230,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if max(state_error.values()) > 1e-6:
             raise RuntimeError("dynamic generalized-state reconstruction failed")
 
-        env._last_applied_command = "recorded_open_loop_force"
+        env._last_applied_command = args.replay_mode.replace("-", "_")
         stopped = False
         for source_event in source_events[1:]:
-            env.robot.control_dofs_force(
-                env.np.asarray(source_event["robot_dof_control_force_n"])
-            )
+            if args.replay_mode == "recorded-control-inputs":
+                _apply_control_inputs(env, source_event)
+            else:
+                env.robot.control_dofs_force(
+                    env.np.asarray(source_event["robot_dof_control_force_n"])
+                )
             env.scene.step()
             env.control_step = int(source_event["control_step"])
             env._record_contact_branch(int(source_event["physics_substep"]))
@@ -239,7 +287,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             int(source_events[-1]["physics_substep"]),
         ],
         "initial_state": "exact generalized qpos/qvel from source event 196/0",
-        "command_replay": "recorded nine-DOF control-force sequence from the next source event",
+        "command_replay": (
+            "recorded nine-DOF control mode and raw mode-specific targets "
+            "from the next source event"
+            if args.replay_mode == "recorded-control-inputs"
+            else "recorded nine-DOF control-force sequence from the next source event"
+        ),
+        "replay_mode": args.replay_mode,
         "adapter_extension_m": 0.030,
         "adapter_density_kg_m3": 1240.0,
         "physics_hz": 240,
@@ -260,7 +314,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "schema_version": "1.0",
         "status": "safety_stopped" if stopped else "complete",
-        "study_type": "genesis_panda_finger_constraint_dynamic_state_replay",
+        "study_type": (
+            "genesis_panda_finger_constraint_control_input_replay"
+            if args.replay_mode == "recorded-control-inputs"
+            else "genesis_panda_finger_constraint_dynamic_state_replay"
+        ),
         "variant": (
             "combined_rigid_body" if mass_aware else "stock_explicit_inertia_ablation"
         ),

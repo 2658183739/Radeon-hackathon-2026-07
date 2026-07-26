@@ -4,7 +4,9 @@ import unittest
 
 from parcel_sorter.finger_constraint_repro import (
     compare_finger_constraint_reproductions,
+    partition_dynamic_control_inputs,
     summarize_finger_constraint_repro,
+    validate_dynamic_control_replay_source_events,
     validate_dynamic_replay_source_events,
 )
 
@@ -131,6 +133,46 @@ class FingerConstraintReproTests(unittest.TestCase):
         events[1]["physics_substep"] = 2
         with self.assertRaisesRegex(ValueError, "must be consecutive"):
             validate_dynamic_replay_source_events(
+                events,
+                expected_start=(196, 0),
+            )
+
+    def test_dynamic_control_source_partitions_mode_specific_targets(self) -> None:
+        events = []
+        for substep in (0, 1):
+            event = _event(196)
+            event["physics_substep"] = substep
+            event.update(
+                {
+                    "robot_qpos": [0.0] * 9,
+                    "robot_dof_velocity": [0.0] * 9,
+                    "robot_dof_actual_force_n": [0.0] * 9,
+                    "robot_dof_control_force_n": [0.0] * 9,
+                    "parcel_qpos": [0.0] * 7,
+                    "parcel_dof_velocity": [0.0] * 6,
+                    "robot_dof_control_mode": [0] * 7 + [2, 2],
+                    "robot_dof_position_target": list(range(9)),
+                    "robot_dof_velocity_target": [0.0] * 9,
+                    "robot_dof_force_target_n": [0.0] * 7 + [-20.0, -20.0],
+                }
+            )
+            events.append(event)
+
+        validated = validate_dynamic_control_replay_source_events(
+            events,
+            expected_start=(196, 0),
+        )
+        grouped = partition_dynamic_control_inputs(validated[0])
+
+        self.assertEqual(grouped["position"]["dof_indices"], tuple(range(7)))
+        self.assertEqual(grouped["position"]["targets"], tuple(range(7)))
+        self.assertEqual(grouped["force"]["dof_indices"], (7, 8))
+        self.assertEqual(grouped["force"]["targets"], (-20.0, -20.0))
+        self.assertEqual(grouped["velocity"]["dof_indices"], ())
+
+        events[1]["robot_dof_control_mode"] = [0] * 8 + [3]
+        with self.assertRaisesRegex(ValueError, "unsupported Genesis control mode"):
+            validate_dynamic_control_replay_source_events(
                 events,
                 expected_start=(196, 0),
             )

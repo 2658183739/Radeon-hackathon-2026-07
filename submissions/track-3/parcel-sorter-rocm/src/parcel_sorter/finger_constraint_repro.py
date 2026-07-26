@@ -18,6 +18,19 @@ DYNAMIC_STATE_LENGTHS = {
     "parcel_dof_velocity": 6,
 }
 
+DYNAMIC_CONTROL_INPUT_LENGTHS = {
+    "robot_dof_control_mode": 9,
+    "robot_dof_position_target": 9,
+    "robot_dof_velocity_target": 9,
+    "robot_dof_force_target_n": 9,
+}
+
+CONTROL_MODE_NAMES = {
+    0: "position",
+    1: "velocity",
+    2: "force",
+}
+
 
 def summarize_finger_constraint_repro(
     events: Sequence[Mapping[str, Any]],
@@ -130,6 +143,62 @@ def validate_dynamic_replay_source_events(
             f"dynamic replay source must start at {expected_start[0]}/{expected_start[1]}"
         )
     return result
+
+
+def validate_dynamic_control_replay_source_events(
+    events: Sequence[Mapping[str, Any]],
+    *,
+    expected_start: tuple[int, int],
+) -> list[dict[str, Any]]:
+    """Validate state plus raw Genesis control inputs for exact-mode replay."""
+    result = validate_dynamic_replay_source_events(
+        events,
+        expected_start=expected_start,
+    )
+    for event in result:
+        partition_dynamic_control_inputs(event)
+    return result
+
+
+def partition_dynamic_control_inputs(
+    event: Mapping[str, Any],
+) -> dict[str, dict[str, tuple[Any, ...]]]:
+    """Group one nine-DOF Genesis control input by its active control mode."""
+    values_by_field: dict[str, tuple[float, ...]] = {}
+    for field, expected_length in DYNAMIC_CONTROL_INPUT_LENGTHS.items():
+        values = event.get(field)
+        if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):
+            raise ValueError(f"dynamic control replay event is missing {field}")
+        if len(values) != expected_length:
+            raise ValueError(f"{field} must contain {expected_length} values")
+        if not _all_numeric_values_finite(values):
+            raise ValueError(f"{field} contains a non-finite value")
+        values_by_field[field] = tuple(float(value) for value in values)
+
+    modes = values_by_field["robot_dof_control_mode"]
+    canonical_modes: list[int] = []
+    for mode in modes:
+        if not mode.is_integer() or int(mode) not in CONTROL_MODE_NAMES:
+            raise ValueError(f"unsupported Genesis control mode: {mode}")
+        canonical_modes.append(int(mode))
+
+    target_field_by_mode = {
+        0: "robot_dof_position_target",
+        1: "robot_dof_velocity_target",
+        2: "robot_dof_force_target_n",
+    }
+    grouped: dict[str, dict[str, tuple[Any, ...]]] = {}
+    for mode, name in CONTROL_MODE_NAMES.items():
+        indices = tuple(
+            index for index, observed_mode in enumerate(canonical_modes)
+            if observed_mode == mode
+        )
+        target_values = values_by_field[target_field_by_mode[mode]]
+        grouped[name] = {
+            "dof_indices": indices,
+            "targets": tuple(target_values[index] for index in indices),
+        }
+    return grouped
 
 
 def _validate_pair(
