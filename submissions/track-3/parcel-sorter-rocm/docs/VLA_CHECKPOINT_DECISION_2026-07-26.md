@@ -22,6 +22,10 @@
 
 当前只证明 10k checkpoint 完成过一个未见闭环回合，不能宣称五类包裹普遍成功。1/5 和 0/5 均为方向筛选证据，不是最终统计结论。
 
+### 条件化均衡数据集结果（停止）
+
+2026-07-26 在同一张 AMD Radeon `gfx1100` GPU、ROCm 7.2 上完成了 23 条动态语言指令、135 个训练回合的均衡条件化 SmolVLA 训练（10,000 steps）。最终 checkpoint 在固定 `small_carton` 闭环回合中为 `0/1`：19.97 s 后仍停留在 `approach`，峰值接触力仅 0.06 N。6k checkpoint 曾触发 40.23 N 安全中止。条件化分支没有超过原始 10k 模型的已验证 `small_carton` 成功，因此停止；不会为该分支消耗五类包裹扩测预算。
+
 ## English
 
 ### Decision
@@ -43,3 +47,7 @@ Do not add training steps next. Correct task conditioning by balancing samples a
 ### Evidence Boundary
 
 The current result proves only that the 10k checkpoint completed one unseen closed-loop episode. It does not establish general success across five parcel classes. The 1/5 and 0/5 results are directional screening evidence, not final statistical claims.
+
+### Conditioned Balanced Dataset Result (Stopped)
+
+On 2026-07-26, a balanced task-conditioned SmolVLA was trained for 10,000 steps on 135 episodes with 23 dynamic language instructions, using one AMD Radeon `gfx1100` GPU and ROCm 7.2. Its final checkpoint scored `0/1` on the fixed `small_carton` closed-loop episode: it remained in `approach` after 19.97 s with only 0.06 N peak contact force. Its 6k checkpoint had previously reached the 40.23 N safety abort. This branch did not exceed the verified `small_carton` success of the original 10k model, so it is stopped and will not consume a five-profile evaluation budget.
