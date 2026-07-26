@@ -40,6 +40,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
     from huggingface_hub import snapshot_download
 
     output = args.output.resolve()
