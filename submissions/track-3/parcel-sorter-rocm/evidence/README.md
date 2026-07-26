@@ -461,3 +461,17 @@ Reconstructed static, pointwise, and groupwise train choices verify wiring
 only and are not a generalization result. The freeze record proves both
 checkpoints predate any development manifest, while holdout remains absent.
 See `docs/GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS.md` for the bilingual companion.
+
+## Grasp scorer v2 development negative result
+
+`training/grasp-scorer-v2-development-evidence.json` binds the one-shot
+16-group development split, both frozen-model evaluations, and the final
+`no_promotion` decision. Pointwise and groupwise both met roughly 0.9 ms
+latency, but increased safety aborts from the static baseline's 4/16 to 9/16
+and 8/16 and regressed all four profiles. Both were rejected.
+
+The record explicitly preserves `selected=null` and `holdout_opened=false`,
+plus posthoc oracle and miscalibration diagnostics. The 111 MiB full
+development traces and combined dataset remain in the Radeon workspace. Git
+tracks the decision, both evaluations, and compact hash index. See
+`docs/GRASP_SCORER_V2_DEVELOPMENT_RESULTS.md`.

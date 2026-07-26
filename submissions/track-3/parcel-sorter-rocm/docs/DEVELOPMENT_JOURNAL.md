@@ -1335,3 +1335,32 @@ change capacity, objective, step budget, or checkpoints. PyTorch's
 is an AMD Radeon under HIP 7.2. The bilingual result and machine-readable
 index are in `docs/GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS.md` and
 `evidence/training/grasp-scorer-v2-train-evidence.json`.
+
+### Record 84: Reject both v2 rankers at the development gate
+
+The one post-freeze development collection completed 16 groups, four per
+profile, and 96 candidate rollouts with zero failed groups. Checkpoint,
+dataset, evaluation, and pipeline hashes passed before and after evaluation;
+no holdout manifest existed at any point.
+
+The static baseline produced 9/16 successes and 4/16 safety aborts. Pointwise
+produced 6/16 and 9/16; groupwise-safety-first produced 7/16 and 8/16. Their
+six-candidate warm P95 latencies were 0.909 ms and 0.924 ms, but both regressed
+safety in every profile. The fixed selector therefore returned
+`no_promotion`, selected no model, and did not open holdout.
+
+Posthoc read-only diagnosis found candidate-set headroom: 13/16 groups had a
+safe successful candidate and only one group was entirely unsafe, giving a
+safety-first oracle upper bound of 13 successes and one safety abort. The
+failure was calibration rather than absent candidates. Both 6,276-parameter
+networks drove loss near zero on 32 train groups, then predicted roughly
+22--27 N for aborted development selections that averaged 222--230 N. The
+largest candidate force was 1,489.78 N. Unseen candidate IDs covered only
+14/96 rows, and each model selected two, so ID novelty alone cannot explain
+the regression.
+
+V2 is now closed and runtime keeps the static geometry baseline. Any new
+ranker requires a fully disjoint, preregistered v3 population and train-only
+capacity/calibration selection. V2 development is historical design evidence,
+not reusable tuning or promotion data. See
+`docs/GRASP_SCORER_V2_DEVELOPMENT_RESULTS.md`.

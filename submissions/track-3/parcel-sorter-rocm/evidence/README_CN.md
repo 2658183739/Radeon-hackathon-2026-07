@@ -316,3 +316,13 @@ Git 忽略原始产物。静态零速度回放在 64 个对齐子步中没有达
 训练集内静态、pointwise 和 groupwise 的重建选择仅用于验证接线，不能解释为泛化结果。冻结记录
 明确证明两份检查点在 development manifest 出现前生成，holdout 仍未创建。中英文解释见
 `docs/GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS_CN.md`。
+
+## 抓取评分器 V2 development 负结果
+
+`training/grasp-scorer-v2-development-evidence.json` 绑定一次性 16 组 development、两份冻结模型
+评测和最终 `no_promotion` 决策。pointwise 与 groupwise 均满足约 0.9 ms 的延迟要求，但分别把
+安全中止从静态基线的 4/16 增至 9/16 和 8/16，四个 profile 全部回归，因此均被拒绝。
+
+证据明确记录 `selected=null`、`holdout_opened=false`，并保留事后 oracle 与失准诊断。111 MiB
+完整 development 轨迹和组合数据集留在 Radeon 工作区；Git 保存决策、两份评测与紧凑哈希索引。
+中英文结论见 `docs/GRASP_SCORER_V2_DEVELOPMENT_RESULTS_CN.md`。

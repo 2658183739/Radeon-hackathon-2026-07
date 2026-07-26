@@ -1013,3 +1013,21 @@ development 结果不能反向改变模型容量、目标、训练步数或检�
 ROCm 兼容命名，实际设备为 AMD Radeon、HIP 7.2。完整中英文结果和机器可读索引分别保存在
 `docs/GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS_CN.md` 与
 `evidence/training/grasp-scorer-v2-train-evidence.json`。
+
+### 记录 84：两份 V2 排序器均未通过 development 门禁
+
+冻结后唯一一次 development 采集完整得到 16 组、四个 profile 各 4 组和 96 个候选 rollout，
+0 组失败。评测前后检查点、数据集、评测和编排哈希均通过，holdout manifest 始终不存在。
+
+静态基线是 9/16 成功、4/16 安全中止；pointwise 为 6/16、9/16，groupwise-safety-first 为
+7/16、8/16。两者的六候选 warm P95 分别为 0.909 ms 和 0.924 ms，但四个 profile 全部发生安全
+回归。因此固定晋级器输出 `no_promotion`，没有选中模型，也没有打开 holdout。
+
+事后只读诊断显示候选集合仍有上限：13/16 组存在安全成功候选，只有 1 组全部危险；安全优先 oracle
+可达 13 次成功、1 次安全中止。失败集中在校准而非候选缺失：两个 6,276 参数网络在 32 个训练组上
+把损失压到近零，却把实际中止候选的平均 222--230 N 预测为约 22--27 N。最严重候选达到
+1,489.78 N。未见候选 ID 只占 14/96，两模型各只选中 2 条，不能单独解释回归。
+
+V2 到此关闭，运行时保留静态几何基线。任何新排序器必须建立完全不重叠、事先冻结的 V3 总体，并
+在 train 内完成容量与校准选择；V2 development 只能作为历史设计证据，不能再用于调参或晋级。
+完整结果见 `docs/GRASP_SCORER_V2_DEVELOPMENT_RESULTS_CN.md`。
