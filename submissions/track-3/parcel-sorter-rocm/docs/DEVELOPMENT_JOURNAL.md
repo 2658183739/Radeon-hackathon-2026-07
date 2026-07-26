@@ -1445,3 +1445,28 @@ The decision is not to deploy the probe or open V2 holdout. Only the
 `veto-static` safety mechanism may advance to a newly frozen, disjoint and
 broader parcel population. The active runtime remains static geometry until
 that confirmation exists. Full result SHA-256 is `3df57daf...ba16`.
+
+### Record 89: Freeze the independent V5 confirmation population
+
+The V4 train-only result supports only a safety veto, so the next admissible
+experiment is one confirmation on a new population rather than another scan
+of V2/V3 features or thresholds. The population contains 80 groups: ten new
+episodes for each of four previously represented profiles and ten episodes for
+each of four profiles unseen by V4 selection. All IDs are in 9.1M--9.8M
+namespaces and have zero overlap with V2 assignments.
+
+The selector reads only deterministic parcel samples and the rigid-box,
+parallel-jaw compatibility predicate. It constructs no scene and reads no
+physics or outcome field. The separate collection entry point activates the
+box-specific candidate planner for all rigid boxes, which broadens the
+population without changing the shared V2/V3 activation constant.
+
+The frozen gate requires 80 complete groups, zero paired success/safety/drop
+regressions, zero per-profile success or safety regressions, at least six
+safety-abort reductions distributed across two profiles, an exact one-sided
+McNemar p-value at most 0.05, and selector P95 below 5 ms. A pass authorizes
+only a future Radeon-parallel online probe pilot; it does not activate the
+runtime selector or open V2 development/holdout. The protocol audit returned
+`protocol_valid`; the local suite is 304 passed with one environment skip.
+Protocol SHA-256 is
+`062e3ec9d0c4968b1593331ada5aa1aa737e4eadda869e173fe0116e3ab8101e`.

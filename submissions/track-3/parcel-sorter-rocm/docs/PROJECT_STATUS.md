@@ -577,3 +577,23 @@ rejected. The runtime therefore remains static geometry; only the early safety
 veto is eligible for a new, disjoint, broader-population protocol. V2
 development and holdout remain closed. The Radeon tree passes 300 tests and 28
 subtests. See `docs/CONTROLLER_FAITHFUL_PROBE_V4_TRAIN_RESULTS.md`.
+
+## Latest status: V5 independent confirmation is ready, not yet run
+
+V5 preregisters one independent confirmation of `veto-static` on 80 groups:
+ten new episodes for each of four legacy profiles and four profiles unseen by
+V4 selection. The 9.1M--9.8M episode namespaces have zero overlap with V2;
+selection reads no scene, action, physics outcome, or label. The collection
+entry point is isolated and covers all rigid box profiles supported by the
+current box candidate planner. Cylinders remain a separate future planner
+scope.
+
+The protocol audit is `protocol_valid`, the dry run plans 80 groups and at most
+480 full candidate rollouts, and the local suite passes 304 tests with one
+environment-dependent skip. The confirmation gate requires no paired success,
+safety-abort, or drop regression, at least six distributed safety-abort
+reductions, an exact one-sided p-value at most 0.05, and selector P95 below
+5 ms. A pass authorizes only an online Radeon-parallel probe pilot; runtime
+activation and V2 development/holdout remain forbidden. See
+`docs/CONTROLLER_PROBE_V5_PROTOCOL.md` and
+`docs/CONTROLLER_PROBE_V5_PROTOCOL_CN.md`.

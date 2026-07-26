@@ -2132,3 +2132,27 @@ but did not demonstrate more completed parcels.
 veto may advance only if it preserves baseline successes and reduces safety
 aborts without profile concentration. Full train result SHA-256 is
 `3df57daf...ba16`.
+
+### 89. Confirm the veto once on a broader independent population
+
+**Question.** Can the V4 safety reduction survive new episodes, profile
+novelty, and wider size/yaw/friction/noise variation without sacrificing a
+single baseline success?
+
+**Decision and reason.** Freeze 80 box groups before physics: ten groups for
+each of four legacy and four unseen profiles. Use only `veto-static`, require
+zero paired success/safety/drop regression, at least six safety reductions in
+two profiles, and one-sided exact p <= 0.05. This is stricter than merely
+repeating the 4/32 point estimate and prevents one profile from carrying the
+claim.
+
+**Boundary.** The box planner is extended through a V5-only collection entry
+point, leaving V2/V3 shared activation hashes unchanged. Cylinders are excluded
+because they need a different candidate generator. Passing authorizes an
+online Radeon-parallel probe pilot only; runtime activation still requires a
+separate protocol. V2 development and holdout remain forbidden.
+
+**Verification.** Outcome-free selection contains 80 groups with zero old-key
+overlap. Protocol audit is valid, dry-run plans 480 rollouts, and 304 tests pass
+with one environment skip. Protocol SHA-256 is
+`062e3ec9d0c4968b1593331ada5aa1aa737e4eadda869e173fe0116e3ab8101e`.

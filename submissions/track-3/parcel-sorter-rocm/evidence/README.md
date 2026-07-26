@@ -500,3 +500,13 @@ The other three policies actively reordered candidates and failed registered
 success or local safety gates. The selected mechanism is therefore a safety
 veto only. It remains undeployed, new physics is unauthorized, and V2 holdout
 remains closed. See `docs/CONTROLLER_FAITHFUL_PROBE_V4_TRAIN_RESULTS.md`.
+
+## Controller probe v5 independent confirmation (pre-run)
+
+`training/controller-probe-v5-population-selection.json` records the frozen
+outcome-free selection of 80 independent groups. The V5 protocol audit and
+decision record bind the population, all-box collection scope, paired safety
+gates, and implementation hashes. The dry run plans 480 candidate rollouts;
+no V5 physics result is present yet. See
+`docs/CONTROLLER_PROBE_V5_PROTOCOL.md` and
+`docs/CONTROLLER_PROBE_V5_DECISION_RECORD.md`.

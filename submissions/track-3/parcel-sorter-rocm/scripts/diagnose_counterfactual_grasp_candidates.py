@@ -89,11 +89,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--contact-branch-frame-end", type=int, default=204)
     parser.add_argument(
         "--planning-activation",
-        choices=("reset-fallback", "geometry-eligible"),
+        choices=("reset-fallback", "geometry-eligible", "all-boxes"),
         default="reset-fallback",
         help=(
-            "activate planning only after reset fallback, or for every parcel "
-            "inside the frozen geometry-planning scope"
+            "activate planning only after reset fallback, for every parcel "
+            "inside the frozen tall-box scope, or for every rigid box"
         ),
     )
     parser.add_argument(
@@ -221,6 +221,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     started = time.perf_counter_ns()
 
     with GenesisParcelEnv(config, sample, backend=args.backend) as discovery_env:
+        if args.planning_activation == "all-boxes":
+            discovery_env.set_diagnostic_all_box_grasp_planning()
         feasible, all_candidate_ids = _static_candidate_rows(discovery_env)
         planner_active = discovery_env.geometry_grasp_planning_active
     feasible_by_id = {str(row["candidate_id"]): row for row in feasible}
@@ -294,6 +296,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     else None
                 ),
             ) as env:
+                if args.planning_activation == "all-boxes":
+                    env.set_diagnostic_all_box_grasp_planning()
                 env.set_diagnostic_grasp_candidate_allowlist(
                     frozenset({candidate_id})
                 )

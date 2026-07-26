@@ -862,6 +862,15 @@ class GenesisParcelEnv:
     def geometry_grasp_planning_active(self) -> bool:
         return self._geometry_grasp_planning_active
 
+    def set_diagnostic_all_box_grasp_planning(self) -> None:
+        """Expose candidate enumeration for a preregistered box-only study."""
+        if self.sample.shape != "box" or self.sample.dimensions_m is None:
+            raise ValueError("all-box grasp planning requires a rigid box sample")
+        if self.config.task.grasp_planning_reset_fallback_gate_enabled:
+            raise ValueError("all-box diagnostic scope cannot use the reset fallback gate")
+        self._geometry_grasp_planning_eligible = True
+        self._refresh_geometry_grasp_planning_active()
+
     def _add_sorting_targets(self) -> None:
         targets = []
         for center, color in (
