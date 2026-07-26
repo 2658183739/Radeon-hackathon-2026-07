@@ -2092,3 +2092,25 @@ micro-lift probe with contact/slip state and batched Radeon physics.
 `selected=null` and `new_physics_authorized=false`. It is train-only model
 selection evidence, not an independent generalization claim. The full result
 SHA-256 is `3ec39a...8d68`; v2 development is not reusable for tuning.
+
+### 87. Test dynamic information before adding another learned model
+
+**Question.** After static MLP and KNN failures, should the project increase
+model capacity, start ACT/VLA expansion, or first test whether a short
+controller-faithful probe contains useful ranking information?
+
+**Alternatives.** A larger static model retains the missing-variable problem.
+ACT/VLA adds substantial capacity and visual data requirements before the
+grasp mechanism is identified. A pre-place micro-lift uses existing physical
+state and can later map directly to Radeon-parallel short-horizon simulation.
+
+**Decision and reason.** Freeze the micro-lift feasibility study first. Use 27
+mechanically chosen features, four parameter-free policies, hard 35 N/contact/
+lift eligibility, safe abstention, and zero profile/fold safety or success
+regression. This tests information value without confusing it with model
+capacity or opening new physics.
+
+**Evidence and boundary.** Seven directed tests pass. Protocol SHA-256 is
+`ca941366...e4ff3`. Only the v2 train manifest is admissible; development,
+holdout, online execution, and promotion remain unauthorized until a separate
+result and protocol exist.

@@ -1404,3 +1404,25 @@ computational: latency passed comfortably, while the observed descriptors did
 not support safer ranking. Any next experiment must first freeze a new protocol
 for dynamic pre-grasp/contact/slip information; V2 development and this CV may
 not be reused for another threshold scan.
+
+### Record 87: Freeze controller-faithful pre-place probe feasibility
+
+The v2 and v3 results rule out more tuning of the same static 28 features, but
+the complete train trajectories already contain controller-faithful state at
+30 Hz. A new pure extractor now stops at the first `place` boundary
+observation, before its action, and records 27 approach/contact/micro-lift
+features. It cannot see transport, release, final success, final force, or any
+later row.
+
+Four parameter-free policies separate static-order veto from force-,
+stability-, and contact-support-first ranking. Every candidate must complete
+the micro-lift below 35 N with retained contact and a lifted parcel. With no
+eligible candidate, the result is a safe abstention rather than a hidden
+static fallback. The gate forbids safety and success regression in every
+profile and fold, so abstaining cannot manufacture a promotion.
+
+Six synthetic tests verify the causal cutoff, label-independent selection,
+safe abstention, summaries, and promotion gate. A seventh test requires the
+implementation hashes and exact policy grid to remain frozen. All seven pass
+on the Radeon environment. Protocol SHA-256 is `ca941366...e4ff3`; no actual
+train result has been produced yet, and development/holdout remain forbidden.
