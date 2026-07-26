@@ -1,5 +1,7 @@
 # Parcel Sorter ROCm
 
+Latest result: [slow-fast SmolVLA](docs/SLOW_FAST_VLA_RESULT_2026-07-26.md), a matched single-Radeon validation of visual-language residual control inside the 30 Hz safety loop.
+
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis
 rigid-body simulation, a Franka Panda manipulator, aligned RGB-D sensing,

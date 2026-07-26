@@ -10,7 +10,7 @@ from parcel_sorter.dataset import JsonlTrajectoryWriter
 from parcel_sorter.episode_plan import build_episode_plan
 from parcel_sorter.genesis_env import GenesisParcelEnv
 from parcel_sorter.metrics import MetricsAccumulator
-from parcel_sorter.policy import LeRobotPolicyAdapter
+from parcel_sorter.policy import LeRobotPolicyAdapter, SlowFastVLAExpertPolicy
 from parcel_sorter.provenance import runtime_report
 from parcel_sorter.randomization import DomainRandomizer
 from parcel_sorter.runner import run_policy_episode, save_episode_writers
@@ -52,9 +52,20 @@ def main() -> int:
         action="store_true",
         help="condition the policy on parcel profile and destination bin",
     )
+    parser.add_argument(
+        "--slow-fast-vla",
+        action="store_true",
+        help="run slow VLA residual updates inside the fast expert safety controller",
+    )
+    parser.add_argument("--vla-refresh-steps", type=int, default=3)
+    parser.add_argument("--vla-residual-limit-m", type=float, default=0.01)
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
+    if args.vla_refresh_steps < 1:
+        parser.error("vla-refresh-steps must be positive")
+    if args.vla_residual_limit_m < 0:
+        parser.error("vla-residual-limit-m cannot be negative")
 
     config = load_config(args.config)
     if args.nominal:
@@ -93,7 +104,6 @@ def main() -> int:
         video_path = None
         if args.record_video or (config.output.record_first_episode and offset == 0):
             video_path = output / "videos" / f"episode_{episode_index:06d}.mp4"
-        policy.reset()
         with GenesisParcelEnv(
             config,
             sample,
@@ -101,12 +111,21 @@ def main() -> int:
             video_path=video_path,
             capture_sensors=True,
         ) as env:
+            episode_policy = policy
+            if args.slow_fast_vla:
+                episode_policy = SlowFastVLAExpertPolicy(
+                    policy,
+                    env.expert,
+                    refresh_steps=args.vla_refresh_steps,
+                    residual_limit_m=args.vla_residual_limit_m,
+                )
+            episode_policy.reset()
             report = run_policy_episode(
                 env,
                 config,
                 sample,
                 episode_index,
-                policy,
+                episode_policy,
                 (writer,),
                 task_instruction=(
                     build_conditioned_task(sample.profile_id, sample.destination)
@@ -114,6 +133,8 @@ def main() -> int:
                     else None
                 ),
             )
+            if args.slow_fast_vla:
+                report.safety_summary["slow_fast_vla"] = episode_policy.summary()
         save_episode_writers(report, writer, None)
         reports.append(report.to_dict())
         metrics.add(report.result)
@@ -135,6 +156,9 @@ def main() -> int:
         "n_action_steps_override": args.n_action_steps,
         "action_position_mode": args.action_position_mode,
         "dynamic_task_text": args.dynamic_task_text,
+        "slow_fast_vla": args.slow_fast_vla,
+        "vla_refresh_steps": args.vla_refresh_steps,
+        "vla_residual_limit_m": args.vla_residual_limit_m,
         "evaluation_range": {
             "start_episode": min(spec.episode_index for spec in plan),
             "end_episode": max(spec.episode_index for spec in plan),

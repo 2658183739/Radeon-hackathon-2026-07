@@ -26,6 +26,98 @@ class ScriptedExpertPolicy:
         return self.expert.action(context.decision, context.state)
 
 
+class SlowFastVLAExpertPolicy:
+    """Run VLA vision-language updates slowly inside a fast safety controller."""
+
+    def __init__(
+        self,
+        vla: ActionPolicy,
+        expert: ScriptedPickPlaceExpert,
+        *,
+        refresh_steps: int = 3,
+        residual_limit_m: float = 0.01,
+    ) -> None:
+        if refresh_steps < 1:
+            raise ValueError("refresh_steps must be positive")
+        if not math.isfinite(residual_limit_m) or residual_limit_m < 0:
+            raise ValueError("residual_limit_m must be finite and non-negative")
+        self.vla = vla
+        self.expert = expert
+        self.refresh_steps = refresh_steps
+        self.residual_limit_m = residual_limit_m
+        self._frame = 0
+        self._cached_vla_action: CartesianAction | None = None
+        self.vla_updates = 0
+        self.fast_control_steps = 0
+        self.max_applied_residual_m = 0.0
+
+    def reset(self) -> None:
+        reset = getattr(self.vla, "reset", None)
+        if callable(reset):
+            reset()
+        self._frame = 0
+        self._cached_vla_action = None
+        self.vla_updates = 0
+        self.fast_control_steps = 0
+        self.max_applied_residual_m = 0.0
+
+    def predict(self, context: PolicyContext) -> CartesianAction:
+        expert_action = self.expert.action(context.decision, context.state)
+        if self._cached_vla_action is None or self._frame % self.refresh_steps == 0:
+            self._cached_vla_action = self.vla.predict(context)
+            self.vla_updates += 1
+        self._frame += 1
+        self.fast_control_steps += 1
+
+        if Command(context.decision.command) != Command.MOVE_PREGRASP:
+            return expert_action
+
+        residual = tuple(
+            proposed - nominal
+            for proposed, nominal in zip(
+                self._cached_vla_action.target_position,
+                expert_action.target_position,
+                strict=True,
+            )
+        )
+        residual_norm = math.sqrt(sum(value * value for value in residual))
+        if residual_norm > self.residual_limit_m and residual_norm > 0:
+            scale = self.residual_limit_m / residual_norm
+            residual = tuple(value * scale for value in residual)
+            residual_norm = self.residual_limit_m
+        self.max_applied_residual_m = max(
+            self.max_applied_residual_m,
+            residual_norm,
+        )
+        combined_target = tuple(
+                nominal + offset
+                for nominal, offset in zip(
+                    expert_action.target_position,
+                    residual,
+                    strict=True,
+                )
+            )
+        return CartesianAction(
+            target_position=_bounded_target(
+                tuple(float(value) for value in context.state.end_effector_pose[:3]),
+                combined_target,
+                self.expert.config.control.max_ee_step_m,
+            ),
+            target_quaternion=expert_action.target_quaternion,
+            gripper=expert_action.gripper,
+            command=expert_action.command,
+        )
+
+    def summary(self) -> dict[str, int | float]:
+        return {
+            "refresh_steps": self.refresh_steps,
+            "residual_limit_m": self.residual_limit_m,
+            "vla_updates": self.vla_updates,
+            "fast_control_steps": self.fast_control_steps,
+            "max_applied_residual_m": self.max_applied_residual_m,
+        }
+
+
 class LeRobotPolicyAdapter:
     """Any supported LeRobot checkpoint behind the safe Cartesian action boundary."""
 
