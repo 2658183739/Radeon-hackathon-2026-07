@@ -40,6 +40,9 @@ Current frontier execution decision: [English](FRONTIER_EXECUTION_DECISION_2026-
 Shape-dispatched planning boundary: [English](SHAPE_GRASP_DISPATCH.md) /
 [Chinese](SHAPE_GRASP_DISPATCH_CN.md).
 
+V5 terminal evidence audit: [English](CONTROLLER_PROBE_V5_EVIDENCE_AUDIT.md) /
+[Chinese](CONTROLLER_PROBE_V5_EVIDENCE_AUDIT_CN.md).
+
 English documents are the primary competition materials. Chinese documents are
 paired operator and learning references. Results, plans, and unverified changes
 must remain explicitly distinguished in both languages.
