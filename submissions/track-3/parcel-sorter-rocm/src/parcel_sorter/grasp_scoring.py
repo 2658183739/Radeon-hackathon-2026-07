@@ -405,29 +405,103 @@ def evaluate_ranked_grasp_predictions(
         selected.append(
             {
                 "group_id": group_id,
+                "profile": str(model_row["profile"]),
                 "model_candidate_id": model_row["candidate_id"],
                 "model_success": bool(model_row["labels"]["success"]),
                 "model_safety_aborted": bool(
                     model_row["labels"]["safety_aborted"]
+                ),
+                "model_force_n": _finite_float(
+                    model_row["labels"]["max_contact_force_n"],
+                    "model_force_n",
+                ),
+                "model_duration_seconds": _finite_float(
+                    model_row["labels"]["duration_seconds"],
+                    "model_duration_seconds",
                 ),
                 "baseline_candidate_id": baseline_row["candidate_id"],
                 "baseline_success": bool(baseline_row["labels"]["success"]),
                 "baseline_safety_aborted": bool(
                     baseline_row["labels"]["safety_aborted"]
                 ),
+                "baseline_force_n": _finite_float(
+                    baseline_row["labels"]["max_contact_force_n"],
+                    "baseline_force_n",
+                ),
+                "baseline_duration_seconds": _finite_float(
+                    baseline_row["labels"]["duration_seconds"],
+                    "baseline_duration_seconds",
+                ),
                 "model_prediction": dict(model_prediction),
             }
         )
-    return {
-        "group_count": len(selected),
-        "model_successes": sum(row["model_success"] for row in selected),
-        "model_safety_aborts": sum(row["model_safety_aborted"] for row in selected),
-        "baseline_successes": sum(row["baseline_success"] for row in selected),
-        "baseline_safety_aborts": sum(
-            row["baseline_safety_aborted"] for row in selected
-        ),
-        "selected": selected,
-    }
+
+    def summarize(group_rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+        count = len(group_rows)
+        if count < 1:
+            raise ValueError("ranked grasp summary requires at least one group")
+        return {
+            "group_count": count,
+            "model_successes": sum(bool(row["model_success"]) for row in group_rows),
+            "model_safety_aborts": sum(
+                bool(row["model_safety_aborted"]) for row in group_rows
+            ),
+            "baseline_successes": sum(
+                bool(row["baseline_success"]) for row in group_rows
+            ),
+            "baseline_safety_aborts": sum(
+                bool(row["baseline_safety_aborted"]) for row in group_rows
+            ),
+            "success_gains": sum(
+                bool(row["model_success"]) and not bool(row["baseline_success"])
+                for row in group_rows
+            ),
+            "success_losses": sum(
+                not bool(row["model_success"]) and bool(row["baseline_success"])
+                for row in group_rows
+            ),
+            "safety_abort_reductions": sum(
+                not bool(row["model_safety_aborted"])
+                and bool(row["baseline_safety_aborted"])
+                for row in group_rows
+            ),
+            "safety_abort_regressions": sum(
+                bool(row["model_safety_aborted"])
+                and not bool(row["baseline_safety_aborted"])
+                for row in group_rows
+            ),
+            "model_mean_force_n": sum(
+                float(row["model_force_n"]) for row in group_rows
+            )
+            / count,
+            "baseline_mean_force_n": sum(
+                float(row["baseline_force_n"]) for row in group_rows
+            )
+            / count,
+            "model_mean_duration_seconds": sum(
+                float(row["model_duration_seconds"]) for row in group_rows
+            )
+            / count,
+            "baseline_mean_duration_seconds": sum(
+                float(row["baseline_duration_seconds"]) for row in group_rows
+            )
+            / count,
+        }
+
+    result = summarize(selected)
+    profiles = sorted({str(row["profile"]) for row in selected})
+    result.update(
+        {
+            "per_profile": {
+                profile: summarize(
+                    [row for row in selected if str(row["profile"]) == profile]
+                )
+                for profile in profiles
+            },
+            "selected": selected,
+        }
+    )
+    return result
 def validate_feature_names(feature_names: Sequence[str]) -> None:
     if tuple(feature_names) != GRASP_FEATURE_NAMES:
         raise ValueError("grasp feature schema does not match the runtime contract")

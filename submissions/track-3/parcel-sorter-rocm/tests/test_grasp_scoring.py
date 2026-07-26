@@ -186,6 +186,63 @@ class GraspScoringTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "candidate order"):
             evaluate_ranked_grasp_predictions(rows, (prediction,))
 
+    def test_evaluation_reports_paired_and_profile_metrics(self) -> None:
+        rows = [
+            {
+                "group_id": "medium_carton:1",
+                "profile": "medium_carton",
+                "candidate_id": "baseline",
+                "static_rank": 0,
+                "labels": {
+                    "success": False,
+                    "safety_aborted": True,
+                    "max_contact_force_n": 40.0,
+                    "duration_seconds": 5.0,
+                },
+            },
+            {
+                "group_id": "medium_carton:1",
+                "profile": "medium_carton",
+                "candidate_id": "learned",
+                "static_rank": 1,
+                "labels": {
+                    "success": True,
+                    "safety_aborted": False,
+                    "max_contact_force_n": 12.0,
+                    "duration_seconds": 8.0,
+                },
+            },
+        ]
+        predictions = [
+            {
+                "candidate_id": "baseline",
+                "static_rank": 0,
+                "unsafe_probability": 0.9,
+                "success_probability": 0.1,
+                "predicted_force_n": 40.0,
+                "predicted_duration_seconds": 5.0,
+            },
+            {
+                "candidate_id": "learned",
+                "static_rank": 1,
+                "unsafe_probability": 0.1,
+                "success_probability": 0.9,
+                "predicted_force_n": 12.0,
+                "predicted_duration_seconds": 8.0,
+            },
+        ]
+
+        result = evaluate_ranked_grasp_predictions(rows, predictions)
+
+        self.assertEqual(result["success_gains"], 1)
+        self.assertEqual(result["safety_abort_reductions"], 1)
+        self.assertEqual(result["safety_abort_regressions"], 0)
+        self.assertEqual(result["model_mean_force_n"], 12.0)
+        self.assertEqual(
+            result["per_profile"]["medium_carton"]["baseline_mean_force_n"],
+            40.0,
+        )
+
     def test_protocol_rejects_overlapping_assignments(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "protocol.toml"
