@@ -13,7 +13,11 @@ from typing import Any, Mapping
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from parcel_sorter.grasp_scoring import load_grasp_split_protocol, sha256_file
+from parcel_sorter.grasp_scoring import (
+    load_grasp_collection_activation_policy,
+    load_grasp_split_protocol,
+    sha256_file,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -76,6 +80,7 @@ def _validated_output(
     config: Path,
     max_candidates: int,
     repeats: int,
+    planning_activation_policy: str,
 ) -> dict[str, Any]:
     payload = json.loads(output.read_text(encoding="utf-8"))
     if (
@@ -96,8 +101,14 @@ def _validated_output(
         contract.get("fresh_scene_per_rollout")
     ):
         raise ValueError(f"collection output violates controller contract: {output}")
-    if not bool(contract.get("collision_checked_reset_enabled")) or not bool(
-        contract.get("reset_fallback_gate_enabled")
+    observed_activation_policy = str(
+        contract.get("planning_activation_policy", "reset-fallback")
+    )
+    expected_reset_gate = planning_activation_policy == "reset-fallback"
+    if (
+        not bool(contract.get("collision_checked_reset_enabled"))
+        or observed_activation_policy != planning_activation_policy
+        or bool(contract.get("reset_fallback_gate_enabled")) != expected_reset_gate
     ):
         raise ValueError(f"collection output violates reset contract: {output}")
 
@@ -139,7 +150,10 @@ def _validated_output(
             or ranked_keys != expected_keys
         ):
             raise ValueError(f"collection output is incomplete: {output}")
-    elif source_status == "skipped_inactive_reset_gate":
+    elif source_status in {
+        "skipped_inactive_reset_gate",
+        "skipped_ineligible_geometry",
+    }:
         if (
             bool(contract.get("reset_fallback_gate_satisfied"))
             or bool(contract.get("labels_generated"))
@@ -163,6 +177,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "holdout collection is locked; pass --unlock-holdout only after model selection"
         )
     protocol = args.protocol.resolve()
+    planning_activation_policy = load_grasp_collection_activation_policy(protocol)
     output_dir = args.output_dir.resolve()
     rows = planned_runs(protocol, args.split, output_dir)
     manifest_path = output_dir / args.split / "manifest.json"
@@ -174,6 +189,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "backend": args.backend,
         "max_candidates": args.max_candidates,
         "repeats": args.repeats,
+        "planning_activation_policy": planning_activation_policy,
         "dry_run": args.dry_run,
         "planned_episode_count": len(rows),
         "planned_max_rollouts": len(rows) * args.max_candidates * args.repeats,
@@ -200,6 +216,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             str(args.repeats),
             "--inactive-gate",
             "skip",
+            "--planning-activation",
+            planning_activation_policy,
             "--output",
             str(output),
         ]
@@ -219,13 +237,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 config=args.config,
                 max_candidates=args.max_candidates,
                 repeats=args.repeats,
+                planning_activation_policy=planning_activation_policy,
             )
             source_status = str(payload["status"])
             record.update(
                 {
                     "status": (
                         "skipped_inactive_gate"
-                        if source_status == "skipped_inactive_reset_gate"
+                        if source_status.startswith("skipped_")
                         else "reused"
                     ),
                     "source_status": source_status,
@@ -248,6 +267,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 config=args.config,
                 max_candidates=args.max_candidates,
                 repeats=args.repeats,
+                planning_activation_policy=planning_activation_policy,
             )
             if completed.returncode != 0:
                 accepted_cleanup_failure = completed.returncode in {
@@ -267,7 +287,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             {
                 "status": (
                     "skipped_inactive_gate"
-                    if source_status == "skipped_inactive_reset_gate"
+                    if source_status.startswith("skipped_")
                     else "complete"
                 ),
                 "source_status": source_status,

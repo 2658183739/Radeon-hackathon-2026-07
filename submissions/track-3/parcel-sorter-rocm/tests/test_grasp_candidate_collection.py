@@ -85,7 +85,38 @@ episode_ids = [3]
             self.assertEqual(result["planned_episode_count"], 2)
             self.assertEqual(result["planned_max_rollouts"], 12)
             self.assertIn("--inactive-gate", result["runs"][0]["command"])
+            self.assertEqual(result["planning_activation_policy"], "reset-fallback")
             self.assertFalse((output / "train/manifest.json").exists())
+
+    def test_geometry_eligible_policy_is_forwarded_from_protocol(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            protocol = self._protocol(directory)
+            original = protocol.read_text(encoding="utf-8")
+            protocol.write_text(
+                '[collection]\nplanning_activation_policy = "geometry-eligible"\n\n'
+                + original,
+                encoding="utf-8",
+            )
+            args = argparse.Namespace(
+                protocol=protocol,
+                split="train",
+                output_dir=Path(directory) / "output",
+                config=Path(directory) / "config.toml",
+                backend="rocm",
+                max_candidates=6,
+                repeats=1,
+                resume=False,
+                dry_run=True,
+                unlock_holdout=False,
+            )
+
+            result = run(args)
+
+            command = result["runs"][0]["command"]
+            self.assertEqual(
+                command[command.index("--planning-activation") + 1],
+                "geometry-eligible",
+            )
 
     def test_accepts_sigsegv_only_after_complete_output_is_validated(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

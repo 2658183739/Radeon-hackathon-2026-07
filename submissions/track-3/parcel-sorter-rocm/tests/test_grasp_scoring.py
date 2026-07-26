@@ -11,6 +11,7 @@ from parcel_sorter.grasp_scoring import (
     evaluate_ranked_grasp_predictions,
     grasp_candidate_feature_vector,
     grasp_prediction_rank_key,
+    load_grasp_collection_activation_policy,
     load_grasp_split_protocol,
 )
 
@@ -166,6 +167,37 @@ episode_ids = [42]
             )
             with self.assertRaisesRegex(ValueError, "duplicate grasp split"):
                 load_grasp_split_protocol(path)
+
+    def test_collection_activation_policy_is_frozen_and_validated(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "protocol.toml"
+            path.write_text(
+                '[[splits]]\nname = "train"\nprofile_id = "medium_carton"\n'
+                "episode_ids = [1]\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                load_grasp_collection_activation_policy(path),
+                "reset-fallback",
+            )
+
+            path.write_text(
+                '[collection]\nplanning_activation_policy = "geometry-eligible"\n\n'
+                '[[splits]]\nname = "train"\nprofile_id = "medium_carton"\n'
+                "episode_ids = [1]\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                load_grasp_collection_activation_policy(path),
+                "geometry-eligible",
+            )
+
+            path.write_text(
+                '[collection]\nplanning_activation_policy = "outcome-selected"\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "unsupported"):
+                load_grasp_collection_activation_policy(path)
 
 
 if __name__ == "__main__":

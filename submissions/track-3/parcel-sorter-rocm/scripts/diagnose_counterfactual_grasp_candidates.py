@@ -88,6 +88,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--contact-branch-frame-start", type=int, default=196)
     parser.add_argument("--contact-branch-frame-end", type=int, default=204)
     parser.add_argument(
+        "--planning-activation",
+        choices=("reset-fallback", "geometry-eligible"),
+        default="reset-fallback",
+        help=(
+            "activate planning only after reset fallback, or for every parcel "
+            "inside the frozen geometry-planning scope"
+        ),
+    )
+    parser.add_argument(
         "--inactive-gate",
         choices=("error", "skip"),
         default="error",
@@ -179,7 +188,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             config.task,
             max_grasp_retries=0,
             geometry_aware_grasp_planning_enabled=True,
-            grasp_planning_reset_fallback_gate_enabled=True,
+            grasp_planning_reset_fallback_gate_enabled=(
+                args.planning_activation == "reset-fallback"
+            ),
             grasp_planning_transport_contract_enabled=True,
             grasp_planning_transport_lookahead_enabled=False,
             parcel_gripper_adapter_enabled=args.parcel_gripper_adapter,
@@ -222,10 +233,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("requested candidates are not statically feasible: " + ", ".join(missing))
     if not planner_active:
         if args.inactive_gate == "error":
-            raise RuntimeError("reset-fallback gate did not activate geometry planning")
+            raise RuntimeError(
+                f"{args.planning_activation} policy did not activate geometry planning"
+            )
+        skipped_status = (
+            "skipped_inactive_reset_gate"
+            if args.planning_activation == "reset-fallback"
+            else "skipped_ineligible_geometry"
+        )
         return {
             "schema_version": 1,
-            "status": "skipped_inactive_reset_gate",
+            "status": skipped_status,
             "backend": args.backend,
             "config": str(args.config.resolve()),
             "episode": args.episode,
@@ -235,10 +253,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "controller_faithful": True,
                 "fresh_scene_per_rollout": True,
                 "collision_checked_reset_enabled": True,
-                "reset_fallback_gate_enabled": True,
+                "planning_activation_policy": args.planning_activation,
+                "reset_fallback_gate_enabled": (
+                    args.planning_activation == "reset-fallback"
+                ),
                 "reset_fallback_gate_satisfied": False,
+                "geometry_planning_active": False,
                 "labels_generated": False,
-                "reason": "geometry planning is not active in the formal controller",
+                "reason": (
+                    "geometry planning is not active under the frozen "
+                    f"{args.planning_activation} policy"
+                ),
             },
             "static_feasible_candidates": [
                 _compact_static_row(row) for row in feasible
@@ -340,7 +365,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "controller_faithful": True,
             "fresh_scene_per_rollout": True,
             "collision_checked_reset_enabled": True,
-            "reset_fallback_gate_enabled": True,
+            "planning_activation_policy": args.planning_activation,
+            "reset_fallback_gate_enabled": (
+                args.planning_activation == "reset-fallback"
+            ),
+            "geometry_planning_active": True,
+            "labels_generated": True,
             "transport_contract_enabled": True,
             "transport_lookahead_enabled": False,
             "max_grasp_retries": 0,

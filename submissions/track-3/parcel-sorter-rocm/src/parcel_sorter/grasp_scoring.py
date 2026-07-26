@@ -46,6 +46,11 @@ GRASP_LABEL_NAMES = (
     "duration_seconds",
 )
 
+GRASP_COLLECTION_ACTIVATION_POLICIES = {
+    "reset-fallback",
+    "geometry-eligible",
+}
+
 
 def sha256_file(path: str | Path) -> str:
     digest = hashlib.sha256()
@@ -83,6 +88,17 @@ def load_grasp_split_protocol(path: str | Path) -> dict[tuple[str, int], str]:
     if not assignments:
         raise ValueError("grasp split protocol contains no episode assignments")
     return assignments
+
+
+def load_grasp_collection_activation_policy(path: str | Path) -> str:
+    """Return the frozen controller branch used to generate candidate labels."""
+    with Path(path).open("rb") as handle:
+        payload = tomllib.load(handle)
+    collection = payload.get("collection", {})
+    policy = str(collection.get("planning_activation_policy", "reset-fallback"))
+    if policy not in GRASP_COLLECTION_ACTIVATION_POLICIES:
+        raise ValueError(f"unsupported grasp collection activation policy: {policy}")
+    return policy
 
 
 def _finite_float(value: Any, name: str) -> float:
