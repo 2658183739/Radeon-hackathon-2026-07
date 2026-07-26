@@ -306,3 +306,13 @@ Git 忽略原始产物。静态零速度回放在 64 个对齐子步中没有达
 参数扫描、新 episode 或 holdout；适配器继续被拒绝并默认关闭。
 
 同步后的 Radeon 树通过 269 项测试和 28 个子测试。
+
+## 抓取评分器 V2 训练冻结
+
+`training/grasp-scorer-v2-train-evidence.json` 记录完整 32 组训练采集、192 个候选 rollout、两份
+同容量正式模型和 development 前检查点冻结。配套保存两份训练摘要与冻结 manifest；检查点、
+234,048 字节哈希数据集和 226 MiB 完整轨迹留在 Radeon 工作区，由字节数与 SHA-256 引用。
+
+训练集内静态、pointwise 和 groupwise 的重建选择仅用于验证接线，不能解释为泛化结果。冻结记录
+明确证明两份检查点在 development manifest 出现前生成，holdout 仍未创建。中英文解释见
+`docs/GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS_CN.md`。

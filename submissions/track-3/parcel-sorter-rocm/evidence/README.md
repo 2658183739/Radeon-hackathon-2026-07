@@ -447,3 +447,17 @@ failed earlier at `198/1`, so the registered conclusion is
 or holdout was opened. The adapter remains rejected and default off.
 
 The synchronized Radeon tree passed 269 tests and 28 subtests.
+
+## Grasp scorer v2 train freeze
+
+`training/grasp-scorer-v2-train-evidence.json` records the complete 32-group
+train collection, 192 candidate rollouts, two capacity-matched formal models,
+and the pre-development checkpoint freeze. The two training summaries and
+freeze manifest are tracked with it. Checkpoints, the 234,048-byte hashed
+dataset, and 226 MiB full traces remain in the Radeon workspace and are
+referenced by byte count and SHA-256.
+
+Reconstructed static, pointwise, and groupwise train choices verify wiring
+only and are not a generalization result. The freeze record proves both
+checkpoints predate any development manifest, while holdout remains absent.
+See `docs/GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS.md` for the bilingual companion.

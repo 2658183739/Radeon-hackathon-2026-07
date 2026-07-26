@@ -994,3 +994,22 @@ manifest，构建组合数据集，评测两模型并执行固定晋级门，但
 
 测试覆盖同容量命令构造、按物理 group 而不是行数计数，以及拒绝 group 跨 split。runner 还在每个
 结果里记录自身哈希，避免隐藏编排变化。这只强化工作流，不增加第三个模型，也不改变冻结配方。
+
+### 记录 83：完成训练采集并在打开 development 前冻结检查点
+
+单张 Radeon 完成 V2 的 32 个训练组：四个 profile 各 8 组，每组 6 个候选，共 192 次完整闭环
+rollout，0 组失败。独立验证确认没有重复 episode、缺失文件或重复候选，并确认 development 与
+holdout manifest 均不存在。训练 manifest、日志和数据集分别通过 SHA-256 绑定；226 MiB 完整轨迹
+继续保留在 Radeon 工作区，不进入普通 Git。
+
+冻结编排器随后从完整训练集构建 192 行、28 特征的数据集，在 HIP 7.2 上分别训练 pointwise 与
+groupwise-safety-first。二者均为 6,276 参数、2,000 步、seed 42。训练集内静态首选是 7 次成功、
+17 次安全中止；pointwise 重建选择为 12/4，groupwise 为 10/4。这些结果只验证拟合和评测接线，
+不参与模型选择。两份检查点、摘要、数据集、collection 协议、模型协议和编排脚本哈希全部独立复核
+通过，冻结 manifest 状态为 `train_checkpoints_frozen_before_development`。
+
+只有在上述冻结证据形成后，才启动唯一一份 16 组 development 采集；holdout 仍不存在。这样保证
+development 结果不能反向改变模型容量、目标、训练步数或检查点。PyTorch 报告的 `device=cuda` 是
+ROCm 兼容命名，实际设备为 AMD Radeon、HIP 7.2。完整中英文结果和机器可读索引分别保存在
+`docs/GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS_CN.md` 与
+`evidence/training/grasp-scorer-v2-train-evidence.json`。

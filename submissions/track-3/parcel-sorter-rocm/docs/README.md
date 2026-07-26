@@ -20,6 +20,7 @@
 | Model | [Model card](MODEL_CARD.md) | [模型卡](MODEL_CARD_CN.md) |
 | Research/model matrix | [Research matrix](RESEARCH_AND_MODEL_MATRIX.md) | [前沿研究矩阵](RESEARCH_AND_MODEL_MATRIX_CN.md) |
 | Structured grasp scorer | [ROCm training](GRASP_SCORER_TRAINING.md) | [ROCm 抓取评分器训练](GRASP_SCORER_TRAINING_CN.md) |
+| Grasp scorer v2 train freeze | [Frozen train result](GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS.md) | [训练冻结结果](GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS_CN.md) |
 | Multimodal implementation | [RGB-D optimization record](MULTIMODAL_OPTIMIZATION_2026-07-25.md) | [RGB-D 优化记录](MULTIMODAL_OPTIMIZATION_2026-07-25_CN.md) |
 | End-effector contract | [Capability contract](END_EFFECTOR_CAPABILITY.md) | [末端执行器能力契约](END_EFFECTOR_CAPABILITY_CN.md) |
 | Video | [Video script](VIDEO_SCRIPT.md) | [视频脚本](VIDEO_SCRIPT_CN.md) |

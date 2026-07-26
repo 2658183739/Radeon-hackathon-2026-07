@@ -1309,3 +1309,29 @@ Tests cover capacity-matched command construction, physical-group rather than
 row counts, and cross-split group rejection. The runner also hashes itself in
 each result, so orchestration changes cannot be hidden. This is workflow
 enforcement only; it does not add a third model or alter the frozen recipes.
+
+### Record 83: Complete train collection and freeze checkpoints before development
+
+One Radeon completed all 32 v2 train groups: eight from each of four profiles,
+six candidates per group, 192 complete closed-loop rollouts, and zero failed
+groups. Independent validation found no duplicate episodes, missing files, or
+duplicate candidates and confirmed that neither a development nor holdout
+manifest existed. SHA-256 binds the train manifest, log, and dataset. The 226
+MiB full traces remain in the Radeon workspace rather than normal Git.
+
+The frozen orchestrator then built a 192-row, 28-feature dataset and trained
+pointwise and groupwise-safety-first under HIP 7.2. Both have 6,276 parameters,
+2,000 steps, and seed 42. On train, static selection produced seven successes
+and 17 safety aborts; reconstructed pointwise selection produced 12/4 and
+groupwise produced 10/4. These are fitting and evaluation wiring results, not
+model-selection evidence. Independent checks verified the checkpoint,
+summary, dataset, collection protocol, model protocol, and pipeline hashes;
+the freeze status is `train_checkpoints_frozen_before_development`.
+
+Only after that record existed was one 16-group development collection
+started; holdout still did not exist. Development outcomes therefore cannot
+change capacity, objective, step budget, or checkpoints. PyTorch's
+`device=cuda` value is its ROCm compatibility namespace; the physical device
+is an AMD Radeon under HIP 7.2. The bilingual result and machine-readable
+index are in `docs/GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS.md` and
+`evidence/training/grasp-scorer-v2-train-evidence.json`.
