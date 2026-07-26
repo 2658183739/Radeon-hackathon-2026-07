@@ -35,6 +35,8 @@
 
 Additional investigation: [grasp contact stability](GRASP_CONTACT_STABILITY_2026-07-26.md) / [中文版](GRASP_CONTACT_STABILITY_2026-07-26_CN.md).
 
+Current frontier execution decision: [English](FRONTIER_EXECUTION_DECISION_2026-07-26.md) / [Chinese](FRONTIER_EXECUTION_DECISION_2026-07-26_CN.md).
+
 English documents are the primary competition materials. Chinese documents are
 paired operator and learning references. Results, plans, and unverified changes
 must remain explicitly distinguished in both languages.

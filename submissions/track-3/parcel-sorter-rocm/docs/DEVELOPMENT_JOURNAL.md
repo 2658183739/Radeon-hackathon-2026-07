@@ -1530,3 +1530,19 @@ and two-device evidence all fail aggregation.
 The active protocol SHA-256 is `e2777ccb...adcfeb`; `a0497368...b6f728` is
 superseded pre-execution. This is a workflow correction, not result-driven
 threshold modification.
+
+### Record 94: Separate frontier references from executable Radeon work
+
+While V5 continued to occupy the only Radeon, a bounded OpenAlex and GitHub
+review compared geometry planning, ACT, Diffusion, VLA-Adapter, OpenVLA-OFT,
+the VLA evaluation harness, force-memory policies, world models, and ROS 2.
+The review did not change any frozen implementation or threshold. The local
+323-test suite and the frozen campaign validator both pass.
+
+The decision keeps feasible multi-shape planning as the paper method, followed
+by ROCm RGB-D geometry and matched ACT/Diffusion experiments. VLA-Adapter is
+the first language-conditioned compatibility spike only after transitive
+license and ROCm-operator audits. The evaluation harness is treated as a
+protocol reference, not as a model or a drop-in AMD benchmark. The complete
+sample sizes, stop rules, GPU ladder, and paper-ready definition are recorded
+in `docs/FRONTIER_EXECUTION_DECISION_2026-07-26.md`.

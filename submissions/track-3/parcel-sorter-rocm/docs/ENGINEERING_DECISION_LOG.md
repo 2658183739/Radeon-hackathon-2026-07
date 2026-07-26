@@ -2222,3 +2222,23 @@ silently replacing it.
 **Evidence boundary.** No screen scene or feasibility outcome existed during
 this change. The thresholds and 24 sample keys are unchanged. Active protocol
 SHA-256 is `e2777ccb...adcfeb`.
+
+### 94. Treat VLA and world models as gated comparisons, not automatic upgrades
+
+**Question.** Should the project immediately add the newest VLA/world-model
+stack, or finish the geometry and contact mechanism that currently limits
+expert success?
+
+**Decision and reason.** Finish multi-shape feasible-pose planning, then remove
+privileged geometry with an analytic ROCm RGB-D front end, then compare ACT and
+compact Diffusion on a frozen balanced dataset. This order makes each effect
+identifiable. VLA-Adapter 0.5B is the first later compatibility spike because
+its scale is plausible on the 48 GB card, but upstream CUDA examples, licenses,
+and task/action adaptation must pass isolated gates. A world model is deferred
+until long-horizon prediction, rather than grasp geometry/contact, becomes the
+measured bottleneck.
+
+**Evidence boundary.** GitHub support and published benchmark numbers do not
+prove ROCm compatibility or parcel performance. The VLA evaluation harness is
+an evaluator, its listed containers are CUDA-based, and this Genesis task is
+not an included benchmark. No new model capability is claimed from the review.

@@ -1125,3 +1125,15 @@ P95 小于 5 秒。通过只允许新建物理协议。当前只冻结而不启�
 
 当前有效协议 SHA-256 为 `e2777ccb...adcfeb`；`a0497368...b6f728` 在执行前被替代。这是工作流
 修正，不是观察结果后的阈值修改。
+
+### 记录 94：把前沿参考方案与可执行 Radeon 工作分开
+
+V5 继续占用唯一一张 Radeon 期间，通过有界 OpenAlex 与 GitHub 检索比较了几何规划、ACT、
+Diffusion、VLA-Adapter、OpenVLA-OFT、VLA evaluation harness、力历史策略、世界模型与 ROS 2。
+该审查没有修改任何冻结实现或门槛。本地 323 项测试和冻结 campaign 校验均通过。
+
+决策继续以多形状可行抓取规划作为论文主方法，之后实现 ROCm RGB-D 几何，并进行匹配的
+ACT/Diffusion 实验。VLA-Adapter 只有在递归许可证与 ROCm 算子审计后才作为第一项语言条件
+兼容性实验；evaluation harness 只作为协议参考，不被当成模型或可直接运行的 AMD 基准。完整
+样本量、停止规则、GPU 优化阶梯和论文就绪定义见
+`docs/FRONTIER_EXECUTION_DECISION_2026-07-26_CN.md`。
