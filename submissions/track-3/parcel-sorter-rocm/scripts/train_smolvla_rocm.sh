@@ -13,7 +13,6 @@ SAVE_FREQ="${SMOLVLA_SAVE_FREQ:-1000}"
 FREEZE_VISION="${SMOLVLA_FREEZE_VISION_ENCODER:-true}"
 TRAIN_EXPERT_ONLY="${SMOLVLA_TRAIN_EXPERT_ONLY:-true}"
 EVAL_STEPS="${SMOLVLA_EVAL_STEPS:-500}"
-EVAL_FREQ="${SMOLVLA_EVAL_FREQ:-500}"
 SEED="${SMOLVLA_SEED:-11}"
 
 export HIP_VISIBLE_DEVICES="${HIP_VISIBLE_DEVICES:-0}"
@@ -89,6 +88,5 @@ lerobot-train \
   --save_freq "${SAVE_FREQ}" \
   --wandb.enable false \
   --env_eval_freq 0 \
-  --eval_freq "${EVAL_FREQ}" \
   --eval_steps "${EVAL_STEPS}" \
   "${EXTRA_ARGS[@]}"

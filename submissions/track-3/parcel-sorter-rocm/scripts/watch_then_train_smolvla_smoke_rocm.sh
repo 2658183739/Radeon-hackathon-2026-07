@@ -16,8 +16,7 @@ export SMOLVLA_STEPS=20
 export SMOLVLA_BATCH_SIZE=1
 export SMOLVLA_NUM_WORKERS=2
 export SMOLVLA_SAVE_FREQ=20
-export SMOLVLA_EVAL_FREQ=10
-export SMOLVLA_EVAL_STEPS=5
+export SMOLVLA_EVAL_STEPS=0
 export SMOLVLA_SEED=11
 
 bash scripts/train_smolvla_rocm.sh \
