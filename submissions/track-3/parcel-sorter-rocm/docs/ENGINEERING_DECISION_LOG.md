@@ -2242,3 +2242,20 @@ measured bottleneck.
 prove ROCm compatibility or parcel performance. The VLA evaluation harness is
 an evaluator, its listed containers are CUDA-based, and this Genesis task is
 not an included benchmark. No new model capability is claimed from the review.
+
+### 95. Keep shape dispatch separate from frozen campaigns
+
+**Question.** How can cylinder candidates enter the future closed loop without
+reusing box assumptions or invalidating the active static-screen and V5 hashes?
+
+**Decision.** Add a pure `ShapeGraspPlan` dispatcher in a new module. Boxes keep
+the existing height eligibility gate; cylinders use the independent analytic
+planner and expose capability failures such as `cradle_required`, insufficient
+aperture, and low rolling friction. Do not edit the hash-bound environment or
+static-screen implementation before the Radeon screen completes.
+
+**Evidence and boundary.** Six dispatch tests plus the cylinder unit tests pass
+locally. This proves interface selection only. It does not authorize a scene,
+IK/FK feasibility, force-safe lift, rolling retention, or parcel placement.
+After the static screen, integration requires a new protocol, new source
+hashes, and the existing reset, collision, retry, and 35 N safety gates.

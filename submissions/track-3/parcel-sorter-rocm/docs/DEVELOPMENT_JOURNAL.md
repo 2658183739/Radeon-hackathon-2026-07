@@ -1563,3 +1563,18 @@ Pre-handoff source review then found that V5 stores its final status under
 the first watcher was stopped and replaced without touching the GPU or reading
 partial outcomes. Validation now accepts only the two terminal decisions
 `confirmation_passed` and `confirmation_failed`.
+
+### Record 96: Add a shape-dispatch boundary without touching frozen runtime code
+
+The new pure `shape_grasp_planning.py` module dispatches boxes to the existing
+candidate generator and cylinders to the independent analytic generator. Its
+plan object separates end-effector support, experiment activation eligibility,
+rejection reason, and candidate payload. This is the smallest reusable
+interface for the later Genesis integration because it preserves the box scope
+gate while making cylinder capability failures explicit.
+
+Six dispatch tests pass together with the existing cylinder tests. The change
+does not modify the hash-bound static-screen files or the frozen V5 path. It is
+therefore an interface and test result, not a physical cylinder result. After
+the Radeon screen, a new closed-loop protocol must bind the dispatcher and the
+environment before any runtime claim is made.
