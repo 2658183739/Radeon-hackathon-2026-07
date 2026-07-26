@@ -14,6 +14,18 @@ from typing import Collection
 SUPPORTED_HANDLING_CLASSES = frozenset({"parallel_jaw"})
 
 
+def runtime_supported_handling_classes(
+    *,
+    tri_suction_enabled: bool,
+) -> frozenset[str]:
+    """Resolve support from the end effector physically present in the scene."""
+
+    supported = {"parallel_jaw"}
+    if tri_suction_enabled:
+        supported.add("suction_required")
+    return frozenset(supported)
+
+
 class UnsupportedHandlingClassError(ValueError):
     """Raised when a profile requires an end effector not present in the scene."""
 

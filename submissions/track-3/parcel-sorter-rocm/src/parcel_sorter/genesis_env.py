@@ -18,7 +18,7 @@ from .contact_wrench import (
     summarize_contact_wrench_events,
 )
 from .contracts import CartesianAction, ControlDecision, Observation, RobotState
-from .capabilities import require_supported_handling
+from .capabilities import require_supported_handling, runtime_supported_handling_classes
 from .expert import ScriptedPickPlaceExpert
 from .grasp_planning import (
     box_requires_geometry_aware_grasp_planning,
@@ -33,6 +33,14 @@ from .shape_grasp_planning import (
     build_shape_grasp_plan,
     rank_shape_grasp_pose_evaluations,
     select_shape_grasp_pose_evaluation,
+)
+from .suction import (
+    SuctionAttachment,
+    compliant_suction_wrench,
+    create_attachment,
+    quaternion_conjugate,
+    rotate_vector,
+    tri_cup_offsets,
 )
 
 
@@ -108,6 +116,96 @@ def combine_rigid_body_with_box_inertia(
         combined[1][2],
     )
     return total_mass_kg, center_m, full_inertia
+
+
+def combine_rigid_body_with_cylinders_inertia(
+    base_mass_kg: float,
+    base_center_m: tuple[float, float, float],
+    base_full_inertia_kg_m2: tuple[float, float, float, float, float, float],
+    cylinder_density_kg_m3: float,
+    cylinder_radius_m: float,
+    cylinder_length_m: float,
+    cylinder_centers_m: tuple[tuple[float, float, float], ...],
+) -> tuple[
+    float,
+    tuple[float, float, float],
+    tuple[float, float, float, float, float, float],
+]:
+    """Combine a rigid body with parallel solid cylinders along local Z."""
+
+    values = (
+        base_mass_kg,
+        *base_center_m,
+        *base_full_inertia_kg_m2,
+        cylinder_density_kg_m3,
+        cylinder_radius_m,
+        cylinder_length_m,
+        *(value for center in cylinder_centers_m for value in center),
+    )
+    if any(not math.isfinite(value) for value in values):
+        raise ValueError("cylinder inertia inputs must be finite")
+    if (
+        base_mass_kg <= 0
+        or cylinder_density_kg_m3 <= 0
+        or cylinder_radius_m <= 0
+        or cylinder_length_m <= 0
+        or not cylinder_centers_m
+    ):
+        raise ValueError("cylinder inertia masses, dimensions, and centers are required")
+
+    cylinder_mass_kg = (
+        cylinder_density_kg_m3
+        * math.pi
+        * cylinder_radius_m**2
+        * cylinder_length_m
+    )
+    total_mass_kg = base_mass_kg + cylinder_mass_kg * len(cylinder_centers_m)
+    center_m = tuple(
+        (
+            base_mass_kg * base_center_m[axis]
+            + cylinder_mass_kg * sum(center[axis] for center in cylinder_centers_m)
+        )
+        / total_mass_kg
+        for axis in range(3)
+    )
+    combined = _shift_inertia_matrix(
+        _full_inertia_matrix(base_full_inertia_kg_m2),
+        base_mass_kg,
+        tuple(value - center_m[axis] for axis, value in enumerate(base_center_m)),
+    )
+    radial_inertia = cylinder_mass_kg * (
+        3.0 * cylinder_radius_m**2 + cylinder_length_m**2
+    ) / 12.0
+    axial_inertia = cylinder_mass_kg * cylinder_radius_m**2 / 2.0
+    cylinder_matrix = [
+        [radial_inertia, 0.0, 0.0],
+        [0.0, radial_inertia, 0.0],
+        [0.0, 0.0, axial_inertia],
+    ]
+    for cylinder_center in cylinder_centers_m:
+        shifted = _shift_inertia_matrix(
+            cylinder_matrix,
+            cylinder_mass_kg,
+            tuple(
+                value - center_m[axis]
+                for axis, value in enumerate(cylinder_center)
+            ),
+        )
+        for row in range(3):
+            for column in range(3):
+                combined[row][column] += shifted[row][column]
+    return (
+        total_mass_kg,
+        center_m,
+        (
+            combined[0][0],
+            combined[1][1],
+            combined[2][2],
+            combined[0][1],
+            combined[0][2],
+            combined[1][2],
+        ),
+    )
 
 
 def _full_inertia_matrix(
@@ -244,6 +342,107 @@ def build_parcel_gripper_mjcf(
             },
         )
 
+    output.parent.mkdir(parents=True, exist_ok=True)
+    tree.write(output, encoding="utf-8", xml_declaration=True)
+    return output
+
+
+def build_tri_suction_mjcf(
+    source_path: str | Path,
+    output_path: str | Path,
+    *,
+    cup_radius_m: float,
+    footprint_radius_m: float,
+    cup_length_m: float,
+    tip_offset_m: float,
+    density_kg_m3: float,
+) -> Path:
+    """Generate a Panda MJCF with three physical suction cups on the hand."""
+
+    source = Path(source_path).resolve()
+    output = Path(output_path).resolve()
+    if not source.is_file():
+        raise FileNotFoundError(f"Panda MJCF source does not exist: {source}")
+    offsets = tri_cup_offsets(footprint_radius_m)
+    if not 0.004 <= cup_radius_m <= 0.030:
+        raise ValueError("suction cup radius must be in [0.004, 0.030] m")
+    if not 0.004 <= cup_length_m <= 0.030:
+        raise ValueError("suction cup length must be in [0.004, 0.030] m")
+    if not 0.060 <= tip_offset_m <= 0.160:
+        raise ValueError("suction tip offset must be in [0.060, 0.160] m")
+    if not 100.0 <= density_kg_m3 <= 2500.0:
+        raise ValueError("suction density must be in [100, 2500] kg/m^3")
+
+    tree = ET.parse(source)
+    root = tree.getroot()
+    compiler = root.find("compiler")
+    if compiler is None:
+        raise ValueError("Panda MJCF is missing its compiler element")
+    mesh_directory = source.parent / "assets"
+    if not mesh_directory.is_dir():
+        raise FileNotFoundError(f"Panda MJCF mesh directory does not exist: {mesh_directory}")
+    compiler.set("meshdir", str(mesh_directory))
+    hand = root.find(".//body[@name='hand']")
+    if hand is None:
+        raise ValueError("Panda MJCF is missing hand")
+    inertial = hand.find("inertial")
+    if inertial is None or "diaginertia" not in inertial.attrib:
+        raise ValueError("Panda MJCF hand requires explicit diagonal inertia")
+
+    center_z_m = tip_offset_m + cup_length_m / 2.0
+    centers = tuple((x, y, center_z_m) for x, y, _ in offsets)
+    base_mass_kg = float(inertial.attrib["mass"])
+    base_center_m = _float_triplet(inertial.attrib["pos"], "hand inertial pos")
+    diagonal = _float_triplet(
+        inertial.attrib["diaginertia"],
+        "hand inertial diaginertia",
+    )
+    combined_mass, combined_center, combined_inertia = (
+        combine_rigid_body_with_cylinders_inertia(
+            base_mass_kg,
+            base_center_m,
+            (*diagonal, 0.0, 0.0, 0.0),
+            density_kg_m3,
+            cup_radius_m,
+            cup_length_m,
+            centers,
+        )
+    )
+    inertial.set("mass", f"{combined_mass:.12g}")
+    inertial.set("pos", " ".join(f"{value:.12g}" for value in combined_center))
+    inertial.attrib.pop("diaginertia")
+    inertial.set(
+        "fullinertia",
+        " ".join(f"{value:.12g}" for value in combined_inertia),
+    )
+    size = f"{cup_radius_m:.9f} {cup_length_m / 2.0:.9f}"
+    for index, center in enumerate(centers):
+        position = " ".join(f"{value:.9f}" for value in center)
+        ET.SubElement(
+            hand,
+            "geom",
+            {
+                "name": f"suction_cup_{index}_collision",
+                "type": "cylinder",
+                "size": size,
+                "pos": position,
+                "group": "3",
+            },
+        )
+        ET.SubElement(
+            hand,
+            "geom",
+            {
+                "name": f"suction_cup_{index}_visual",
+                "type": "cylinder",
+                "size": size,
+                "pos": position,
+                "group": "2",
+                "contype": "0",
+                "conaffinity": "0",
+                "rgba": "0.08 0.70 0.34 1",
+            },
+        )
     output.parent.mkdir(parents=True, exist_ok=True)
     tree.write(output, encoding="utf-8", xml_declaration=True)
     return output
@@ -596,21 +795,27 @@ class GenesisParcelEnv:
         self.sample = sample
         # Check the end-effector contract before importing/building Genesis.
         # Evaluation-only catalog entries must not be mistaken for support.
-        require_supported_handling(sample.handling_class)
+        require_supported_handling(
+            sample.handling_class,
+            supported=runtime_supported_handling_classes(
+                tri_suction_enabled=config.task.tri_suction_enabled,
+            ),
+        )
         self.backend = backend
         self.gs, self.torch, self.np = initialize_genesis(backend)
         self.gs.set_random_seed(config.seed + sample.episode_index)
         self._robot_asset_source = "Genesis 1.2.3 Apache-2.0 Panda MJCF"
         self._robot_mjcf_path = "xml/franka_emika_panda/panda.xml"
         self._robot_adapter_mass_per_finger_kg = 0.0
+        self._robot_suction_mass_kg = 0.0
+        source_mjcf = (
+            Path(self.gs.__file__).resolve().parent
+            / "assets"
+            / "xml"
+            / "franka_emika_panda"
+            / "panda.xml"
+        )
         if config.task.parcel_gripper_adapter_enabled:
-            source_mjcf = (
-                Path(self.gs.__file__).resolve().parent
-                / "assets"
-                / "xml"
-                / "franka_emika_panda"
-                / "panda.xml"
-            )
             extension_value = (
                 f"{config.task.parcel_gripper_adapter_extension_m * 1000.0:.6f}"
                 .rstrip("0")
@@ -649,15 +854,49 @@ class GenesisParcelEnv:
                     combine_adapter_inertia=inertia_enabled,
                 )
             )
+        elif config.task.tri_suction_enabled:
+            task = config.task
+            radius_tag = f"{task.tri_suction_cup_radius_m * 1000:.1f}".replace(
+                ".", "p"
+            )
+            footprint_tag = (
+                f"{task.tri_suction_footprint_radius_m * 1000:.1f}".replace(
+                    ".", "p"
+                )
+            )
+            generated_mjcf = (
+                Path(config.output.root_dir)
+                / "generated_assets"
+                / f"panda_tri_suction_r{radius_tag}_f{footprint_tag}.xml"
+            )
+            self._robot_suction_mass_kg = (
+                3.0
+                * task.tri_suction_density_kg_m3
+                * math.pi
+                * task.tri_suction_cup_radius_m**2
+                * task.tri_suction_cup_length_m
+            )
+            self._robot_mjcf_path = str(
+                build_tri_suction_mjcf(
+                    source_mjcf,
+                    generated_mjcf,
+                    cup_radius_m=task.tri_suction_cup_radius_m,
+                    footprint_radius_m=task.tri_suction_footprint_radius_m,
+                    cup_length_m=task.tri_suction_cup_length_m,
+                    tip_offset_m=task.tri_suction_tip_offset_m,
+                    density_kg_m3=task.tri_suction_density_kg_m3,
+                )
+            )
         self.expert = ScriptedPickPlaceExpert(config, sample)
         self._shape_grasp_planner_config = ShapeGraspPlannerConfig(
             cylinder_jaw_aperture_m=2.0 * config.control.open_width_m,
         )
         self._geometry_grasp_planning_eligible = (
-            box_requires_geometry_aware_grasp_planning(
+            sample.handling_class == "parallel_jaw"
+            and box_requires_geometry_aware_grasp_planning(
                 sample, hand_clearance_m=self.expert.grasp_hand_clearance_m()
             )
-            or sample.shape == "cylinder"
+            or (sample.handling_class == "parallel_jaw" and sample.shape == "cylinder")
         )
         self._geometry_grasp_planning_active = resolve_geometry_grasp_planning_active(
             planning_enabled=config.task.geometry_aware_grasp_planning_enabled,
@@ -761,6 +1000,20 @@ class GenesisParcelEnv:
         self._contact_branch_events: list[dict[str, Any]] = []
         self._contact_branch_device: str | None = None
         self._contact_branch_compute_ms_total = 0.0
+        self._suction_commanded = False
+        self._suction_attachment: SuctionAttachment | None = None
+        self._suction_cup_geom_indices: frozenset[int] = frozenset()
+        self._suction_geom_discovery = "disabled"
+        self._suction_sealed_cup_count = 0
+        self._suction_physical_contact_cup_count = 0
+        self._suction_geometric_seal_cup_count = 0
+        self._suction_latch_count = 0
+        self._suction_break_count = 0
+        self._suction_last_force_n = 0.0
+        self._suction_last_torque_nm = 0.0
+        self._suction_max_force_n = 0.0
+        self._suction_max_position_error_m = 0.0
+        self._suction_max_orientation_error_rad = 0.0
 
         physics_dt = 1.0 / config.simulation.physics_hz
         rolling_friction = needs_rolling_friction(sample)
@@ -847,6 +1100,28 @@ class GenesisParcelEnv:
         self.end_effector = self.robot.get_link("hand")
         self.left_finger = self.robot.get_link("left_finger")
         self.right_finger = self.robot.get_link("right_finger")
+        if config.task.tri_suction_enabled:
+            named_cups = frozenset(
+                int(geom.idx)
+                for geom in self.end_effector.geoms
+                if str(getattr(geom, "name", "")).startswith("suction_cup_")
+                and str(getattr(geom, "name", "")).endswith("_collision")
+            )
+            if len(named_cups) == 3:
+                self._suction_cup_geom_indices = named_cups
+                self._suction_geom_discovery = "mjcf_name"
+            else:
+                collision_geoms = tuple(self.end_effector.geoms)
+                if len(collision_geoms) >= 4:
+                    self._suction_cup_geom_indices = frozenset(
+                        int(geom.idx) for geom in collision_geoms[-3:]
+                    )
+                    self._suction_geom_discovery = "hand_collision_append_order"
+            if len(self._suction_cup_geom_indices) != 3:
+                raise RuntimeError(
+                    "tri-suction MJCF must expose exactly three collision cups; "
+                    f"hand collision geoms={len(tuple(self.end_effector.geoms))}"
+                )
         if sample.finger_friction is not None:
             self.left_finger.set_friction(sample.finger_friction)
             self.right_finger.set_friction(sample.finger_friction)
@@ -936,7 +1211,7 @@ class GenesisParcelEnv:
             *self._flat_tuple(self.parcel.get_pos()),
             *self._flat_tuple(self.parcel.get_quat()),
         )
-        _, max_force = self._finger_contact()
+        _, max_force = self._grasp_contact()
         return RobotState(
             joint_positions=joint_positions,
             end_effector_pose=ee_pose,
@@ -1336,7 +1611,7 @@ class GenesisParcelEnv:
         state = state or self.state()
         parcel_position = state.parcel_pose[:3]
         ee_position = state.end_effector_pose[:3]
-        has_contact, max_force = self._finger_contact()
+        has_contact, max_force = self._grasp_contact()
         destination = self.expert.destination_position
         in_bin = (
             abs(parcel_position[0] - destination[0]) <= self.config.task.bin_half_extent_m[0]
@@ -1380,6 +1655,7 @@ class GenesisParcelEnv:
         physics_steps = self.config.simulation.physics_hz // self.config.simulation.control_hz
         for physics_substep in range(physics_steps):
             self.scene.step()
+            self._update_suction_attachment()
             if (
                 self._contact_branch_control_window is not None
                 and self._contact_branch_control_window[0]
@@ -1697,6 +1973,26 @@ class GenesisParcelEnv:
                     else "stock_explicit_inertia"
                 )
             ),
+            "tri_suction_enabled": self.config.task.tri_suction_enabled,
+            "tri_suction_cup_count": len(self._suction_cup_geom_indices),
+            "tri_suction_geom_discovery": self._suction_geom_discovery,
+            "tri_suction_min_sealed_cups": self.config.task.tri_suction_min_sealed_cups,
+            "tri_suction_sealed_cup_count": self._suction_sealed_cup_count,
+            "tri_suction_physical_contact_cup_count": (
+                self._suction_physical_contact_cup_count
+            ),
+            "tri_suction_geometric_seal_cup_count": (
+                self._suction_geometric_seal_cup_count
+            ),
+            "tri_suction_commanded": self._suction_commanded,
+            "tri_suction_attached": self._suction_attachment is not None,
+            "tri_suction_latch_count": self._suction_latch_count,
+            "tri_suction_break_count": self._suction_break_count,
+            "tri_suction_last_force_n": self._suction_last_force_n,
+            "tri_suction_max_force_n": self._suction_max_force_n,
+            "tri_suction_last_torque_nm": self._suction_last_torque_nm,
+            "tri_suction_max_position_error_m": self._suction_max_position_error_m,
+            "tri_suction_max_orientation_error_rad": self._suction_max_orientation_error_rad,
             "robot_mjcf_path": self._robot_mjcf_path,
             "robot_asset_source": self._robot_asset_source,
             "grasp_plan_attempts": self._grasp_plan_attempts,
@@ -1798,6 +2094,19 @@ class GenesisParcelEnv:
                         f"IK returned a non-finite solution for {action.command}"
                     )
                 self.robot.control_dofs_position(qpos_array[:7], self.arm_dofs)
+        if (
+            self.config.task.tri_suction_enabled
+            and self.sample.handling_class == "suction_required"
+        ):
+            width = self.config.control.open_width_m
+            self.robot.control_dofs_position(
+                self.np.asarray((width, width)),
+                self.finger_dofs,
+            )
+            self._suction_commanded = action.gripper <= 0
+            if not self._suction_commanded:
+                self._release_suction_attachment()
+            return
         if action.gripper > 0:
             self._gripper_force_n = 0.0
             self._transport_slip_force_remaining_steps = 0
@@ -2516,6 +2825,209 @@ class GenesisParcelEnv:
             return False, 0.0
         magnitudes = self.torch.linalg.vector_norm(forces[mask], dim=-1)
         return all(finger_contacts), float(magnitudes.max().item())
+
+    def _grasp_contact(self) -> tuple[bool, float]:
+        if (
+            self.config.task.tri_suction_enabled
+            and self.sample.handling_class == "suction_required"
+        ):
+            sealed_count, contact_force_n = self._suction_seal_contact()
+            attached = self._suction_attachment is not None
+            return (
+                attached
+                or (
+                    self._suction_commanded
+                    and sealed_count >= self.config.task.tri_suction_min_sealed_cups
+                ),
+                max(contact_force_n, self._suction_last_force_n),
+            )
+        return self._finger_contact()
+
+    def _suction_seal_contact(self) -> tuple[int, float]:
+        if not self._suction_cup_geom_indices:
+            return 0, 0.0
+        contacts = self.robot.get_contacts(with_entity=self.parcel)
+        forces = contacts["force_a"]
+        if forces.numel() == 0:
+            self._suction_physical_contact_cup_count = 0
+            self._suction_geometric_seal_cup_count = 0
+            self._suction_sealed_cup_count = 0
+            return 0, 0.0
+        geom_a = contacts["geom_a"]
+        geom_b = contacts["geom_b"]
+        valid = contacts.get("valid_mask")
+        sealed: set[int] = set()
+        mask = self.torch.zeros_like(geom_a, dtype=self.torch.bool)
+        for geom_index in self._suction_cup_geom_indices:
+            cup_mask = (geom_a == geom_index) | (geom_b == geom_index)
+            if valid is not None:
+                cup_mask &= valid
+            if bool(cup_mask.any().item()):
+                sealed.add(geom_index)
+                mask |= cup_mask
+        self._suction_physical_contact_cup_count = len(sealed)
+        if not bool(mask.any().item()):
+            self._suction_geometric_seal_cup_count = 0
+            self._suction_sealed_cup_count = 0
+            return len(sealed), 0.0
+        magnitudes = self.torch.linalg.vector_norm(forces[mask], dim=-1)
+        contact_force_n = float(magnitudes.max().item())
+        geometric_count = self._geometric_suction_seal_count()
+        self._suction_geometric_seal_cup_count = geometric_count
+        self._suction_sealed_cup_count = max(len(sealed), geometric_count)
+        return self._suction_sealed_cup_count, contact_force_n
+
+    def _geometric_suction_seal_count(self) -> int:
+        """Count cup lips that cover a contacted rigid box top surface."""
+
+        dimensions = self.sample.dimensions_m
+        if self.sample.shape != "box" or dimensions is None:
+            return 0
+        task = self.config.task
+        hand_position = self._flat_tuple(self.end_effector.get_pos())
+        hand_quaternion = self._flat_tuple(self.end_effector.get_quat())
+        parcel_position = self._flat_tuple(self.parcel.get_pos())
+        parcel_quaternion = self._flat_tuple(self.parcel.get_quat())
+        world_to_parcel = quaternion_conjugate(parcel_quaternion)
+        parcel_top_normal = rotate_vector(parcel_quaternion, (0.0, 0.0, 1.0))
+        cup_axis = rotate_vector(hand_quaternion, (0.0, 0.0, 1.0))
+        alignment = -sum(
+            axis * normal
+            for axis, normal in zip(cup_axis, parcel_top_normal, strict=True)
+        )
+        if alignment < math.cos(task.tri_suction_seal_angle_rad):
+            return 0
+
+        half_x, half_y, half_z = (value / 2.0 for value in dimensions)
+        surface_margin = task.tri_suction_cup_radius_m * 0.5
+        lip_z = task.tri_suction_tip_offset_m + task.tri_suction_cup_length_m
+        sealed_count = 0
+        for offset_x, offset_y, _ in tri_cup_offsets(
+            task.tri_suction_footprint_radius_m
+        ):
+            cup_world = tuple(
+                hand + relative
+                for hand, relative in zip(
+                    hand_position,
+                    rotate_vector(
+                        hand_quaternion,
+                        (offset_x, offset_y, lip_z),
+                    ),
+                    strict=True,
+                )
+            )
+            cup_local = rotate_vector(
+                world_to_parcel,
+                tuple(
+                    cup - parcel
+                    for cup, parcel in zip(cup_world, parcel_position, strict=True)
+                ),
+            )
+            if (
+                abs(cup_local[0]) <= max(0.0, half_x - surface_margin)
+                and abs(cup_local[1]) <= max(0.0, half_y - surface_margin)
+                and abs(cup_local[2] - half_z) <= task.tri_suction_seal_distance_m
+            ):
+                sealed_count += 1
+        return sealed_count
+
+    def _update_suction_attachment(self) -> None:
+        if (
+            not self.config.task.tri_suction_enabled
+            or self.sample.handling_class != "suction_required"
+        ):
+            return
+        if not self._suction_commanded:
+            self._release_suction_attachment()
+            return
+
+        sealed_count, _ = self._suction_seal_contact()
+        if (
+            self._suction_attachment is None
+            and sealed_count >= self.config.task.tri_suction_min_sealed_cups
+        ):
+            self._suction_attachment = create_attachment(
+                self._flat_tuple(self.end_effector.get_pos()),
+                self._flat_tuple(self.end_effector.get_quat()),
+                self._flat_tuple(self.parcel.get_pos()),
+                self._flat_tuple(self.parcel.get_quat()),
+                sealed_cup_count=sealed_count,
+            )
+            self._suction_latch_count += 1
+        if self._suction_attachment is None:
+            self._zero_suction_wrench()
+            return
+
+        velocity = self._flat_tuple(self.parcel.get_dofs_velocity())
+        if len(velocity) != 6:
+            raise RuntimeError("a free parcel must expose six velocity DoFs")
+        task = self.config.task
+        wrench = compliant_suction_wrench(
+            self._suction_attachment,
+            self._flat_tuple(self.end_effector.get_pos()),
+            self._flat_tuple(self.end_effector.get_quat()),
+            self._flat_tuple(self.parcel.get_pos()),
+            self._flat_tuple(self.parcel.get_quat()),
+            velocity[:3],
+            velocity[3:],
+            translational_stiffness_n_m=(
+                task.tri_suction_translational_stiffness_n_m
+            ),
+            translational_damping_n_s_m=(
+                task.tri_suction_translational_damping_n_s_m
+            ),
+            rotational_stiffness_nm_rad=(
+                task.tri_suction_rotational_stiffness_nm_rad
+            ),
+            rotational_damping_nm_s_rad=(
+                task.tri_suction_rotational_damping_nm_s_rad
+            ),
+            max_force_n=task.tri_suction_max_force_n,
+            max_torque_nm=(
+                task.tri_suction_max_force_n
+                * task.tri_suction_footprint_radius_m
+            ),
+            break_distance_m=task.tri_suction_break_distance_m,
+            break_angle_rad=task.tri_suction_break_angle_rad,
+        )
+        self._suction_max_position_error_m = max(
+            self._suction_max_position_error_m,
+            wrench.position_error_m,
+        )
+        self._suction_max_orientation_error_rad = max(
+            self._suction_max_orientation_error_rad,
+            wrench.orientation_error_rad,
+        )
+        if wrench.broken:
+            self._suction_break_count += 1
+            self._release_suction_attachment()
+            return
+        self._suction_last_force_n = math.sqrt(
+            sum(value * value for value in wrench.force_world_n)
+        )
+        self._suction_last_torque_nm = math.sqrt(
+            sum(value * value for value in wrench.torque_world_nm)
+        )
+        self._suction_max_force_n = max(
+            self._suction_max_force_n,
+            self._suction_last_force_n,
+        )
+        self.parcel.control_dofs_force(
+            self.np.asarray((*wrench.force_world_n, *wrench.torque_world_nm))
+        )
+
+    def _release_suction_attachment(self) -> None:
+        self._suction_attachment = None
+        self._suction_sealed_cup_count = 0
+        self._suction_physical_contact_cup_count = 0
+        self._suction_geometric_seal_cup_count = 0
+        self._zero_suction_wrench()
+
+    def _zero_suction_wrench(self) -> None:
+        self._suction_last_force_n = 0.0
+        self._suction_last_torque_nm = 0.0
+        if hasattr(self, "parcel"):
+            self.parcel.control_dofs_force(self.np.zeros(6, dtype=self.np.float32))
 
     def _render_camera(self) -> None:
         if self.camera is None:

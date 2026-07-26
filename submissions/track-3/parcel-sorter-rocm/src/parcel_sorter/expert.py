@@ -21,6 +21,8 @@ def canonical_grasp_yaw(yaw_rad: float, max_abs_yaw_rad: float = math.pi / 3) ->
 
 def profile_grasp_yaw(sample: ParcelSample) -> float:
     """Choose a geometry-aware wrist yaw without changing the legacy baseline."""
+    if sample.handling_class == "suction_required":
+        return 0.0
     if sample.profile_id == "legacy_box":
         return canonical_grasp_yaw(sample.yaw_rad)
     if sample.shape == "cylinder" and sample.orientation_mode == "upright":
@@ -311,6 +313,21 @@ class ScriptedPickPlaceExpert:
         return self._transport_phase
 
     def grasp_hand_clearance_m(self) -> float:
+        if self.sample.handling_class == "suction_required":
+            dimensions = self.sample.dimensions_m or tuple(
+                base * scale
+                for base, scale in zip(
+                    self.config.task.parcel_base_size_m,
+                    self.sample.size_scale_xyz,
+                    strict=True,
+                )
+            )
+            vertical_extent = dimensions[2] / 2.0
+            return (
+                vertical_extent
+                + self.config.task.tri_suction_tip_offset_m
+                + self.config.task.tri_suction_cup_length_m
+            )
         clearance = self.config.task.grasp_hand_clearance_m
         if self.sample.shape == "cylinder" and self.sample.orientation_mode == "upright":
             return clearance + 0.008

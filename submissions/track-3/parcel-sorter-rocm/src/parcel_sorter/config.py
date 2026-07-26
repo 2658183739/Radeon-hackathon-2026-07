@@ -95,6 +95,22 @@ class TaskConfig:
     parcel_gripper_adapter_extension_m: float = 0.030
     parcel_gripper_adapter_density_kg_m3: float = 1240.0
     parcel_gripper_adapter_inertia_enabled: bool = True
+    tri_suction_enabled: bool = False
+    tri_suction_cup_radius_m: float = 0.012
+    tri_suction_footprint_radius_m: float = 0.025
+    tri_suction_cup_length_m: float = 0.012
+    tri_suction_tip_offset_m: float = 0.100
+    tri_suction_density_kg_m3: float = 1100.0
+    tri_suction_min_sealed_cups: int = 2
+    tri_suction_seal_distance_m: float = 0.008
+    tri_suction_seal_angle_rad: float = 0.25
+    tri_suction_translational_stiffness_n_m: float = 1800.0
+    tri_suction_translational_damping_n_s_m: float = 45.0
+    tri_suction_rotational_stiffness_nm_rad: float = 4.0
+    tri_suction_rotational_damping_nm_s_rad: float = 0.12
+    tri_suction_max_force_n: float = 30.0
+    tri_suction_break_distance_m: float = 0.035
+    tri_suction_break_angle_rad: float = 0.70
 
     def validate(self) -> None:
         if self.max_grasp_retries < 0:
@@ -228,6 +244,81 @@ class TaskConfig:
             raise ValueError(
                 "parcel_gripper_adapter_density_kg_m3 must be in [100, 2500]"
             )
+        if self.parcel_gripper_adapter_enabled and self.tri_suction_enabled:
+            raise ValueError(
+                "parcel_gripper_adapter_enabled and tri_suction_enabled are "
+                "mutually exclusive end-effector variants"
+            )
+        for name, value, lower, upper in (
+            ("tri_suction_cup_radius_m", self.tri_suction_cup_radius_m, 0.004, 0.030),
+            (
+                "tri_suction_footprint_radius_m",
+                self.tri_suction_footprint_radius_m,
+                0.010,
+                0.060,
+            ),
+            ("tri_suction_cup_length_m", self.tri_suction_cup_length_m, 0.004, 0.030),
+            ("tri_suction_tip_offset_m", self.tri_suction_tip_offset_m, 0.060, 0.160),
+            ("tri_suction_density_kg_m3", self.tri_suction_density_kg_m3, 100.0, 2500.0),
+            (
+                "tri_suction_translational_stiffness_n_m",
+                self.tri_suction_translational_stiffness_n_m,
+                100.0,
+                10000.0,
+            ),
+            (
+                "tri_suction_translational_damping_n_s_m",
+                self.tri_suction_translational_damping_n_s_m,
+                1.0,
+                500.0,
+            ),
+            (
+                "tri_suction_rotational_stiffness_nm_rad",
+                self.tri_suction_rotational_stiffness_nm_rad,
+                0.1,
+                50.0,
+            ),
+            (
+                "tri_suction_rotational_damping_nm_s_rad",
+                self.tri_suction_rotational_damping_nm_s_rad,
+                0.01,
+                10.0,
+            ),
+            ("tri_suction_max_force_n", self.tri_suction_max_force_n, 1.0, 34.0),
+            (
+                "tri_suction_break_distance_m",
+                self.tri_suction_break_distance_m,
+                0.005,
+                0.100,
+            ),
+            (
+                "tri_suction_break_angle_rad",
+                self.tri_suction_break_angle_rad,
+                0.10,
+                math.pi / 2,
+            ),
+            (
+                "tri_suction_seal_distance_m",
+                self.tri_suction_seal_distance_m,
+                0.001,
+                0.020,
+            ),
+            (
+                "tri_suction_seal_angle_rad",
+                self.tri_suction_seal_angle_rad,
+                0.05,
+                0.70,
+            ),
+        ):
+            if not math.isfinite(value) or not lower <= value <= upper:
+                raise ValueError(f"{name} must be in [{lower}, {upper}]")
+        if self.tri_suction_min_sealed_cups not in {1, 2, 3}:
+            raise ValueError("tri_suction_min_sealed_cups must be 1, 2, or 3")
+        if (
+            self.tri_suction_footprint_radius_m + self.tri_suction_cup_radius_m
+            > 0.075
+        ):
+            raise ValueError("tri-suction footprint exceeds the Panda hand envelope")
 
 
 @dataclass(frozen=True)

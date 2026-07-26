@@ -70,6 +70,11 @@ def main() -> int:
         action="store_true",
         help="enable Radeon IK/collision-ranked shape-aware grasp planning",
     )
+    parser.add_argument(
+        "--tri-suction",
+        action="store_true",
+        help="enable the physical three-cup suction end effector",
+    )
     args = parser.parse_args()
     if args.episodes < 1 or args.start_episode < 0:
         parser.error("episodes must be positive and start-episode cannot be negative")
@@ -83,7 +88,11 @@ def main() -> int:
     config = load_config(args.config)
     if args.nominal:
         config = replace(config, randomization=replace(config.randomization, enabled=False))
-    if args.collision_checked_reset or args.geometry_aware_grasp_planning:
+    if (
+        args.collision_checked_reset
+        or args.geometry_aware_grasp_planning
+        or args.tri_suction
+    ):
         config = replace(
             config,
             task=replace(
@@ -91,6 +100,9 @@ def main() -> int:
                 geometry_aware_grasp_planning_enabled=(
                     config.task.geometry_aware_grasp_planning_enabled
                     or args.geometry_aware_grasp_planning
+                ),
+                tri_suction_enabled=(
+                    config.task.tri_suction_enabled or args.tri_suction
                 ),
             ),
             control=replace(

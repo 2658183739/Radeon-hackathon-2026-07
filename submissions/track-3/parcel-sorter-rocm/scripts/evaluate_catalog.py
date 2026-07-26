@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import json
 from pathlib import Path
 
@@ -27,12 +27,23 @@ def main() -> int:
         help="evaluate only this profile id; repeat the flag to select multiple profiles",
     )
     parser.add_argument("--include-evaluation-only", action="store_true")
+    parser.add_argument(
+        "--tri-suction",
+        action="store_true",
+        help="enable the physical three-cup suction end effector",
+    )
     parser.add_argument("--output", default="outputs/catalog-v1")
     args = parser.parse_args()
     if args.episodes_per_profile < 1:
         parser.error("episodes-per-profile must be positive")
 
     config = load_config(args.config)
+    if args.tri_suction:
+        config = replace(
+            config,
+            task=replace(config.task, tri_suction_enabled=True),
+        )
+        config.validate()
     known_profile_ids = {profile.profile_id for profile in config.parcel_profiles}
     catalog_profile_index = {
         profile.profile_id: index for index, profile in enumerate(config.parcel_profiles)

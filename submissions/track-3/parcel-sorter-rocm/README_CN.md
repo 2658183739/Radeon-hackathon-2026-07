@@ -322,9 +322,12 @@ bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-c
 Diffusion 是已经准备好的训练入口，不是已经取得的比赛结果。轻量 Diffusion
 已经在 Radeon 上完成 1 步前向、反向、优化器更新和保存：76,597,288 参数，训练进度
 约 23.6 秒；这只证明入口和缩小模型可行，仍需完整训练与分层闭环评测。VLA-Adapter 0.5B
-是首选语言条件研究候选，但尚未接入；必须先独立完成递归许可证和 ROCm 算子审计。
-SmolVLA 当前检查点 metadata 没有声明许可证，因此暂缓并排除在严格开源主线之外。
-通用评测器会把支持的 LeRobot 检查点放入相同的 Genesis 闭环和 35 N 安全边界。
+仍是尚未接入的比较候选。当前 VLA 主线使用 Apache-2.0 的 LeRobot SmolVLA，并以
+Apache-2.0 的 `HuggingFaceTB/SmolVLM2-500M-Video-Instruct` 固定 revision
+`7b375e1b73b11138ff12fe22c8f2822d8fe03467` 初始化。10k checkpoint 是本项目
+在单张 Radeon 上使用自建轨迹训练得到的派生权重。训练器生成的 `license` 字段为空，
+因此任何单独分发都必须同时提供基础模型清单和派生 checkpoint 来源说明。评测器仍把它
+放在相同的 Genesis 闭环和 35 N 安全边界之后。
 
 ## 冻结实验协议与类别汇总
 
@@ -369,6 +372,52 @@ bash scripts/run_pipeline_cuda.sh
 
 CUDA 结果不能代替最终 AMD Radeon/ROCm 证据。代码中不要引入 TensorRT 或写死的
 NVIDIA 专用算子，否则迁回 ROCm 会增加返工。
+
+## 轮式双臂开发基线
+
+当前主形态升级为全向轮式底盘和两条 Franka Panda 机械臂。
+`mobile_bimanual.py` 在运行时读取 Genesis 中 Apache-2.0 的 Bi-Franka MJCF，
+加入本项目原创的 `x/y/yaw` 平面底盘关节、实体底盘、车轮外观、限速导航命令、
+双臂角色分配和快递语义分类路由；上游资产本身不复制进仓库。
+
+在比赛 Radeon 上，生成的 21 自由度机器人已由 Genesis 1.2.3 成功编译，并在
+240 个物理步中前移 0.13047 m，仿真报告约 494--516 FPS。闭环绕障随后用 321 个
+控制步到达目标，最终误差 4.39 cm。14 个机械臂自由度的同步 IK 烟雾测试中，两侧
+预抓取误差均不超过 1.60 cm，无新增碰撞，底盘漂移 1.35 mm，仿真速度 405 FPS。
+实体快递抓取以及导航到操作的完整成功率仍待实现，当前不作能力宣称。
+
+`mobile_task.py` 将后续微调动作契约固定为 19 维：3 维限幅底盘速度，以及左右各
+8 维笛卡尔位姿/夹爪命令。该模块也提供专家采集器与 SmolVLA 共用的失败闭合状态机，
+覆盖导航、双侧接触确认、抬升、搬运、放置、有限重试和接触力中止。
+
+```bash
+python scripts/smoke_mobile_bimanual_rocm.py \
+  --backend rocm --steps 240 --speed-m-s 0.20 \
+  --output outputs/mobile-bimanual-smoke-v3
+python scripts/smoke_mobile_bimanual_arms_rocm.py \
+  --backend rocm --output outputs/mobile-bimanual-arms-v2
+```
+
+原始结果见
+`evidence/mobile_bimanual/mobile-bimanual-smoke-v3.json`、
+`mobile-navigation-v1.json` 和 `mobile-bimanual-arms-v2.json`。
+
+## 开发过程
+
+项目采用失败闭合的受控实验流程：先冻结 episode ID、安全阈值和评价指标，记录基线，
+每轮只改变一个可归因机制，在同一张 Radeon 上执行配对实验，保留被拒绝候选，并且只在
+独立留出集通过晋升门槛后替换 checkpoint。当前原创工作包括快递任务状态机、几何抓取
+规划、三吸盘物理约束、Harness-Lite 生成器/验证器、失败回放隔离与晋升、自建数据集、
+快递分类，以及轮式双臂形态。成功和失败实验都保存在 `docs/` 与 `evidence/`。
+
+## 代码来源说明
+
+`src/parcel_sorter`、`scripts` 和 `tests` 中的项目代码采用 MIT 许可证。运行依赖
+按锁定 revision 下载，不把第三方仓库直接复制到提交目录。Genesis World 及其
+Bi-Franka 资产、LeRobot/SmolVLA 实现、SmolVLM2 基础 checkpoint 均为
+Apache-2.0；具体仓库、revision 和用途见 `THIRD_PARTY_NOTICES.md` 与
+`UPSTREAM_LOCK.json`。轮式底盘、Harness-Lite 规则、吸盘约束、分类路由、实验编排
+及生成数据是本项目修改，不是未修改的上游 fork。模型权重不提交到本 Git 仓库。
 
 ## 原始证据与剩余提交项
 

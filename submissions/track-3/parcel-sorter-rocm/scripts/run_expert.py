@@ -134,6 +134,11 @@ def main() -> int:
         help="use the generated open-source parcel finger adapter",
     )
     parser.add_argument(
+        "--tri-suction",
+        action="store_true",
+        help="use the physical three-cup suction end effector for suction profiles",
+    )
+    parser.add_argument(
         "--parcel-gripper-extension-m",
         type=float,
         default=None,
@@ -275,6 +280,7 @@ def main() -> int:
         or args.surface_aware_pregrasp
         or args.geometry_aware_grasp_planning
         or args.parcel_gripper_adapter
+        or args.tri_suction
         or args.parcel_gripper_extension_m is not None
         or args.parcel_gripper_density_kg_m3 is not None
         or args.grasp_planning_reset_fallback_gate
@@ -324,6 +330,9 @@ def main() -> int:
                 parcel_gripper_adapter_enabled=(
                     config.task.parcel_gripper_adapter_enabled
                     or args.parcel_gripper_adapter
+                ),
+                tri_suction_enabled=(
+                    config.task.tri_suction_enabled or args.tri_suction
                 ),
                 parcel_gripper_adapter_extension_m=(
                     config.task.parcel_gripper_adapter_extension_m

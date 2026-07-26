@@ -368,12 +368,15 @@ Diffusion is an implemented training path, not a measured capability claim. The
 compact smoke is recorded in
 `evidence/training/diffusion-compact-1step-rocm.md`; it reduced the model to
 76.6M parameters and completed one Radeon step, but has not been selected by
-closed-loop success. VLA-Adapter 0.5B is the preferred language-conditioned
-research candidate, but it is not integrated: its transitive licenses and ROCm
-operators must pass isolated audits first. SmolVLA is held out of the strict-open
-path because its current checkpoint metadata does not declare a license. The
-generic evaluator loads supported LeRobot checkpoints behind the same Genesis
-supervisor and 35 N force boundary.
+closed-loop success. VLA-Adapter 0.5B remains an unintegrated comparison
+candidate. The active VLA path uses LeRobot SmolVLA code (Apache-2.0)
+initialized from `HuggingFaceTB/SmolVLM2-500M-Video-Instruct` revision
+`7b375e1b73b11138ff12fe22c8f2822d8fe03467` (Apache-2.0). The submitted 10k
+checkpoint is trained locally on project-generated trajectories on one Radeon;
+its trainer-generated `license` metadata is null, so the source manifest and
+derived-checkpoint provenance must accompany any separately distributed
+weights. The evaluator keeps it behind the same Genesis supervisor and 35 N
+force boundary.
 
 ## 6. GPU simulation benchmark
 
@@ -490,6 +493,65 @@ transfer, safety limits, evaluation aggregation, and matched run comparison.
 GPU tests and end-to-end
 simulation are intentionally separate because they require Genesis assets and
 a supported GPU runtime.
+
+## Mobile bimanual development baseline
+
+The current expansion target is a holonomic wheeled base with two Franka Panda
+arms. `mobile_bimanual.py` transforms Genesis' Apache-2.0 Bi-Franka MJCF at
+runtime, adds original planar `x/y/yaw` joints, a physical chassis, wheel
+visuals, bounded navigation commands, deterministic dual-arm task allocation,
+and semantic parcel routing. The upstream asset is not copied into this
+repository.
+
+On the competition Radeon, the generated 21-DoF robot compiled under Genesis
+1.2.3 and moved 0.13047 m in a 240-step smoke while the simulator reported
+roughly 494-516 FPS. A closed-loop obstacle route then reached its destination
+in 321 control steps with 4.39 cm final error. A synchronized 14-arm-DoF IK
+smoke reached both pregrasp targets within 1.60 cm, introduced no collision,
+held base drift to 1.35 mm, and ran at 405 simulation FPS. Physical parcel
+pickup and navigation-to-manipulation success are still pending and are not
+claimed.
+
+`mobile_task.py` fixes the retraining contract at 19 actions: three bounded
+base velocities and two eight-dimensional Cartesian/gripper commands. The
+same module provides the fail-closed navigation, bilateral-contact, lift,
+transport, placement, recovery, and force-abort state machine shared by the
+future expert collector and SmolVLA policy.
+
+```bash
+python scripts/smoke_mobile_bimanual_rocm.py \
+  --backend rocm --steps 240 --speed-m-s 0.20 \
+  --output outputs/mobile-bimanual-smoke-v3
+python scripts/smoke_mobile_bimanual_arms_rocm.py \
+  --backend rocm --output outputs/mobile-bimanual-arms-v2
+```
+
+The raw result is tracked in
+`evidence/mobile_bimanual/mobile-bimanual-smoke-v3.json`,
+`mobile-navigation-v1.json`, and `mobile-bimanual-arms-v2.json`.
+
+## Development process
+
+Development follows a fail-closed experiment loop: freeze episode IDs and
+safety thresholds, record the baseline, change one causal mechanism, execute
+matched Radeon runs, retain rejected candidates, and promote only after the
+independent holdout gate. Current original changes include the parcel state
+machine, geometry-aware planning, tri-cup suction physics, Harness-Lite
+generator/verifier, failure-replay quarantine and promotion logic, parcel
+classification, and the mobile bimanual embodiment. Detailed decisions and
+failed experiments are retained under `docs/` and `evidence/`; successful and
+unsuccessful results are both reported.
+
+## Code provenance
+
+Project-authored code is under `src/parcel_sorter`, `scripts`, and `tests` and
+is MIT licensed. Runtime dependencies are fetched at locked revisions and are
+not vendored. Genesis World and its Bi-Franka asset, LeRobot/SmolVLA code, and
+the SmolVLM2 base checkpoint are Apache-2.0; exact repositories, revisions and
+roles are listed in `THIRD_PARTY_NOTICES.md` and `UPSTREAM_LOCK.json`. The
+mobile base, Harness-Lite rules, suction attachment, routing logic, experiment
+orchestration, and generated datasets are project modifications, not an
+unchanged upstream fork. Model weights are not committed to this repository.
 
 ## Licensing
 

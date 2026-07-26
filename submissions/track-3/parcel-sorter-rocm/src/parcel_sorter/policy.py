@@ -9,6 +9,7 @@ from .config import ExperimentConfig
 from .contracts import CartesianAction, PolicyContext
 from .dataset import DEPTH_RGB_KEY, metric_depth_to_visual_rgb
 from .expert import ScriptedPickPlaceExpert
+from .harness import HarnessDecision, select_residual_candidate
 from .state_machine import Command
 
 
@@ -54,6 +55,10 @@ class SlowFastVLAExpertPolicy:
         self.vla_updates = 0
         self.fast_control_steps = 0
         self.max_applied_residual_m = 0.0
+        self.harness_decisions = 0
+        self.harness_fallbacks = 0
+        self.harness_recovery_decisions = 0
+        self.harness_candidate_counts: list[int] = []
 
     def reset(self) -> None:
         reset = getattr(self.vla, "reset", None)
@@ -64,6 +69,10 @@ class SlowFastVLAExpertPolicy:
         self.vla_updates = 0
         self.fast_control_steps = 0
         self.max_applied_residual_m = 0.0
+        self.harness_decisions = 0
+        self.harness_fallbacks = 0
+        self.harness_recovery_decisions = 0
+        self.harness_candidate_counts = []
 
     def predict(self, context: PolicyContext) -> CartesianAction:
         expert_action = self.expert.action(context.decision, context.state)
@@ -97,16 +106,32 @@ class SlowFastVLAExpertPolicy:
                 strict=True,
             )
         )
-        projected_distance = sum(
-            offset * axis
-            for offset, axis in zip(raw_residual, direction, strict=True)
+        harness: HarnessDecision = select_residual_candidate(
+            current_position_m=current,
+            expert_target_m=expert_action.target_position,
+            vla_target_m=self._cached_vla_action.target_position,
+            residual_limit_m=self.residual_limit_m,
+            min_progress_ratio=self.min_progress_ratio,
+            force_n=float(context.state.gripper_contact_force_n),
+            force_limit_n=self.expert.config.task.max_contact_force_n,
+            recovery_active=context.decision.retry_count > 0,
         )
-        projected_distance = max(
-            -min(
-                self.residual_limit_m,
-                motion_norm * (1.0 - self.min_progress_ratio),
-            ),
-            min(self.residual_limit_m, projected_distance),
+        self.harness_decisions += 1
+        if context.decision.retry_count > 0:
+            self.harness_recovery_decisions += 1
+        self.harness_candidate_counts.append(len(harness.candidates))
+        if harness.fallback_to_expert:
+            self.harness_fallbacks += 1
+        projected_distance = (
+            sum(
+                offset * axis
+                for offset, axis in zip(
+                    harness.selected.target_position_m,
+                    direction,
+                    strict=True,
+                )
+            )
+            - sum(nominal * axis for nominal, axis in zip(expert_action.target_position, direction, strict=True))
         )
         residual = tuple(projected_distance * axis for axis in direction)
         residual_norm = abs(projected_distance)
@@ -142,6 +167,17 @@ class SlowFastVLAExpertPolicy:
             "fast_control_steps": self.fast_control_steps,
             "max_applied_residual_m": self.max_applied_residual_m,
             "residual_projection": "expert_motion_axis",
+            "harness": "harness-lite-generator-verifier",
+            "harness_decisions": self.harness_decisions,
+            "harness_fallbacks": self.harness_fallbacks,
+            "harness_recovery_decisions": self.harness_recovery_decisions,
+            "harness_activation": "supervisor_retry_only",
+            "harness_forward_residual_policy": "blocked",
+            "harness_mean_candidate_count": (
+                sum(self.harness_candidate_counts) / len(self.harness_candidate_counts)
+                if self.harness_candidate_counts
+                else 0.0
+            ),
         }
 
 
