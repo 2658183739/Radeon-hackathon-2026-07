@@ -23,6 +23,7 @@
 | Grasp scorer v2 train freeze | [Frozen train result](GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS.md) | [训练冻结结果](GRASP_SCORER_V2_TRAIN_FREEZE_RESULTS_CN.md) |
 | Grasp scorer v2 development | [No-promotion result](GRASP_SCORER_V2_DEVELOPMENT_RESULTS.md) | [未晋级结果](GRASP_SCORER_V2_DEVELOPMENT_RESULTS_CN.md) |
 | Conservative grasp memory v3 | [Train-only CV protocol](GRASP_MEMORY_V3_CV_PROTOCOL.md) | [Train-only CV 协议](GRASP_MEMORY_V3_CV_PROTOCOL_CN.md) |
+| Conservative grasp memory v3 result | [No-candidate CV result](GRASP_MEMORY_V3_CV_RESULTS.md) | [无候选通过的 CV 结果](GRASP_MEMORY_V3_CV_RESULTS_CN.md) |
 | Multimodal implementation | [RGB-D optimization record](MULTIMODAL_OPTIMIZATION_2026-07-25.md) | [RGB-D 优化记录](MULTIMODAL_OPTIMIZATION_2026-07-25_CN.md) |
 | End-effector contract | [Capability contract](END_EFFECTOR_CAPABILITY.md) | [末端执行器能力契约](END_EFFECTOR_CAPABILITY_CN.md) |
 | Video | [Video script](VIDEO_SCRIPT.md) | [视频脚本](VIDEO_SCRIPT_CN.md) |

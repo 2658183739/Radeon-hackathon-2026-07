@@ -536,3 +536,28 @@ ranking under a separately frozen multi-profile protocol. See
 `evidence/expert/genesis-finger-control-replay-development-v1.json`.
 
 The synchronized Radeon tree passes 269 tests and 28 subtests.
+
+## Latest learning result: static-feature rankers are closed
+
+The later frozen v2 study supersedes the earlier 12/6/6 plan above. It
+collected 32 train groups and one 16-group development split across four
+profiles. Both 6,276-parameter ROCm MLPs were rejected on development: the
+static baseline achieved 9/16 successes with four safety aborts, while the
+pointwise and groupwise models achieved 6/16 with nine aborts and 7/16 with
+eight aborts. V2 holdout was not opened.
+
+A separately frozen train-only four-fold feasibility study then evaluated six
+conservative same-profile memory configurations on the 32 v2 train groups.
+All met the Radeon latency gate at 0.534--0.555 ms warm P95, but none improved
+the out-of-fold static baseline of seven successes and 17 safety aborts. The
+selector returned `no_cv_candidate`, `selected=null`, and
+`new_physics_authorized=false`.
+
+The active runtime choice is therefore still the static geometry baseline.
+Static 28-feature model iteration is closed, no v3 learning population is
+authorized, and holdout remains locked. The next research direction must be a
+new preregistered dynamic-information protocol, such as short pre-grasp or
+micro-lift physics probes with contact/slip state and Radeon-batched rollout.
+The synchronized Radeon tree passes 293 tests and 28 subtests. See
+`docs/GRASP_SCORER_V2_DEVELOPMENT_RESULTS.md` and
+`docs/GRASP_MEMORY_V3_CV_RESULTS.md`.

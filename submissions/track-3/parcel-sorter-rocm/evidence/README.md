@@ -475,3 +475,16 @@ plus posthoc oracle and miscalibration diagnostics. The 111 MiB full
 development traces and combined dataset remain in the Radeon workspace. Git
 tracks the decision, both evaluations, and compact hash index. See
 `docs/GRASP_SCORER_V2_DEVELOPMENT_RESULTS.md`.
+
+## Conservative grasp memory v3 train-only CV negative result
+
+`training/grasp-memory-v3-cv-evidence.json` is the compact decision index for
+the frozen four-fold train-only study. It binds the protocol audit and the full
+998,070-byte CV result. All six candidates met the Radeon latency gate, but
+none improved the static baseline's 7/32 successes and 17/32 safety aborts;
+the widest trust region increased aborts to 18.
+
+The final state is `no_cv_candidate`, `selected=null`, and
+`new_physics_authorized=false`. No v3 learning population or holdout was
+opened, and the static geometry selector remains active. See
+`docs/GRASP_MEMORY_V3_CV_RESULTS.md`.

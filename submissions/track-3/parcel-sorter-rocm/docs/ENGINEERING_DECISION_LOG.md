@@ -2070,3 +2070,25 @@ If no candidate passes, promote none and do not open holdout.
 `091c8e28efcab4b59663e07b03ec51daa609d057fbff97a79b26adc9233241ee`.
 Its hash audit and runtime 6,276-parameter assertion passed before development
 execution.
+
+### 86. Stop static-feature ranker iteration after the frozen CV
+
+**Question.** Should a conservative memory ranker justify a new v3 physical
+population, or should the project keep the static geometry selector?
+
+**Alternatives.** Continue scanning KNN thresholds on the same folds, try a
+third model on the already observed v2 development split, or add new dynamic
+information under a separate protocol. The first two alternatives reuse
+selection evidence and cannot repair missing contact dynamics.
+
+**Decision and reason.** Stop the static 28-feature learning branch. All six
+preregistered candidates passed the Radeon latency limit but failed to improve
+the 7-success/17-abort out-of-fold baseline; one increased aborts to 18. Keep
+the static selector, collect no v3 learning population, and keep holdout
+locked. A later study may use a new preregistered dynamic pre-grasp or
+micro-lift probe with contact/slip state and batched Radeon physics.
+
+**Evidence and boundary.** The result is `no_cv_candidate`, with
+`selected=null` and `new_physics_authorized=false`. It is train-only model
+selection evidence, not an independent generalization claim. The full result
+SHA-256 is `3ec39a...8d68`; v2 development is not reusable for tuning.

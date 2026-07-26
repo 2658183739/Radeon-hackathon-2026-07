@@ -1381,3 +1381,26 @@ population is required. SHA-256 binds the implementation, runner, and feature
 code; protocol hash is `80911bf...3b02`. Before any CV result was observed,
 seven directed tests, compilation, protocol self-audit, and all 293 tests
 passed, with one environment skip.
+
+### Record 86: Close static-feature learning after the train-only CV gate
+
+The frozen four-fold run used only the 32 v2 train groups and kept all physical
+groups intact. The protocol audit passed and confirmed two groups per profile
+in every fold. The run used one AMD Radeon under HIP 7.2; its six-candidate
+warm P95 ranged from 0.534 to 0.555 ms.
+
+The static out-of-fold baseline produced seven successes and 17 safety aborts.
+All six memory configurations produced seven successes; five retained 17
+aborts and the widest candidate increased aborts to 18. Four configurations
+made at least one changed selection, but none produced a net task or safety
+gain. Two had a fold safety regression, and the widest also regressed
+`shoe_box_proxy`.
+
+The frozen selector therefore returned `no_cv_candidate`, `selected=null`, and
+`new_physics_authorized=false`. The decision is to stop this static 28-feature
+learning branch, keep the static geometry selector, collect no v3 learning
+population, and leave holdout locked. The reason is evidential rather than
+computational: latency passed comfortably, while the observed descriptors did
+not support safer ranking. Any next experiment must first freeze a new protocol
+for dynamic pre-grasp/contact/slip information; V2 development and this CV may
+not be reused for another threshold scan.

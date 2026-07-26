@@ -326,3 +326,13 @@ Git 忽略原始产物。静态零速度回放在 64 个对齐子步中没有达
 证据明确记录 `selected=null`、`holdout_opened=false`，并保留事后 oracle 与失准诊断。111 MiB
 完整 development 轨迹和组合数据集留在 Radeon 工作区；Git 保存决策、两份评测与紧凑哈希索引。
 中英文结论见 `docs/GRASP_SCORER_V2_DEVELOPMENT_RESULTS_CN.md`。
+
+## 保守抓取记忆 V3 train-only CV 负结果
+
+`training/grasp-memory-v3-cv-evidence.json` 是冻结四折 train-only 研究的紧凑决策索引，绑定协议
+审计与 998,070 字节完整 CV 结果。六个候选全部通过 Radeon 延迟线，但都没有改善静态基线的
+7/32 成功与 17/32 安全中止；最宽信任范围把中止增加到 18 次。
+
+最终状态为 `no_cv_candidate`、`selected=null` 和 `new_physics_authorized=false`。没有打开 V3 学习
+总体或 holdout，运行时继续使用静态几何选择器。完整说明见
+`docs/GRASP_MEMORY_V3_CV_RESULTS_CN.md`。

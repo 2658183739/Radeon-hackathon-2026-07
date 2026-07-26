@@ -384,3 +384,21 @@ Radeon 源码编译通过，全量 259 项测试全部通过。详见 `docs/PARC
 `evidence/expert/genesis-finger-control-replay-development-v1.json`。
 
 同步后的 Radeon 源代码树通过 269 项测试和 28 个子测试。
+
+## 最新学习结果：关闭静态特征排序器路线
+
+后续冻结的 V2 研究取代了上文较早的 12/6/6 计划。项目在四个 profile 上实际采集 32 个 train 组
+和一份 16 组 development。两份 6,276 参数 ROCm MLP 均在 development 被拒绝：静态基线为
+9/16 成功、4 次安全中止；pointwise 为 6/16、9 次中止，groupwise 为 7/16、8 次中止。V2
+holdout 没有打开。
+
+随后另行冻结的 train-only 四折可行性研究，只用 32 个 V2 train 组比较六个同 profile 保守记忆
+配置。全部候选都以 0.534--0.555 ms warm P95 通过 Radeon 延迟线，但没有任何候选改善折外静态
+基线的 7 次成功、17 次安全中止。选择器返回 `no_cv_candidate`、`selected=null` 和
+`new_physics_authorized=false`。
+
+因此当前运行时仍正式使用静态几何基线。静态 28 特征模型迭代已经关闭，不授权采集 V3 学习总体，
+holdout 继续锁定。下一条研究路线必须先冻结新的动态信息协议，例如带接触/滑移状态的短时预抓取或
+微抬升物理探针，以及 Radeon 批量 rollout。同步后的 Radeon 树通过 293 项测试和 28 个子测试。
+详见 `docs/GRASP_SCORER_V2_DEVELOPMENT_RESULTS_CN.md` 与
+`docs/GRASP_MEMORY_V3_CV_RESULTS_CN.md`。
