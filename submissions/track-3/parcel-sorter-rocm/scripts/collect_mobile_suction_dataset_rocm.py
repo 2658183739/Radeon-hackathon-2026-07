@@ -62,6 +62,11 @@ def main() -> int:
     )
     parser.add_argument("--policy-hz", type=int, default=3)
     parser.add_argument(
+        "--record-media-per-profile",
+        action="store_true",
+        help="record MP4 and final PNG for the first episode of each profile",
+    )
+    parser.add_argument(
         "--workers",
         type=int,
         default=1,
@@ -93,6 +98,18 @@ def main() -> int:
     }
 
     root = Path(__file__).resolve().parent.parent
+    checkpoint_selection: dict[str, Any] | None = None
+    if args.smolvla_checkpoint is not None:
+        checkpoint_selection = {
+            "source": "direct_path",
+            "checkpoint": str(args.smolvla_checkpoint),
+        }
+        if args.smolvla_checkpoint.is_file():
+            from parcel_sorter.checkpoint_registry import load_active_checkpoint
+
+            selected = load_active_checkpoint(args.smolvla_checkpoint, project_root=root)
+            args.smolvla_checkpoint = selected.checkpoint
+            checkpoint_selection = {"source": "promoted_registry", **selected.to_dict()}
     args.output.mkdir(parents=True, exist_ok=True)
     existing_results: dict[str, dict[str, Any]] = {}
     existing_summary_path = args.output / "collection-summary.json"
@@ -104,6 +121,14 @@ def main() -> int:
     results = []
     successful_roots = []
     pending = []
+    media_episode_ids: set[str] = set()
+    if args.record_media_per_profile:
+        recorded_profiles: set[str] = set()
+        for item in episodes:
+            profile = str(item["profile"])
+            if profile not in recorded_profiles:
+                recorded_profiles.add(profile)
+                media_episode_ids.add(str(item["episode_id"]))
     for item in episodes:
         episode_id = str(item["episode_id"])
         shard = args.output / "shards" / episode_id
@@ -163,6 +188,15 @@ def main() -> int:
             )
         if item.get("task_text"):
             command.extend(("--task-text", str(item["task_text"])))
+        if episode_id in media_episode_ids:
+            command.extend(
+                (
+                    "--record-video",
+                    str(shard / "run" / "media" / f"{episode_id}.mp4"),
+                    "--snapshot",
+                    str(shard / "run" / "media" / f"{episode_id}.png"),
+                )
+            )
         shard.mkdir(parents=True, exist_ok=True)
         log_path = shard / "collector.log"
         with log_path.open("w", encoding="utf-8") as log:
@@ -201,6 +235,7 @@ def main() -> int:
                 "max_contact_force_n"
             ),
             "frames": summary.get("dataset", {}).get("frames", 0),
+            "media": summary.get("media"),
             "summary": str(summary_path.resolve()),
             "log": str(log_path.resolve()),
         }
@@ -296,6 +331,8 @@ def main() -> int:
         "successful_episodes": successful_count,
         "failed_episodes": len(results) - successful_count,
         "merged_dataset_root": str(merged_root.resolve()) if merged_root.is_dir() else None,
+        "checkpoint_selection": checkpoint_selection,
+        "media_episode_ids": sorted(media_episode_ids),
         "merge_error": merge_error,
         "results": results,
         "status": status,

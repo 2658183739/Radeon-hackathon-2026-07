@@ -380,6 +380,22 @@ bash scripts/benchmark_act_training_rocm.sh
 
 ## 5. Closed-loop learned-policy evaluation
 
+For a fast, human-readable mobile VLA check, run the frozen four-profile parcel
+suite. It executes three trials per profile (12 total), writes per-class success
+rates and safety counts to `REPORT.md`, and records one 640x480 MP4 and PNG per
+profile. These episodes are evaluation-only and are never added to training.
+
+```bash
+PYTHONPATH=src:. /workspace/rdna/bin/python scripts/run_mobile_quick_eval_rocm.py \
+  --output outputs/mobile-quick-eval-12-v1 \
+  --workers 4
+```
+
+Use `--max-episodes 4` for a one-trial-per-profile visual preview. The policy
+still receives the frozen 224x224 RGB observation; a separate camera produces
+the higher-resolution demonstration media, so recording does not change the
+model input contract.
+
 ```bash
 python scripts/evaluate_policy.py \
   --checkpoint outputs/train/act-radeon-5000/checkpoints/004000/pretrained_model \

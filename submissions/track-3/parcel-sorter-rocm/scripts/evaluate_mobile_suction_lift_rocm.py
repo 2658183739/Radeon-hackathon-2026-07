@@ -75,7 +75,19 @@ def main() -> int:
         type=Path,
         help="record the successful full task as a 30 Hz RGB-D LeRobot episode",
     )
+    parser.add_argument(
+        "--record-video",
+        type=Path,
+        help="save the overhead camera view as an MP4 without opening a viewer",
+    )
+    parser.add_argument(
+        "--snapshot",
+        type=Path,
+        help="save the final overhead RGB frame as a PNG",
+    )
     parser.add_argument("--image-size", type=int, default=224)
+    parser.add_argument("--media-width", type=int, default=640)
+    parser.add_argument("--media-height", type=int, default=480)
     parser.add_argument("--parcel-profile", default="carton")
     parser.add_argument(
         "--parcel-size-m", type=float, nargs=3, default=(0.20, 0.12, 0.20)
@@ -222,7 +234,21 @@ def main() -> int:
             fov=52,
             GUI=False,
         )
+    media_camera = None
+    if args.record_video is not None or args.snapshot is not None:
+        media_camera = scene.add_camera(
+            res=(args.media_width, args.media_height),
+            pos=(-1.35, -1.15, 2.25),
+            lookat=(-0.38, 0.62, 1.28),
+            fov=46,
+            GUI=False,
+        )
     scene.build()
+    if args.record_video is not None:
+        if media_camera is None:
+            raise RuntimeError("video recording requires a camera")
+        args.record_video.parent.mkdir(parents=True, exist_ok=True)
+        media_camera.start_recording()
     parcel.set_mass(args.parcel_mass_kg)
 
     base_dofs = np.asarray(joint_dof_indices(robot, BASE_JOINT_NAMES))
@@ -506,6 +532,9 @@ def main() -> int:
         if cradle_monitor is not None:
             _, right_contact_force_n = cradle_monitor.snapshot()
         rgb, depth, _, _ = camera.render(rgb=True, depth=True)
+        if args.record_video is not None:
+            assert media_camera is not None
+            media_camera.render(rgb=True, depth=False)
         current_qpos = np.asarray(_flat(robot.get_qpos()))
         base_velocity = _flat(robot.get_dofs_velocity(base_dofs))
         left_pose = (*_flat(left_hand.get_pos()), *_flat(left_hand.get_quat()))
@@ -1440,6 +1469,27 @@ def main() -> int:
             dataset_saved = True
         else:
             writer.clear_episode()
+    media = {
+        "video_requested": args.record_video is not None,
+        "video_path": str(args.record_video.resolve()) if args.record_video else None,
+        "video_saved": False,
+        "snapshot_requested": args.snapshot is not None,
+        "snapshot_path": str(args.snapshot.resolve()) if args.snapshot else None,
+        "snapshot_saved": False,
+    }
+    if args.snapshot is not None:
+        if media_camera is None:
+            raise RuntimeError("snapshot recording requires a camera")
+        from imageio.v3 import imwrite
+
+        args.snapshot.parent.mkdir(parents=True, exist_ok=True)
+        final_rgb, _, _, _ = media_camera.render(rgb=True, depth=False)
+        imwrite(args.snapshot, np.asarray(final_rgb)[..., :3].astype(np.uint8))
+        media["snapshot_saved"] = args.snapshot.is_file()
+    if args.record_video is not None:
+        assert media_camera is not None
+        media_camera.stop_recording(save_to_filename=str(args.record_video), fps=30)
+        media["video_saved"] = args.record_video.is_file()
     policy_latencies = [float(item["latency_ms"]) for item in policy_trace]
     warm_policy_latencies = policy_latencies[1:]
     policy_stages = sorted({str(item["stage"]) for item in policy_trace})
@@ -1671,6 +1721,7 @@ def main() -> int:
             "depth_shape": [args.image_size, args.image_size, 1],
             "privileged_state_in_policy": False,
         },
+        "media": media,
         "suction": suction.summary(),
         "cradle": {
             "enabled": args.cooperative_cradle,

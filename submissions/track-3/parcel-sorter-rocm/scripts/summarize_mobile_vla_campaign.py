@@ -21,6 +21,45 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _profile_summaries(runs: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    summaries: dict[str, dict[str, Any]] = {}
+    for profile in sorted({str(run.get("profile")) for run in runs}):
+        group = [run for run in runs if str(run.get("profile")) == profile]
+        trials = len(group)
+        successes = sum(bool(run.get("success")) for run in group)
+        low, high = wilson_interval(successes, trials)
+        placement_errors = [
+            float(run["placement_error_m"])
+            for run in group
+            if run.get("success") and run.get("placement_error_m") is not None
+        ]
+        summaries[profile] = {
+            "successes": successes,
+            "trials": trials,
+            "success_rate": successes / trials if trials else 0.0,
+            "wilson_95": [low, high],
+            "mean_success_placement_error_m": (
+                statistics.fmean(placement_errors) if placement_errors else None
+            ),
+            "force_violation_count": sum(
+                float((run.get("suction") or {}).get("max_contact_force_n") or 0.0)
+                >= 35.0
+                for run in group
+            ),
+            "failure_stages": {
+                stage: sum(str(run.get("failure_stage")) == stage for run in group)
+                for stage in sorted(
+                    {
+                        str(run.get("failure_stage"))
+                        for run in group
+                        if run.get("failure_stage") is not None
+                    }
+                )
+            },
+        }
+    return summaries
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--collection-summary", type=Path, required=True)
@@ -48,6 +87,7 @@ def main() -> int:
                 "placement_error_m": summary.get("placement_error_m"),
                 "lift_delta_m": summary.get("lift_delta_m"),
                 "suction": summary.get("suction"),
+                "media": summary.get("media"),
                 "policy": {key: value for key, value in policy.items() if key != "trace"},
                 "runtime": {
                     "torch": runtime.get("torch"),
@@ -98,6 +138,7 @@ def main() -> int:
             and bool((run.get("runtime") or {}).get("rocm"))
             for run in compact_runs
         ),
+        "profile_summaries": _profile_summaries(compact_runs),
         "runs": compact_runs,
         "claim_boundary": (
             "frozen 100-trial parameter-generalization campaign over the configured four "

@@ -370,6 +370,19 @@ Apache-2.0 的 `HuggingFaceTB/SmolVLM2-500M-Video-Instruct` 固定 revision
 
 ## 冻结实验协议与类别汇总
 
+需要快速查看移动 VLA 是否真的能抓取和搬运时，可直接运行四类快递冻结快速集。默认每类
+3 次，共 12 回合；脚本自动生成按类别成功率、安全越界数和放置误差的 `REPORT.md`，并为
+每类保存一个 640x480 MP4 与 PNG。该评测集明确标记为只评测，结果不会回流训练。
+
+```bash
+PYTHONPATH=src:. /workspace/rdna/bin/python scripts/run_mobile_quick_eval_rocm.py \
+  --output outputs/mobile-quick-eval-12-v1 \
+  --workers 4
+```
+
+增加 `--max-episodes 4` 可先做每类 1 次的画面预览。VLA 仍使用冻结的 224x224 RGB
+观察；高清视频由独立展示相机生成，因此录像不会改变模型输入或评测条件。
+
 任何远端实验前先校验版本化协议：
 
 ```bash
