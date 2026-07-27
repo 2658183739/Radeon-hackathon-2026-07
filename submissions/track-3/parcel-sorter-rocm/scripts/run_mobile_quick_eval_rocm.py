@@ -75,6 +75,7 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--max-episodes", type=int)
     parser.add_argument("--no-media", action="store_true")
+    parser.add_argument("--require-vla-goal-verdict", action="store_true")
     args = parser.parse_args()
     if args.output.exists() and any(args.output.iterdir()):
         parser.error("output directory must be absent or empty")
@@ -106,6 +107,8 @@ def main() -> int:
         collection_command.extend(("--max-episodes", str(args.max_episodes)))
     if not args.no_media:
         collection_command.append("--record-media-per-profile")
+    if args.require_vla_goal_verdict:
+        collection_command.append("--require-vla-goal-verdict")
 
     with (args.output / "collection.log").open("w", encoding="utf-8") as log:
         collected = subprocess.run(

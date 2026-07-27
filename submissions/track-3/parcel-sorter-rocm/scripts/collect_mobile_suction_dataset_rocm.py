@@ -62,6 +62,11 @@ def main() -> int:
     )
     parser.add_argument("--policy-hz", type=int, default=3)
     parser.add_argument(
+        "--require-vla-goal-verdict",
+        action="store_true",
+        help="require the VLA progress latch and geometric goal verifier",
+    )
+    parser.add_argument(
         "--record-media-per-profile",
         action="store_true",
         help="record MP4 and final PNG for the first episode of each profile",
@@ -83,6 +88,8 @@ def main() -> int:
         parser.error("parallel workers are supported only for audit-only campaigns")
     if args.policy_mode != "shadow" and args.smolvla_checkpoint is None:
         parser.error("base_residual mode requires --smolvla-checkpoint")
+    if args.require_vla_goal_verdict and args.smolvla_checkpoint is None:
+        parser.error("VLA goal verdict requires --smolvla-checkpoint")
 
     config = json.loads(args.config.read_text(encoding="utf-8"))
     episodes = list(config.get("episodes", ()))
@@ -186,6 +193,8 @@ def main() -> int:
                     str(args.policy_hz),
                 )
             )
+            if args.require_vla_goal_verdict:
+                command.append("--require-vla-goal-verdict")
         if item.get("task_text"):
             command.extend(("--task-text", str(item["task_text"])))
         if episode_id in media_episode_ids:
@@ -332,6 +341,7 @@ def main() -> int:
         "failed_episodes": len(results) - successful_count,
         "merged_dataset_root": str(merged_root.resolve()) if merged_root.is_dir() else None,
         "checkpoint_selection": checkpoint_selection,
+        "goal_verdict_required": args.require_vla_goal_verdict,
         "media_episode_ids": sorted(media_episode_ids),
         "merge_error": merge_error,
         "results": results,

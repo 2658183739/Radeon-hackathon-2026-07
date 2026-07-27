@@ -2326,3 +2326,31 @@ foundation checkpoint.
 separation change was zero, placement error was 3.19 cm, peak cradle force was
 30.68 N, and no emergency stop occurred. This authorizes the mechanism in the
 adaptive strategy set; it does not establish a success rate or generalization.
+
+### 98. Reject visual penetration and require a VLA goal verdict
+
+**Problem.** Review of the recorded mobile video showed stock Panda fingers
+visibly intersecting the parcel. Their collisions had been disabled for the
+suction conversion, but their visual meshes remained. The controller also
+commanded 3 mm contact overlap and latched on the first two-cup contact. The
+active primitive checkpoint then produced 22/22 transport proposals pointing
+away from the correctly framed mobile-base goal, proving that the prior
+residual-safe result was not autonomous destination selection.
+
+**Decision.** Remove stock finger geometry from the suction chain, expose the
+three physical cup geometries, reduce contact overlap to 0.5 mm, and require 12
+consecutive contact steps before latching. Match parcel and target-station
+colors, add a visible target backboard, and encode the mobile-base world goal
+instead of a pedestal coordinate in the 43-D state. The Harness now blocks a
+VLA direction proposal with negative goal alignment and verifies arrival only
+when a stage-local 0.90 progress peak is followed by geometric entry within
+1.5 cm. The progress threshold was selected during development and must not be
+reported as frozen evidence.
+
+**Evidence.** Four corrected expert episodes produced 2,723 audited RGB-D
+frames. A 2,800-step Radeon candidate completed a strict four-profile
+development gate at 4/4 with zero direction mismatches, zero transport expert
+fallbacks, verified VLA arrival in every run, 0.60--0.92 cm placement error,
+0.5 mm contact targets, 12-step seals, and no 35 N violation. This is a
+small-sample selected development result with one requested colored station per
+episode, not open-world classification or a replacement for the frozen gate.

@@ -37,6 +37,20 @@ from parcel_sorter.provenance import runtime_report
 from parcel_sorter.suction import rotate_vector
 
 
+PROFILE_COLORS = {
+    "small_carton": (0.10, 0.62, 0.92),
+    "flat_mailer": (0.95, 0.48, 0.10),
+    "electronics_box": (0.16, 0.72, 0.34),
+    "medium_carton": (0.78, 0.28, 0.72),
+}
+PROFILE_COLOR_NAMES = {
+    "small_carton": "blue",
+    "flat_mailer": "orange",
+    "electronics_box": "green",
+    "medium_carton": "purple",
+}
+
+
 def _flat(values: object) -> list[float]:
     if hasattr(values, "detach"):
         values = values.detach().cpu()  # type: ignore[union-attr]
@@ -133,6 +147,11 @@ def main() -> int:
         help="use metric depth as a deterministic Harness scale gate for the RGB policy",
     )
     parser.add_argument("--policy-hz", type=int, default=5)
+    parser.add_argument(
+        "--require-vla-goal-verdict",
+        action="store_true",
+        help="require the primitive-progress VLA to confirm arrival inside the goal tolerance",
+    )
     args = parser.parse_args()
     if args.image_size < 32:
         parser.error("image-size must be at least 32")
@@ -163,6 +182,8 @@ def main() -> int:
         parser.error("policy-hz must be a positive divisor of 30")
     if args.policy_mode != "shadow" and args.smolvla_checkpoint is None:
         parser.error("residual policy modes require --smolvla-checkpoint")
+    if args.require_vla_goal_verdict and args.smolvla_checkpoint is None:
+        parser.error("VLA goal verdict requires --smolvla-checkpoint")
     if args.cooperative_cradle and args.parcel_size_m[0] < 0.28:
         parser.error("cooperative cradle requires parcel X dimension >= 0.28 m")
     if args.cooperative_cradle and args.policy_mode == "base_arm_residual":
@@ -189,6 +210,13 @@ def main() -> int:
     )
     transport_delta = np.asarray((0.3000, 0.0, 0.0))
     destination_pedestal_position = pedestal_position + transport_delta
+    profile_color = PROFILE_COLORS.get(args.parcel_profile, (0.10, 0.62, 0.92))
+    neutral_surface = gs.surfaces.Rough(
+        diffuse_texture=gs.textures.ColorTexture(color=(0.38, 0.42, 0.46))
+    )
+    target_surface = gs.surfaces.Rough(
+        diffuse_texture=gs.textures.ColorTexture(color=profile_color)
+    )
     parcel_size = np.asarray(args.parcel_size_m, dtype=np.float64)
     parcel_support_z = pedestal_position[2] + 0.05 + parcel_size[2] / 2.0
     initial_parcel_position = np.asarray(
@@ -208,14 +236,28 @@ def main() -> int:
             size=(pedestal_size_x, 0.08, 0.10),
             pos=tuple(pedestal_position.tolist()),
             fixed=True,
-        )
+        ),
+        surface=neutral_surface,
     )
     scene.add_entity(
         gs.morphs.Box(
             size=(pedestal_size_x, 0.08, 0.10),
             pos=tuple(destination_pedestal_position.tolist()),
             fixed=True,
-        )
+        ),
+        surface=target_surface,
+    )
+    scene.add_entity(
+        gs.morphs.Box(
+            size=(max(0.24, pedestal_size_x + 0.08), 0.015, 0.22),
+            pos=(
+                float(destination_pedestal_position[0]),
+                float(destination_pedestal_position[1] + 0.18),
+                float(destination_pedestal_position[2] + 0.12),
+            ),
+            fixed=True,
+        ),
+        surface=target_surface,
     )
     parcel = scene.add_entity(
         gs.morphs.Box(
@@ -223,6 +265,7 @@ def main() -> int:
             pos=tuple(initial_parcel_position.tolist()),
         ),
         material=gs.materials.Rigid(friction=args.parcel_friction),
+        surface=target_surface,
     )
     robot = scene.add_entity(gs.morphs.MJCF(file=str(asset)))
     camera = None
@@ -464,7 +507,8 @@ def main() -> int:
     recorded_physics_steps = 0
     task_text = args.task_text or (
         f"Classify the {args.parcel_profile} parcel, pick it with tri-suction, "
-        f"transport it to the {args.parcel_profile} sorting station, and place it safely."
+        f"transport it to the {PROFILE_COLOR_NAMES.get(args.parcel_profile, 'blue')} "
+        "sorting station marked with the same color, and place it safely."
     )
     harness_config = MobileHarnessConfig(
         min_progress_ratio=0.75 if args.cooperative_cradle else 0.50
@@ -497,6 +541,8 @@ def main() -> int:
     arm_policy_update_accepts = 0
     arm_policy_update_rejections = 0
     arm_policy_applied_physics_steps = 0
+    latest_policy_goal_verified = False
+    transport_target_base = None
 
     def record_control_frame(
         *,
@@ -518,10 +564,16 @@ def main() -> int:
         nonlocal latest_policy_arm_stage
         nonlocal arm_policy_update_attempts, arm_policy_update_accepts
         nonlocal arm_policy_update_rejections
-        if writer is None and policy_controller is None:
+        nonlocal latest_policy_goal_verified
+        if writer is None and policy_controller is None and args.record_video is None:
             return
         recorded_physics_steps += 1
         if recorded_physics_steps % 8 != 0:
+            return
+        if args.record_video is not None:
+            assert media_camera is not None
+            media_camera.render(rgb=True, depth=False)
+        if writer is None and policy_controller is None:
             return
         if camera is None:
             raise RuntimeError("mobile observation requires an RGB-D camera")
@@ -532,10 +584,12 @@ def main() -> int:
         if cradle_monitor is not None:
             _, right_contact_force_n = cradle_monitor.snapshot()
         rgb, depth, _, _ = camera.render(rgb=True, depth=True)
-        if args.record_video is not None:
-            assert media_camera is not None
-            media_camera.render(rgb=True, depth=False)
         current_qpos = np.asarray(_flat(robot.get_qpos()))
+        encoded_goal_xy = (
+            np.asarray(transport_target_base[:2], dtype=np.float64)
+            if transport_target_base is not None
+            else current_qpos[base_dofs[:2]] + transport_delta[:2]
+        )
         base_velocity = _flat(robot.get_dofs_velocity(base_dofs))
         left_pose = (*_flat(left_hand.get_pos()), *_flat(left_hand.get_quat()))
         right_pose = (*_flat(right_hand.get_pos()), *_flat(right_hand.get_quat()))
@@ -551,8 +605,8 @@ def main() -> int:
             *right_pose,
             left_contact_force_n,
             right_contact_force_n,
-            float(destination_pedestal_position[0]),
-            float(destination_pedestal_position[1]),
+            float(encoded_goal_xy[0]),
+            float(encoded_goal_xy[1]),
             0.0,
         )
         expert_base_action = (
@@ -577,6 +631,15 @@ def main() -> int:
                 task=task_text,
                 expert_action=action_vector,
                 stage=stage,
+                goal_xy=(
+                    transport_target_base[:2]
+                    if stage == "transport" and transport_target_base is not None
+                    else None
+                ),
+            )
+            latest_policy_goal_verified = bool(
+                latest_policy_goal_verified
+                or (telemetry.get("goal_judgement") or {}).get("arrival_verified")
             )
             latest_policy_stage = stage
             arm_residual_telemetry = {
@@ -820,7 +883,7 @@ def main() -> int:
     contact_penetration_m = (
         cooperative_contact_penetration_m
         if args.cooperative_cradle
-        else 0.003 + args.recovery_contact_penetration_delta_m
+        else 0.0005 + args.recovery_contact_penetration_delta_m
     )
     contact_hand_target = (
         current_parcel_position
@@ -842,6 +905,8 @@ def main() -> int:
     parcel_initial_z = _flat(parcel.get_pos())[2]
     contact_start = np.asarray(_flat(hand.get_pos()))
     approach_trace = []
+    stable_seal_steps = 0
+    required_stable_seal_steps = 12
     max_base_speed_m_s = 0.0
     for approach_step in range(2400 if scene_stable else 0):
         current_position = np.asarray(_flat(hand.get_pos()))
@@ -891,12 +956,16 @@ def main() -> int:
         scene.step()
         max_base_speed_m_s = max(max_base_speed_m_s, base_speed)
         sealed, force_n = suction.contact_snapshot()
+        if sealed >= 2 and force_n < 35.0:
+            stable_seal_steps += 1
+        else:
+            stable_seal_steps = 0
         record_control_frame(
             stage="grasp_approach",
             base_action=np.asarray((base_velocity_xy[0], base_velocity_xy[1], 0.0)),
             left_position=dynamic_contact_target,
             left_quaternion=current_quaternion,
-            left_tool_command=1.0 if sealed >= 2 else -1.0,
+            left_tool_command=-1.0,
             right_position=pregrasp_targets[1],
             right_quaternion=pregrasp_quaternions[1],
             right_tool_command=1.0,
@@ -926,10 +995,11 @@ def main() -> int:
                     "actual_hand_quaternion_wxyz": _flat(hand.get_quat()),
                     "parcel_position_m": _flat(parcel.get_pos()),
                     "sealed_cups": sealed,
+                    "stable_seal_steps": stable_seal_steps,
                     "contact_force_n": force_n,
                 }
             )
-        if sealed >= 2 or force_n >= 35.0:
+        if stable_seal_steps >= required_stable_seal_steps or force_n >= 35.0:
             break
         if axis_alignment < math.cos(0.25):
             break
@@ -937,7 +1007,11 @@ def main() -> int:
             break
     robot.control_dofs_velocity(np.zeros(3), base_dofs)
 
-    latched = suction.try_latch()
+    latched = (
+        suction.try_latch()
+        if stable_seal_steps >= required_stable_seal_steps
+        else False
+    )
     if latched and args.cooperative_cradle and cradle_monitor is not None:
         engage_start_right_hand = np.asarray(_flat(right_hand.get_pos()))
         engage_left_qpos = np.asarray(_flat(robot.get_qpos()))[left_arm_dofs]
@@ -1261,6 +1335,10 @@ def main() -> int:
                 (initial_parcel_position + transport_delta)[:2].tolist(),
             )
             <= 0.040
+            and (
+                not args.require_vla_goal_verdict
+                or latest_policy_goal_verified
+            )
             and (
                 not args.cooperative_cradle
                 or (
@@ -1588,6 +1666,10 @@ def main() -> int:
             int(item["tool_command_corrections"]) for item in policy_trace
         ),
         "applied_physics_steps": policy_applied_physics_steps,
+        "goal_verdict_required": args.require_vla_goal_verdict,
+        "goal_arrival_verified": latest_policy_goal_verified,
+        "goal_progress_threshold": 0.90,
+        "goal_arrival_tolerance_m": 0.015,
         "arm_residual": {
             "enabled": args.policy_mode
             in {"base_arm_residual", "base_dual_arm_residual"},
@@ -1668,6 +1750,12 @@ def main() -> int:
             "placement_clearance_m": args.recovery_placement_clearance_m,
         },
         "task_text": task_text,
+        "target_marker": {
+            "color_name": PROFILE_COLOR_NAMES.get(args.parcel_profile, "blue"),
+            "rgb": list(profile_color),
+            "destination_pedestal_position_m": destination_pedestal_position.tolist(),
+            "policy_goal_frame": "mobile_base_world_xy",
+        },
         "policy": policy_summary,
         "tool_axis_world": tool_axis.tolist(),
         "approach_axis_world": approach_axis.tolist(),
@@ -1679,6 +1767,8 @@ def main() -> int:
             else None
         ),
         "contact_penetration_m": contact_penetration_m,
+        "stable_seal_steps": stable_seal_steps,
+        "required_stable_seal_steps": required_stable_seal_steps,
         "max_approach_base_speed_m_s": max_base_speed_m_s,
         "pregrasp_tracking_error_m": list(pregrasp_tracking_error_m),
         "pregrasp_targets_m": [target.tolist() for target in pregrasp_targets],

@@ -61,6 +61,20 @@ closed-loop safety supervision, expert demonstration collection, LeRobot ACT
 training, model-driven evaluation, video capture, and ROCm performance
 measurement.
 
+The latest contact/goal correction removes the non-colliding stock Panda finger
+visuals from the suction arm, reduces commanded contact overlap from 3.0 mm to
+0.5 mm, and requires 12 consecutive physical contact steps before latching.
+Parcels and their requested stations now share a visible profile color and the
+43-D state encodes the mobile-base goal in the correct world frame. A new
+2,800-step SmolVLA candidate was trained on 2,723 audited RGB-D frames. In a
+four-profile development gate it completed 4/4 tasks with zero 35 N violations,
+zero transport direction mismatches, zero transport expert fallbacks, verified
+VLA arrival claims, and 0.60--0.92 cm placement error. This is a selected
+small-sample development result, not a frozen success-rate or open-world
+multi-station classification claim.
+The hashes and compact metrics are recorded in
+[`evidence/mobile_bimanual/goal_marker_vla_v1/result.json`](evidence/mobile_bimanual/goal_marker_vla_v1/result.json).
+
 This directory is the Track 3 source submission. The primary reproduction path
 uses AMD Radeon and ROCm. An NVIDIA development path is included for local
 iteration, but CUDA results do not satisfy the competition execution
@@ -500,6 +514,7 @@ bare-metal setup above is the validated primary path.
 | Peak observed GPU utilization | 83% |
 | ACT training throughput, AMP batch 32 | 80 samples/s |
 | Parcel-catalog regression smoke | 4 of 7 one-episode profiles complete; not a success rate |
+| Contact-correct goal-conditioned VLA development gate | 4/4 profiles; 0.5 mm contact target, 12-step seal, VLA arrival verified, 0 force violations |
 | Deterministic unit suite | 71 passing tests on Radeon |
 
 The 120-episode expert result is the primary capability measurement. The ACT

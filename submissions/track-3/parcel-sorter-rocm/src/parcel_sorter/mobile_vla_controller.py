@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from dataclasses import asdict, dataclass
 from pathlib import Path
 import time
 from typing import Any, Iterable
@@ -19,6 +20,93 @@ from .mobile_harness import (
 from .mobile_primitive_learning import primitive_task_text
 
 
+@dataclass(frozen=True)
+class VLAGoalJudgement:
+    distance_m: float
+    direction_alignment: float
+    direction_consistent: bool
+    arrival_claimed: bool
+    arrival_verified: bool
+    scale_cap: float
+
+
+def update_primitive_progress_peak(
+    previous_peak: float,
+    progress: float | None,
+    *,
+    stage_changed: bool,
+) -> float:
+    """Latch the strongest progress evidence within one primitive only."""
+
+    if not math.isfinite(previous_peak) or not 0.0 <= previous_peak <= 1.0:
+        raise ValueError("previous progress peak must be finite and in [0, 1]")
+    if progress is not None and (
+        not math.isfinite(progress) or not 0.0 <= progress <= 1.0
+    ):
+        raise ValueError("progress must be None or a finite value in [0, 1]")
+    base = 0.0 if stage_changed else previous_peak
+    return max(base, 0.0 if progress is None else progress)
+
+
+def evaluate_vla_goal_judgement(
+    state: Iterable[float],
+    vla_action: Iterable[float],
+    *,
+    stage: str,
+    primitive_complete: bool,
+    goal_xy: Iterable[float] | None = None,
+    arrival_tolerance_m: float = 0.015,
+) -> VLAGoalJudgement:
+    """Check the VLA route proposal and arrival claim against the encoded goal."""
+
+    state_values = tuple(float(value) for value in state)
+    action_values = tuple(float(value) for value in vla_action)
+    if len(state_values) != 43 or len(action_values) < 2:
+        raise ValueError("goal judgement requires 43-D state and a base action")
+    if any(not math.isfinite(value) for value in (*state_values, *action_values[:2])):
+        raise ValueError("goal judgement inputs must be finite")
+    if arrival_tolerance_m <= 0.0 or not math.isfinite(arrival_tolerance_m):
+        raise ValueError("arrival tolerance must be finite and positive")
+    goal_values = (
+        tuple(float(value) for value in goal_xy)
+        if goal_xy is not None
+        else state_values[40:42]
+    )
+    if len(goal_values) != 2 or any(not math.isfinite(value) for value in goal_values):
+        raise ValueError("goal_xy must contain two finite values")
+    goal = (
+        goal_values[0] - state_values[0],
+        goal_values[1] - state_values[1],
+    )
+    distance_m = math.hypot(*goal)
+    proposed = action_values[:2]
+    proposed_speed = math.hypot(*proposed)
+    if distance_m <= 1e-9:
+        alignment = 1.0
+    elif proposed_speed <= 1e-9:
+        alignment = 0.0
+    else:
+        alignment = max(
+            -1.0,
+            min(
+                1.0,
+                (goal[0] * proposed[0] + goal[1] * proposed[1])
+                / (distance_m * proposed_speed),
+            ),
+        )
+    direction_consistent = stage != "transport" or alignment >= -0.05
+    arrival_claimed = bool(primitive_complete and stage == "transport")
+    arrival_verified = bool(arrival_claimed and distance_m <= arrival_tolerance_m)
+    return VLAGoalJudgement(
+        distance_m=distance_m,
+        direction_alignment=alignment,
+        direction_consistent=direction_consistent,
+        arrival_claimed=arrival_claimed,
+        arrival_verified=arrival_verified,
+        scale_cap=1.0 if direction_consistent else 0.0,
+    )
+
+
 class MobileSmolVLAHarnessController:
     """Run low-rate VLA inference while a deterministic controller stays in charge."""
 
@@ -30,7 +118,7 @@ class MobileSmolVLAHarnessController:
         harness_config: MobileHarnessConfig = MobileHarnessConfig(),
         force_memory_enabled: bool = False,
         depth_sidecar_enabled: bool = False,
-        primitive_progress_threshold: float = 0.95,
+        primitive_progress_threshold: float = 0.90,
     ) -> None:
         import torch
         from lerobot.configs.policies import PreTrainedConfig
@@ -76,6 +164,8 @@ class MobileSmolVLAHarnessController:
             raise ValueError("primitive_progress_threshold must be in (0, 1]")
         self._uses_progress_channel = output_shape == (20,)
         self._primitive_progress_threshold = float(primitive_progress_threshold)
+        self._primitive_progress_peak = 0.0
+        self._progress_stage: str | None = None
         self._seed = int(seed)
         self._calls = 0
         self._reset()
@@ -89,6 +179,7 @@ class MobileSmolVLAHarnessController:
         task: str,
         expert_action: Iterable[float],
         stage: str,
+        goal_xy: Iterable[float] | None = None,
     ) -> tuple[tuple[float, ...], dict[str, Any]]:
         import numpy as np
 
@@ -131,6 +222,25 @@ class MobileSmolVLAHarnessController:
         progress = (
             min(1.0, max(0.0, progress_raw)) if progress_raw is not None and math.isfinite(progress_raw) else None
         )
+        instantaneous_complete = bool(
+            progress is not None and progress >= self._primitive_progress_threshold
+        )
+        self._primitive_progress_peak = update_primitive_progress_peak(
+            self._primitive_progress_peak,
+            progress,
+            stage_changed=self._progress_stage != stage,
+        )
+        self._progress_stage = stage
+        primitive_complete = bool(
+            self._primitive_progress_peak >= self._primitive_progress_threshold
+        )
+        goal_judgement = evaluate_vla_goal_judgement(
+            state_values,
+            predicted,
+            stage=stage,
+            primitive_complete=primitive_complete,
+            goal_xy=goal_xy,
+        )
         self._force_history_n.append(max(abs(state_values[38]), abs(state_values[39])))
         force_memory = force_memory_scale_cap(
             self._force_history_n,
@@ -139,12 +249,15 @@ class MobileSmolVLAHarnessController:
         depth_risk = depth_risk_scale_cap(depth) if self._depth_sidecar_enabled else None
         force_scale_cap = force_memory.scale_cap if self._force_memory_enabled else 1.0
         depth_scale_cap = depth_risk.scale_cap if depth_risk is not None else 1.0
-        maximum_vla_scale = min(force_scale_cap, depth_scale_cap)
-        maximum_vla_scale_reason = (
-            "depth_geometry_scale_gate"
-            if depth_scale_cap < force_scale_cap
-            else "force_memory_scale_gate"
+        maximum_vla_scale = min(
+            force_scale_cap, depth_scale_cap, goal_judgement.scale_cap
         )
+        if goal_judgement.scale_cap < min(force_scale_cap, depth_scale_cap):
+            maximum_vla_scale_reason = "goal_direction_mismatch"
+        elif depth_scale_cap < force_scale_cap:
+            maximum_vla_scale_reason = "depth_geometry_scale_gate"
+        else:
+            maximum_vla_scale_reason = "force_memory_scale_gate"
         decision = select_mobile_harness_action(
             state=state_values,
             expert_action=expert_values,
@@ -167,9 +280,10 @@ class MobileSmolVLAHarnessController:
             "primitive_progress_enabled": self._uses_progress_channel,
             "primitive_progress_raw": progress_raw,
             "primitive_progress": progress,
-            "primitive_complete": (
-                progress is not None and progress >= self._primitive_progress_threshold
-            ),
+            "primitive_progress_peak": self._primitive_progress_peak,
+            "primitive_complete_instantaneous": instantaneous_complete,
+            "primitive_complete": primitive_complete,
+            "goal_judgement": asdict(goal_judgement),
             "selected_scale": decision.selected.scale,
             "fallback_to_expert": decision.fallback_to_expert,
             "emergency_stop": decision.emergency_stop,

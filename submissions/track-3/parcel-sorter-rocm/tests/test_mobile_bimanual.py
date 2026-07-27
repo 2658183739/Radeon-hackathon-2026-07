@@ -178,6 +178,12 @@ class MobileBimanualTests(unittest.TestCase):
             left_root = ET.parse(left_include.attrib["file"]).getroot()
             gripper = left_root.find(".//body[@name='panda0_gripper']")
             self.assertIsNotNone(gripper)
+            self.assertFalse(
+                any(
+                    geom.attrib.get("name", "").startswith("stock_finger")
+                    for geom in gripper.findall("./body//geom")
+                )
+            )
             stock_collision_geoms = [
                 geom
                 for geom in gripper.findall("./geom") + gripper.findall("./body//geom")

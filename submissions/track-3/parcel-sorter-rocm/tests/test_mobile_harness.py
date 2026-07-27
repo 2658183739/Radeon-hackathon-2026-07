@@ -8,6 +8,10 @@ from parcel_sorter.mobile_harness import (
     select_mobile_harness_action,
     transport_deadline_requires_expert,
 )
+from parcel_sorter.mobile_vla_controller import (
+    evaluate_vla_goal_judgement,
+    update_primitive_progress_peak,
+)
 
 
 def _state(*, force_n: float = 0.0) -> tuple[float, ...]:
@@ -27,6 +31,46 @@ def _action(*, left_tool: float = 1.0) -> tuple[float, ...]:
 
 
 class MobileHarnessTests(unittest.TestCase):
+    def test_progress_peak_is_latched_within_stage_and_reset_between_stages(self) -> None:
+        peak = update_primitive_progress_peak(0.0, 0.92, stage_changed=True)
+        self.assertEqual(peak, 0.92)
+        self.assertEqual(
+            update_primitive_progress_peak(peak, 0.78, stage_changed=False),
+            0.92,
+        )
+        self.assertEqual(
+            update_primitive_progress_peak(peak, 0.10, stage_changed=True),
+            0.10,
+        )
+
+    def test_goal_judgement_blocks_a_transport_proposal_away_from_target(self) -> None:
+        state = list(_state())
+        state[0:2] = [0.0, 0.0]
+        state[40:42] = [0.30, 0.0]
+        judgement = evaluate_vla_goal_judgement(
+            state,
+            (-0.04, 0.0),
+            stage="transport",
+            primitive_complete=False,
+            goal_xy=(0.30, 0.0),
+        )
+        self.assertFalse(judgement.direction_consistent)
+        self.assertEqual(judgement.scale_cap, 0.0)
+
+    def test_goal_judgement_accepts_arrival_only_inside_tolerance(self) -> None:
+        state = list(_state())
+        state[0:2] = [0.29, 0.0]
+        state[40:42] = [0.30, 0.0]
+        judgement = evaluate_vla_goal_judgement(
+            state,
+            (0.01, 0.0),
+            stage="transport",
+            primitive_complete=True,
+            goal_xy=(0.30, 0.0),
+        )
+        self.assertTrue(judgement.arrival_claimed)
+        self.assertTrue(judgement.arrival_verified)
+
     def test_force_memory_preserves_full_scale_for_stable_low_contact(self) -> None:
         decision = force_memory_scale_cap((4.0, 4.5, 4.2, 4.6))
         self.assertEqual(decision.scale_cap, 1.0)

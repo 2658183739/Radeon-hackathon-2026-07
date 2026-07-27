@@ -359,18 +359,21 @@ def _patch_mobile_tool_chain(
 
 
 def _disable_stock_gripper_collisions(gripper: ET.Element) -> None:
-    """Turn the Panda gripper into a dedicated suction tool without hidden contacts."""
+    """Turn the Panda gripper into a dedicated suction tool.
+
+    The finger bodies and joints remain available to the upstream model, but their
+    geometry must not be rendered or collide. Keeping visible fingers after
+    disabling their collision makes valid suction contact look like penetration.
+    """
 
     for geom in gripper.findall("./geom"):
         if geom.attrib.get("class", "").endswith("_col"):
             geom.set("contype", "0")
             geom.set("conaffinity", "0")
     for finger in gripper.findall("./body"):
-        for geom in finger.findall(".//geom"):
-            if geom.attrib.get("class", "").endswith("_viz"):
-                continue
-            geom.set("contype", "0")
-            geom.set("conaffinity", "0")
+        for parent in finger.iter():
+            for geom in tuple(parent.findall("geom")):
+                parent.remove(geom)
 
 
 def _append_tri_suction_geometries(gripper: ET.Element) -> None:
@@ -390,6 +393,7 @@ def _append_tri_suction_geometries(gripper: ET.Element) -> None:
                 "pos": position,
                 "density": "1100",
                 "group": "3",
+                "rgba": "0.04 0.42 0.16 1",
             },
         )
         ET.SubElement(
