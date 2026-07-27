@@ -68,8 +68,9 @@ if remaining_distance > remaining_time * expert_forward_speed * capacity:
 
 1. **PASH 残差决策层：**把 VLA 提议、专家进度、接触力时间记忆和任务截止时间统一到可审计
    的候选选择问题中，而不是让 VLA 直接接管力矩或工具。
-2. **可拒绝的近线自我改进：**失败回放、桥接课程、Radeon 再训练、冻结评估和 Wilson 晋级
-   相互隔离；v3 被拒绝是方法正确工作的负证据。
+2. **可拒绝的多时间尺度自我改进：**回合内 Force-Memory、尝试间 primitive 缺口/双层经验
+   记忆、回合间桥接课程/Radeon 再训练、冻结评估和 Wilson 晋级相互隔离；v3 被拒绝是方法
+   正确工作的负证据。
 3. **负载感知移动双臂形态：**三杯柔顺吸盘与实体 V 型托架通过密封、持续接触、分段双臂 IK
    和落位确认，覆盖单平行夹爪长度范围外的刚性长箱。
 
@@ -85,6 +86,7 @@ if remaining_distance > remaining_time * expert_forward_speed * capacity:
 | 左臂残差，100+100 | 94/100 对 94/100，误差恶化 | 更大动作自由度被精度门拒绝 |
 | v19-v24 协同链 | 2 个成功、4 个保留失败机制 | 分段 IK、落位门、截止门的因果链 |
 | PASH-v25 单案例 | 成功；11 次收紧、2 次回退、0 急停 | Force-Memory 已进入 Radeon 闭环且未破坏该案例 |
+| 自适应重试单案例 | 首试成功；84 次推理、30/30 左臂 IK | primitive/双层记忆入口已在 Radeon 运行，尚无重试收益结论 |
 
 ## 论文图表
 
@@ -119,4 +121,3 @@ mailer、electronics box 和 medium carton；21 类 catalog 是能力目录，�
 - SmolVLA、SmolVLM2、LeRobot、Genesis 和 Bi-Franka 来源及 Apache-2.0 许可证必须保留。
 - 使用“系统级 PASH-VLA 方法”，不使用“全新基础模型”或“达到顶尖机器人 80%”等无定义声明。
 - README 的“开发过程”和“代码来源说明”必须与最终提交代码一致。
-

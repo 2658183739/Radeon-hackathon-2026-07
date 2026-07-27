@@ -1283,6 +1283,23 @@ def main() -> int:
         "requested_hz": args.policy_hz if policy_controller is not None else 0,
         "minimum_expert_progress_ratio": harness_config.min_progress_ratio,
         "force_memory_enabled": args.force_memory_harness,
+        "force_memory_tighten_count": sum(
+            bool(item["force_memory_enabled"])
+            and float(item["force_memory"]["scale_cap"]) < 1.0 - 1e-9
+            for item in policy_trace
+        ),
+        "force_memory_full_fallback_count": sum(
+            bool(item["force_memory_enabled"])
+            and float(item["force_memory"]["scale_cap"]) <= 1e-9
+            for item in policy_trace
+        ),
+        "mean_force_memory_scale_cap": (
+            statistics.fmean(
+                float(item["force_memory"]["scale_cap"]) for item in policy_trace
+            )
+            if policy_trace
+            else None
+        ),
         "transport_capacity_ratio": transport_capacity_ratio,
         "transport_deadline_handoff": transport_deadline_handoff,
         "transport_deadline_handoff_step": transport_deadline_handoff_step,

@@ -34,6 +34,10 @@ The force-memory branch is an explicit development candidate and is not silently
 the frozen v2 checkpoint before its matched Radeon gate.
 The corresponding [paper blueprint](docs/PASH_VLA_PAPER_BLUEPRINT.md) fixes the research questions,
 equations, ablation table, figure plan, evidence boundaries, and publication-integrity checklist.
+The new [PASH adaptive-retry loop](docs/PASH_ADAPTIVE_RETRY.md) adds primitive-gap diagnosis,
+task/global strategy memory, at most three audited attempts, and an isolated primitive-acquisition
+writeback manifest. Its first single-Radeon development case succeeded on the first attempt; this
+verifies integration but does not yet establish a retry-recovery rate.
 
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis

@@ -84,9 +84,10 @@ v20 expert run rather than tuned backward from v24 or v25 success.
 1. **PASH residual decision layer.** VLA proposals, expert progress, temporal
    force memory, and deadline liveness become one auditable candidate-selection
    problem instead of giving the VLA direct torque or tool authority.
-2. **Rejectable near-line self-improvement.** Failure replay, bridge curricula,
-   Radeon retraining, frozen evaluation, and Wilson promotion remain isolated.
-   Rejection of v3 is negative evidence that the guard works.
+2. **Rejectable multi-timescale self-improvement.** Within-rollout Force Memory,
+   between-attempt primitive-gap/task-global memory, and between-campaign bridge
+   curricula, Radeon retraining, frozen evaluation, and Wilson promotion remain
+   isolated. Rejection of v3 is negative evidence that the guard works.
 3. **Payload-aware mobile bimanual embodiment.** Three compliant cups and a
    physical V-cradle combine seal checks, persistent contact, incremental
    dual-arm IK, and stable placement confirmation for long rigid cartons.
@@ -103,6 +104,7 @@ v20 expert run rather than tuned backward from v24 or v25 success.
 | Left-arm residual, paired 100+100 | 94/100 versus 94/100; worse placement | The precision gate rejected excess action freedom |
 | Cooperative chain v19-v24 | Two passes and four retained mechanism failures | Incremental IK, placement confirmation, and deadline gate form a causal chain |
 | PASH-v25 mechanism case | Pass; 11 tightenings, 2 fallbacks, 0 emergency stops | Force Memory entered the Radeon loop without breaking this case |
+| Adaptive-retry mechanism case | First attempt passed; 84 inferences and 30/30 left-arm IK | Primitive/task-global memory path ran on Radeon; no retry-benefit claim yet |
 
 ## Planned paper figures and tables
 
