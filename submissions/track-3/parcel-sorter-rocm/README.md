@@ -32,6 +32,8 @@ The resulting method is documented as [PASH-VLA](docs/PASH_VLA_METHOD.md): a pay
 Force-Memory Harness candidate layered over SmolVLA, with failure replay and isolated promotion.
 The force-memory branch is an explicit development candidate and is not silently substituted for
 the frozen v2 checkpoint before its matched Radeon gate.
+The corresponding [paper blueprint](docs/PASH_VLA_PAPER_BLUEPRINT.md) fixes the research questions,
+equations, ablation table, figure plan, evidence boundaries, and publication-integrity checklist.
 
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis

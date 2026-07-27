@@ -25,6 +25,8 @@ RGB-D 完成一个开发任务，但 Harness 配对 MAE 回归 1.35%、离线延
 当前方法卡见 [PASH-VLA：负载感知安全 Harness VLA](docs/PASH_VLA_METHOD_CN.md)：它把
 SmolVLA、接触力短时记忆、Harness-Lite、三吸盘/V 型托架和失败驱动隔离晋级组合起来。力记忆
 分支目前是显式开发候选，尚未在匹配 Radeon 评测通过前替换冻结 v2 权重。
+对应的[论文蓝图](docs/PASH_VLA_PAPER_BLUEPRINT_CN.md)固定了研究问题、公式、消融表、图表规划、
+证据边界和投稿诚信检查，英文版见 [Paper Blueprint](docs/PASH_VLA_PAPER_BLUEPRINT.md)。
 
 英文 [README.md](README.md) 是评审复现的主入口；中文正式报告见
 [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)。优化顺序见
