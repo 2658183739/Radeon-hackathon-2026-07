@@ -595,6 +595,16 @@ mechanism case. The task completed with 1.28 cm placement error, 79 SmolVLA call
 fallbacks, zero emergency stops, and 3,578 learned-residual physics steps. This single case is not
 a success rate, a generalization result, or a checkpoint promotion.
 
+`training/pash-primitive-smolvla-rocm-2800step-v1.json` and its SHA manifest bind the full
+2,800-step, batch-8 Radeon run, all 2,800 logged losses, the saved checkpoint, and the 42-stage
+offline ablation. Harness brought 42/42 samples into the safety envelope while raw VLA passed
+0/42. `mobile_bimanual/primitive_learning_2800step_v1/summary.json` records the same closed-loop
+case with the final candidate: success at 0.90 cm error, 69 calls, two fallbacks, zero emergency
+stops, and no deadline handoff. The paired reductions are descriptive only; the candidate remains
+unpromoted until the existing frozen gate is run. The PNG/PDF training curve is generated from all
+2,800 log entries by `scripts/plot_primitive_training_curve.py`; it shows one run without an
+uncertainty band.
+
 ## PASH dual-arm geometry Harness
 
 `mobile_bimanual/dual_arm_depth_v1/` contains the complete Radeon summary,

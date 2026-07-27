@@ -418,6 +418,13 @@ checkpoint 哈希和一次推理证据，原始训练日志一并保留。
 以 1.28 cm 放置误差完成，调用 SmolVLA 79 次，Harness 完整回退 2 次，紧急停止 0 次，学习
 残差实际作用 3,578 个物理步。该单案例不是成功率、泛化结果或 checkpoint 晋级。
 
+`training/pash-primitive-smolvla-rocm-2800step-v1.json` 及 SHA 清单绑定完整 2,800 步、batch 8
+Radeon 训练、全部 2,800 条损失、最终 checkpoint 与 42 阶段离线消融。Harness 将 42/42 样本
+带回安全包络，原始 VLA 为 0/42。`mobile_bimanual/primitive_learning_2800step_v1/summary.json`
+记录最终候选在同一闭环案例中以 0.90 cm 误差成功，调用 69 次、回退 2 次、急停 0 次且未触发
+截止时间接管。配对下降只作描述；在运行既有冻结门前候选仍不晋级。PNG/PDF 训练曲线由
+`scripts/plot_primitive_training_curve.py` 从全部 2,800 条日志生成；它只有一次运行，不绘制误差带。
+
 ## PASH 双臂几何 Harness
 
 `mobile_bimanual/dual_arm_depth_v1/` 保存完整 Radeon summary、运行日志、压缩指标和本地/远端 SHA-256。固定的 1.44 m 超长纸箱完成抬升、30 cm 运输、放置和释放；双臂 IK 接受 24 次，左右臂各有 24 次非零学习残差，累计执行 2,356 个物理步，工具间距变化为 0。最大托架接触力 30.68 N，放置误差 3.19 cm，断吸和紧急停止均为 0。深度侧路判断场景清晰，因此没有压低权限。该证据是单案例机理验证，不是泛化率或重试收益。

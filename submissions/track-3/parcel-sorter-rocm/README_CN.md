@@ -31,8 +31,9 @@ SmolVLA、接触力短时记忆、Harness-Lite、三吸盘/V 型托架和失败�
 任务/全局双层策略记忆、最多三次独立审计尝试和隔离的技能写回清单。首个单 Radeon 开发案例
 第一次尝试即成功；这验证了集成路径，但尚不构成重试恢复率。
 新的[PASH Primitive 学习扩展](docs/PASH_PRIMITIVE_LEARNING_CN.md)把审计示范转换为六种 primitive
-指令和一个进度通道。4,557 帧数据审计与 10 步 Radeon SmolVLA 冒烟均通过；这只证明训练和重载
-链路，尚未证明任务提升，因此冻结 v2 仍保持激活，候选必须通过原有晋级门。
+指令和一个进度通道。4,557 帧数据审计、2,800 步 Radeon 训练、42 样本离线 Harness 消融和
+一个匹配闭环机理对照均通过；候选放置误差为 0.90 cm，但单次配对不证明泛化，因此冻结 v2
+仍保持激活，候选必须通过原有晋级门。
 
 英文 [README.md](README.md) 是评审复现的主入口；中文正式报告见
 [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)。优化顺序见

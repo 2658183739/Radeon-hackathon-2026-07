@@ -446,3 +446,19 @@ task and 20-D action, and the 10-step Radeon run completed.
 checkpoint reloaded for one Harness call. This establishes implementation
 wiring only; the candidate is not promoted and no task-improvement or
 generalization claim is made. See `docs/PASH_PRIMITIVE_LEARNING.md`.
+
+**Full-candidate decision.** After the wiring smoke passed, the next useful
+step was model learning rather than another controller feature. The same frozen
+4,557-frame dataset was therefore trained for 2,800 AMP updates with batch 8
+and four workers on one Radeon. No new profiles, thresholds, or holdout samples
+were introduced. The complete log contains exactly 2,800 finite updates; mean
+loss changed from 1.5761 over the first 100 to 0.0733 over the final 100.
+
+**Harness decision.** Offline raw actions passed the registered envelope on
+0/42 episode-stage samples even after training. Safety clipping and Harness
+passed 42/42, so lower imitation loss was not used to expand model authority.
+In the existing deterministic closed-loop case, both the 10-step reference and
+2,800-step candidate succeeded; placement error changed from 1.28 cm to 0.90
+cm and calls from 79 to 69. These are paired descriptive observations only.
+The production checkpoint remains unchanged until the existing frozen
+promotion gate is run.

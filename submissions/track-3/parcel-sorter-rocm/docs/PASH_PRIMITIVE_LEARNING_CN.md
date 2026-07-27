@@ -2,17 +2,18 @@
 
 ## 当前状态
 
-本扩展把原来只有摘要的 PASH 技能写回候选，推进为可训练的 primitive 数据。代码已经完成，
-并通过单张 Radeon 训练冒烟；它还没有通过冻结晋级 campaign，因此正式运行仍保留 v2 checkpoint。
+本扩展把原来只有摘要的 PASH 技能写回候选，推进为可训练的 primitive 数据。它已经完成 10 步
+接线冒烟和 2,800 步单 Radeon 候选训练；但还没有通过冻结晋级 campaign，因此正式运行仍保留
+v2 checkpoint。
 
 | 能力 | 当前证据 |
 | --- | --- |
 | 事件式 primitive 切分 | 4,557/4,557 帧与只用于审计的阶段标签一致 |
 | 可按 primitive 控制的数据集 | 7 个 episode、24 条任务文本、43 维状态、RGB、20 维动作 |
-| 带进度通道的 SmolVLA 训练 | 单 Radeon/ROCm 完成 10 步 AMP 训练 |
-| checkpoint 重载与 Harness 推理 | 一次有限 20 维预测，Harness 输出安全 19 维执行动作 |
-| 闭环机理案例 | 一个小纸箱任务完成，放置误差 1.28 cm |
-| 任务提升或泛化 | 冒烟与单次闭环案例均不能证明 |
+| 带进度通道的 SmolVLA 训练 | 单 Radeon/ROCm 完成 2,800 步、batch 8 AMP 训练 |
+| 离线 Harness 消融 | 42/42 阶段样本进入安全包络；原始 VLA 为 0/42 |
+| 闭环机理配对 | 两个 checkpoint 均成功；2,800 步候选放置误差 0.90 cm |
+| 任务提升或泛化 | 单次配对案例不能证明 |
 
 ## 方法
 
@@ -78,17 +79,43 @@ ROCm 7.2.1 上完成 10 步 AMP 并保存 checkpoint。模型 SHA-256 为
 - `evidence/training/pash-primitive-smolvla-single-inference-rocm-v1.json`
 - `evidence/training/pash-primitive-smolvla-rocm-smoke-v1.log`
 
-## 闭环机理结果
+## 完整 Radeon 候选训练
 
-随后在同一张 Radeon 上，把 10 步进度通道 checkpoint 加载到未放宽门限的 Genesis Harness
-闭环。一个确定性 `small_carton` 开发案例完成抓取、运输、放置与释放，最终误差为 1.28 cm。
-吸盘吸附 1 次、断吸 0 次，接触峰值 7.93 N、吸附力峰值 11.84 N。SmolVLA 共调用 79 次，
-热态平均/P95 延迟为 201.67/210.05 ms。Harness 完整回退 2 次、紧急停止 0 次；学习式底盘
-残差实际作用 3,578 个物理步，同时确定性的运输截止时间接管仍保留最高权限。
+同一审计数据用于一次 2,800 步候选训练，batch size 为 8，数据进程为 4，启用 AMP，仅使用一张
+Radeon。任务记录全部 2,800 次更新，耗时 442 秒，平均 6.33 step/s。前 100 步平均损失为
+1.5761，最后 100 步为 0.0733。保存模型 SHA-256 为
+`b83d5299123e1cfeac3463679e021816f0999799492f6fafea828bf823761482`。
 
-压缩证据位于 `evidence/mobile_bimanual/primitive_learning_v1/summary.json`。这只是一个开发
-机理案例，不构成成功率、收敛性、primitive 完成度准确率、未见物体泛化或相对保留 v2
-checkpoint 的晋级结论。
+checkpoint 重载后评估每个 episode-stage 对的中间帧，共 7 个 episode x 6 个 primitive = 42
+个样本。primitive 进度 MAE 为 0.1157，热态推理平均/P95 为 146.55/147.47 ms。原始 VLA 动作
+在 42 个样本上均超出已注册专家包络；确定性裁剪与 Harness-Lite 把 42/42 拉回安全包络。
+Harness-Lite 将平均动作 MAE 从原始 0.00656 降至 0.00527，离线回退和急停均为 0。这说明
+训练损失下降不能替代 Harness 执行权限。
+
+证据文件：
+
+- `evidence/training/pash-primitive-smolvla-rocm-2800step-v1.json`
+- `evidence/training/pash-primitive-smolvla-rocm-2800step-v1.log`
+- `evidence/training/pash-primitive-smolvla-2800step-offline-ablation-v1.json`
+- `evidence/training/pash-primitive-smolvla-2800step-training-curve-v1.png`
+- `evidence/training/pash-primitive-smolvla-2800step-training-curve-v1.pdf`
+- `evidence/training/pash-primitive-smolvla-rocm-2800step-v1-SHA256SUMS`
+
+曲线保留每次更新，并叠加固定 100 步滑动均值。它只有一条训练轨迹（`n=1 run`），所以不添加
+不真实的误差带或收敛结论。`scripts/plot_primitive_training_curve.py` 可从完整日志复现 PNG/PDF，
+并会拒绝更新数量不匹配的日志。
+
+## 匹配闭环机理对照
+
+10 步冒烟 checkpoint 与 2,800 步候选先后加载到同一个未放宽门限的 `small_carton` Harness
+任务。两者都完成抓取、运输、放置和释放。候选将放置误差从 1.28 cm 降到 0.90 cm，推理调用
+从 79 次降到 69 次；吸附 1 次、断吸 0 次，接触峰值 5.48 N，Harness 完整回退 2 次、急停 0
+次，并且不再触发确定性的运输截止时间接管。
+
+压缩证据位于 `evidence/mobile_bimanual/primitive_learning_v1/` 和
+`evidence/mobile_bimanual/primitive_learning_2800step_v1/`。29.4% 放置误差下降和 12.7% 调用
+下降只是单个确定性配对案例的描述结果，不构成成功率、因果或统计提升、收敛、未见物体泛化
+或相对保留 v2 checkpoint 的晋级结论。
 
 ## 失败与修复记录
 

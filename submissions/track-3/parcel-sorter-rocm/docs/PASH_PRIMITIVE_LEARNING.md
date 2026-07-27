@@ -3,18 +3,19 @@
 ## Status
 
 This extension converts the existing PASH retry writeback from a summary-only
-candidate into trainable primitive episodes. It is implemented and has passed a
-single-Radeon training smoke test. It has **not** yet passed the frozen promotion
-campaign, so the retained v2 checkpoint remains the production checkpoint.
+candidate into trainable primitive episodes. It has completed both a 10-step
+wiring smoke and a 2,800-step single-Radeon candidate training run. It has
+**not** yet passed the frozen promotion campaign, so the retained v2 checkpoint
+remains the production checkpoint.
 
 | Capability | Evidence status |
 | --- | --- |
 | Event-based primitive segmentation | 4,557/4,557 frames agree with held-out instrumentation labels |
 | Primitive-steerable dataset | 7 episodes, 24 task texts, 43-D state, RGB, 20-D action |
-| Progress-channel SmolVLA training | 10 AMP steps completed on one Radeon/ROCm device |
-| Checkpoint reload and Harness inference | one finite 20-D prediction; Harness emitted a safe 19-D action |
-| Closed-loop mechanism case | one small-carton task completed with 1.28 cm placement error |
-| Task improvement or generalization | not established by the smoke or single closed-loop case |
+| Progress-channel SmolVLA training | 2,800 AMP steps, batch 8, completed on one Radeon/ROCm device |
+| Offline Harness ablation | 42/42 stage samples entered the safety envelope; raw VLA was 0/42 |
+| Closed-loop mechanism pair | both checkpoints succeeded; 2,800-step candidate placed at 0.90 cm |
+| Task improvement or generalization | not established by the single paired case |
 
 ## Method
 
@@ -96,22 +97,52 @@ Evidence files:
 - `evidence/training/pash-primitive-smolvla-single-inference-rocm-v1.json`
 - `evidence/training/pash-primitive-smolvla-rocm-smoke-v1.log`
 
-## Closed-loop mechanism result
+## Full Radeon candidate training
 
-The 10-step progress-channel checkpoint was then loaded into the unmodified
-Harness-controlled Genesis task on the same Radeon. One deterministic
-`small_carton` development case completed pickup, transport, placement, and
-release with 1.28 cm placement error. The suction system latched once and never
-broke; peak contact and suction forces were 7.93 N and 11.84 N. SmolVLA was
-queried 79 times, with 201.67 ms warm mean and 210.05 ms warm P95 latency. Two
-Harness fallbacks occurred, no emergency stop occurred, and the learned base
-residual was applied for 3,578 physics steps while the deterministic transport
-deadline handoff remained authoritative.
+The same audited dataset was used for one 2,800-step candidate run with batch
+size 8, four data workers, AMP, and one Radeon. The job logged all 2,800 updates
+and completed in 442 seconds at 6.33 steps/s. Mean loss over the first 100
+updates was 1.5761 and over the final 100 was 0.0733. The saved model SHA-256 is
+`b83d5299123e1cfeac3463679e021816f0999799492f6fafea828bf823761482`.
 
-The compact evidence is
-`evidence/mobile_bimanual/primitive_learning_v1/summary.json`. This is one
-development mechanism case. It does not establish a task success rate,
-convergence, primitive-completion accuracy, unseen-object generalization, or a
+Checkpoint reload evaluated the middle frame of every episode-stage pair: 7
+episodes x 6 primitives = 42 samples. Primitive-progress MAE was 0.1157 and
+warm inference mean/P95 was 146.55/147.47 ms. Raw VLA actions were outside the
+registered expert envelope on all 42 samples; deterministic clipping and
+Harness-Lite brought 42/42 inside. Harness-Lite reduced mean action MAE from
+0.00656 raw to 0.00527 with zero offline fallbacks and emergency stops. This is
+why the project retains Harness authority instead of treating lower training
+loss as permission for unconstrained execution.
+
+Evidence files:
+
+- `evidence/training/pash-primitive-smolvla-rocm-2800step-v1.json`
+- `evidence/training/pash-primitive-smolvla-rocm-2800step-v1.log`
+- `evidence/training/pash-primitive-smolvla-2800step-offline-ablation-v1.json`
+- `evidence/training/pash-primitive-smolvla-2800step-training-curve-v1.png`
+- `evidence/training/pash-primitive-smolvla-2800step-training-curve-v1.pdf`
+- `evidence/training/pash-primitive-smolvla-rocm-2800step-v1-SHA256SUMS`
+
+The curve shows every logged update plus a fixed 100-update rolling mean. It is
+one training trajectory (`n=1 run`), so no uncertainty band or convergence
+claim is added. `scripts/plot_primitive_training_curve.py` reproduces both
+formats from the complete log and rejects logs with a different update count.
+
+## Matched closed-loop mechanism comparison
+
+Both the 10-step smoke checkpoint and the 2,800-step candidate were loaded into
+the same unmodified Harness-controlled `small_carton` task. Both completed
+pickup, transport, placement, and release. The candidate reduced placement
+error from 1.28 cm to 0.90 cm and inference calls from 79 to 69. Its suction
+latched once and never broke; peak contact force was 5.48 N, Harness fell back
+twice, emergency stops were zero, and the deterministic transport deadline
+handoff was no longer needed.
+
+Compact evidence is in `evidence/mobile_bimanual/primitive_learning_v1/` and
+`evidence/mobile_bimanual/primitive_learning_2800step_v1/`. The 29.4% placement
+error reduction and 12.7% call reduction are descriptive results for one
+deterministic paired case. They do not establish a task success rate, causal or
+statistical improvement, convergence, unseen-object generalization, or a
 promotion over the retained v2 checkpoint.
 
 ## Failure record
