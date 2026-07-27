@@ -26,10 +26,24 @@ from parcel_sorter.mobile_self_improvement_cycle import (
 )
 
 
-STEP_ORDER = (
+BASE_STEP_ORDER = (
     "preflight",
     "collect_curriculum",
     "audit_curriculum",
+    "train_candidate",
+    "offline_ablation",
+    "evaluate_baseline",
+    "summarize_baseline",
+    "evaluate_candidate",
+    "summarize_candidate",
+    "promotion_gate",
+)
+PRIMITIVE_STEP_ORDER = (
+    "preflight",
+    "collect_curriculum",
+    "audit_curriculum",
+    "build_primitive_dataset",
+    "audit_primitive_dataset",
     "train_candidate",
     "offline_ablation",
     "evaluate_baseline",
@@ -54,9 +68,14 @@ def main() -> int:
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--policy-hz", type=int, default=3)
     parser.add_argument("--evaluation-workers", type=int, default=4)
+    parser.add_argument(
+        "--primitive-learning",
+        action="store_true",
+        help="relabel demonstrations as primitives and train a progress-channel SmolVLA",
+    )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--stop-after", choices=STEP_ORDER)
+    parser.add_argument("--stop-after", choices=tuple(dict.fromkeys((*BASE_STEP_ORDER, *PRIMITIVE_STEP_ORDER))))
     args = parser.parse_args()
     if args.training_steps < 1 or min(
         args.batch_size, args.policy_hz, args.evaluation_workers
@@ -95,6 +114,8 @@ def main() -> int:
         _freeze_prepared_artifact(path, payload, resume=args.resume)
 
     training_dir = cycle_dir / "curriculum-collection"
+    primitive_dataset = cycle_dir / "primitive-training-dataset"
+    candidate_dataset = primitive_dataset if args.primitive_learning else training_dir / "lerobot_dataset"
     candidate_dir = cycle_dir / "candidate-training"
     candidate_checkpoint = (
         candidate_dir / "checkpoints" / f"{args.training_steps:06d}" / "pretrained_model"
@@ -116,15 +137,28 @@ def main() -> int:
             "--output", str(cycle_dir / "curriculum-dataset-audit.json"),
             "--min-episodes", str(len(curriculum["episodes"])),
         ],
+        "build_primitive_dataset": [
+            sys.executable,
+            str(root / "scripts/build_mobile_primitive_dataset.py"),
+            "--source", str(training_dir / "lerobot_dataset"),
+            "--output", str(primitive_dataset),
+        ],
+        "audit_primitive_dataset": [
+            sys.executable,
+            str(root / "scripts/audit_mobile_dataset.py"),
+            "--dataset-root", str(primitive_dataset),
+            "--output", str(cycle_dir / "primitive-dataset-audit.json"),
+            "--min-episodes", str(len(curriculum["episodes"])),
+        ],
         "train_candidate": [
             "bash", str(root / "scripts/train_mobile_smolvla_rocm.sh"),
-            str(training_dir / "lerobot_dataset"), str(candidate_dir),
+            str(candidate_dataset), str(candidate_dir),
         ],
         "offline_ablation": [
             sys.executable,
             str(root / "scripts/smoke_mobile_smolvla_inference_rocm.py"),
             "--checkpoint", str(candidate_checkpoint),
-            "--dataset-root", str(training_dir / "lerobot_dataset"),
+            "--dataset-root", str(candidate_dataset),
             "--output", str(cycle_dir / "candidate-offline-ablation.json"),
         ],
         "evaluate_baseline": _campaign_command(
@@ -150,6 +184,8 @@ def main() -> int:
             root, candidate_rollouts, cycle_dir / "candidate-holdout-audit.json"
         ),
     }
+    step_order = PRIMITIVE_STEP_ORDER if args.primitive_learning else BASE_STEP_ORDER
+    commands = {step: commands[step] for step in step_order if step != "promotion_gate"}
     state = _load_state(state_path, args, replay_path, curriculum_path, holdout_path, commands)
     if args.dry_run:
         state["status"] = "dry_run"
@@ -167,13 +203,14 @@ def main() -> int:
             "PARCEL_SORTER_VENV": sys.prefix,
         }
     )
+    env["MOBILE_SMOLVLA_PROGRESS_CHANNEL"] = "1" if args.primitive_learning else "0"
     env["PATH"] = f"{Path(sys.prefix) / 'bin'}{os.pathsep}{env.get('PATH', '')}"
     env["PYTHONPATH"] = (
         f"{root / 'src'}{os.pathsep}{env['PYTHONPATH']}"
         if env.get("PYTHONPATH")
         else str(root / "src")
     )
-    for step in STEP_ORDER:
+    for step in step_order:
         if step == "promotion_gate":
             _run_promotion_gate(cycle_dir, candidate_checkpoint, state, state_path)
         elif state["steps"].get(step, {}).get("status") == "passed":
@@ -232,12 +269,20 @@ def _load_state(
         state = _read_json(path)
         if state.get("inputs", {}).get("holdout_sha256") != sha256_file(holdout):
             raise RuntimeError("resume rejected: frozen holdout hash changed")
+        if bool(state.get("settings", {}).get("primitive_learning")) != bool(
+            args.primitive_learning
+        ):
+            raise RuntimeError("resume rejected: primitive-learning mode changed")
         state["commands"] = commands
         state.setdefault("settings", {})["evaluation_workers"] = args.evaluation_workers
         return state
     return {
         "schema_version": 1,
-        "protocol": "mobile-smolvla-self-improvement-cycle-v1",
+        "protocol": (
+            "mobile-smolvla-primitive-self-improvement-cycle-v2"
+            if args.primitive_learning
+            else "mobile-smolvla-self-improvement-cycle-v1"
+        ),
         "cycle_id": args.cycle_id,
         "status": "prepared",
         "inputs": {
@@ -258,11 +303,13 @@ def _load_state(
             "num_workers": args.num_workers,
             "policy_hz": args.policy_hz,
             "evaluation_workers": args.evaluation_workers,
+            "primitive_learning": bool(args.primitive_learning),
         },
         "commands": commands,
         "steps": {},
         "claim_boundary": (
-            "nearline improvement between episodes; no active rollout mutates model weights"
+            "nearline primitive improvement between episodes; no active rollout mutates "
+            "model weights and promotion may reject a regressing candidate"
         ),
     }
 

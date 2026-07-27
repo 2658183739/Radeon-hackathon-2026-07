@@ -9,6 +9,7 @@ STEPS="${MOBILE_SMOLVLA_STEPS:-10}"
 BATCH_SIZE="${MOBILE_SMOLVLA_BATCH_SIZE:-1}"
 NUM_WORKERS="${MOBILE_SMOLVLA_NUM_WORKERS:-0}"
 MODALITY="${MOBILE_SMOLVLA_MODALITY:-rgb}"
+PROGRESS_CHANNEL="${MOBILE_SMOLVLA_PROGRESS_CHANNEL:-0}"
 
 export HIP_VISIBLE_DEVICES="${HIP_VISIBLE_DEVICES:-0}"
 export PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
@@ -40,7 +41,20 @@ case "${MODALITY}" in
     exit 4
     ;;
 esac
-POLICY_OUTPUT_FEATURES='{action: {type: ACTION, shape: [19]}}'
+case "${PROGRESS_CHANNEL}" in
+  0)
+    POLICY_OUTPUT_FEATURES='{action: {type: ACTION, shape: [19]}}'
+    ACTION_CONTRACT="action19"
+    ;;
+  1)
+    POLICY_OUTPUT_FEATURES='{action: {type: ACTION, shape: [20]}}'
+    ACTION_CONTRACT="action19-progress1"
+    ;;
+  *)
+    echo "ERROR: MOBILE_SMOLVLA_PROGRESS_CHANNEL must be 0 or 1, received: ${PROGRESS_CHANNEL}" >&2
+    exit 5
+    ;;
+esac
 
 lerobot-train \
   --dataset.repo_id local/mobile-bimanual-parcel-expert \
@@ -62,7 +76,7 @@ lerobot-train \
   --policy.chunk_size 30 \
   --policy.n_action_steps 10 \
   --output_dir "${OUTPUT_DIR}" \
-  --job_name "mobile-bimanual-smolvla-${MODALITY}-rocm" \
+  --job_name "mobile-bimanual-smolvla-${MODALITY}-${ACTION_CONTRACT}-rocm" \
   --batch_size "${BATCH_SIZE}" \
   --num_workers "${NUM_WORKERS}" \
   --steps "${STEPS}" \

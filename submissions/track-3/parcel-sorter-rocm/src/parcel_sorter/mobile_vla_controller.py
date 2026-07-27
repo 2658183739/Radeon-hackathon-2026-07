@@ -16,6 +16,7 @@ from .mobile_harness import (
     force_memory_scale_cap,
     select_mobile_harness_action,
 )
+from .mobile_primitive_learning import primitive_task_text
 
 
 class MobileSmolVLAHarnessController:
@@ -29,6 +30,7 @@ class MobileSmolVLAHarnessController:
         harness_config: MobileHarnessConfig = MobileHarnessConfig(),
         force_memory_enabled: bool = False,
         depth_sidecar_enabled: bool = False,
+        primitive_progress_threshold: float = 0.95,
     ) -> None:
         import torch
         from lerobot.configs.policies import PreTrainedConfig
@@ -39,8 +41,12 @@ class MobileSmolVLAHarnessController:
         config = PreTrainedConfig.from_pretrained(checkpoint, local_files_only=True)
         if config.input_features["observation.state"].shape != (43,):
             raise RuntimeError("SmolVLA checkpoint must consume the 43-D mobile state")
-        if config.output_features["action"].shape != (19,):
-            raise RuntimeError("SmolVLA checkpoint must emit the 19-D mobile action")
+        output_shape = config.output_features["action"].shape
+        if output_shape not in {(19,), (20,)}:
+            raise RuntimeError(
+                "SmolVLA checkpoint must emit 19-D mobile actions or 19-D actions "
+                "plus one primitive-progress channel"
+            )
         visual_keys = {
             key for key in config.input_features if key.startswith("observation.images.")
         }
@@ -66,6 +72,10 @@ class MobileSmolVLAHarnessController:
             maxlen=harness_config.force_memory_window
         )
         self._uses_depth_rgb = MOBILE_DEPTH_RGB_KEY in visual_keys
+        if not 0.0 < primitive_progress_threshold <= 1.0:
+            raise ValueError("primitive_progress_threshold must be in (0, 1]")
+        self._uses_progress_channel = output_shape == (20,)
+        self._primitive_progress_threshold = float(primitive_progress_threshold)
         self._seed = int(seed)
         self._calls = 0
         self._reset()
@@ -89,10 +99,11 @@ class MobileSmolVLAHarnessController:
         image_tensor = (
             torch.from_numpy(image.copy()).permute(2, 0, 1).float().div_(255.0)
         )
+        policy_task = primitive_task_text(task, stage) if self._uses_progress_channel else task
         batch: dict[str, Any] = {
             "observation.state": torch.tensor(state_values, dtype=torch.float32).unsqueeze(0).cuda(),
             MOBILE_RGB_KEY: image_tensor.unsqueeze(0).cuda(),
-            "task": [task],
+            "task": [policy_task],
         }
         if self._uses_depth_rgb:
             if depth is None:
@@ -114,7 +125,12 @@ class MobileSmolVLAHarnessController:
             )
             torch.cuda.synchronize()
             latency_ms = (time.perf_counter() - started) * 1000.0
-        predicted = tuple(float(value) for value in action.detach().cpu().reshape(-1))
+        policy_output = tuple(float(value) for value in action.detach().cpu().reshape(-1))
+        predicted = policy_output[:19]
+        progress_raw = policy_output[19] if self._uses_progress_channel else None
+        progress = (
+            min(1.0, max(0.0, progress_raw)) if progress_raw is not None and math.isfinite(progress_raw) else None
+        )
         self._force_history_n.append(max(abs(state_values[38]), abs(state_values[39])))
         force_memory = force_memory_scale_cap(
             self._force_history_n,
@@ -145,7 +161,15 @@ class MobileSmolVLAHarnessController:
             "stage": stage,
             "observation_modality": "rgbd" if self._uses_depth_rgb else "rgb",
             "latency_ms": latency_ms,
-            "finite": len(predicted) == 19 and all(math.isfinite(value) for value in predicted),
+            "finite": len(policy_output) in (19, 20)
+            and all(math.isfinite(value) for value in policy_output),
+            "policy_task": policy_task,
+            "primitive_progress_enabled": self._uses_progress_channel,
+            "primitive_progress_raw": progress_raw,
+            "primitive_progress": progress,
+            "primitive_complete": (
+                progress is not None and progress >= self._primitive_progress_threshold
+            ),
             "selected_scale": decision.selected.scale,
             "fallback_to_expert": decision.fallback_to_expert,
             "emergency_stop": decision.emergency_stop,

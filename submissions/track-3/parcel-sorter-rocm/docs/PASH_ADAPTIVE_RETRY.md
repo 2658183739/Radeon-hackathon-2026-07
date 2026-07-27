@@ -18,10 +18,10 @@ tri-suction, and parcel handling.
 
 Development references are the Harness VLA [project](https://harnessvla.github.io/),
 [RPent repository](https://github.com/RLinf/RPent), and
-[arXiv:2607.08448](https://arxiv.org/abs/2607.08448), plus the supplied summary
-of *InSight: Self-Guided Skill Acquisition via Steerable VLAs*. The final paper
-must cite the original InSight publication metadata rather than the secondary
-article used for discovery.
+[arXiv:2607.08448](https://arxiv.org/abs/2607.08448). The InSight primary record
+is [arXiv:2606.24884](https://arxiv.org/abs/2606.24884), DOI
+`10.48550/arXiv.2606.24884`; the secondary article remains discovery material,
+not a scholarly citation.
 
 ## Three adaptation timescales
 

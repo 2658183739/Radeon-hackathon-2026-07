@@ -20,8 +20,8 @@ SmolVLA、Harness、物理执行和权重晋级相互隔离。
 
 开发参考入口：Harness VLA [项目页](https://harnessvla.github.io/)、
 [RPent 代码](https://github.com/RLinf/RPent) 与 [arXiv:2607.08448](https://arxiv.org/abs/2607.08448)；
-InSight 采用文章给出的论文题目 *InSight: Self-Guided Skill Acquisition via Steerable VLAs*
-及作者信息。正式投稿前仍需从原论文导出 BibTeX，公众号文章只能作为发现来源，不能替代原始引用。
+InSight 原始论文已核验为 [arXiv:2606.24884](https://arxiv.org/abs/2606.24884)，DOI
+`10.48550/arXiv.2606.24884`。公众号文章只作为发现来源，不替代原始引用。
 
 ## 三层自适应
 

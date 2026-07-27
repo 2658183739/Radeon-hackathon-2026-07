@@ -423,3 +423,26 @@ correction, results, and artifact hashes are in
 `docs/PARCEL_FINGER_CONSTRAINT_STABILITY_PROTOCOL.md`, and
 `docs/PARCEL_ADAPTER_CONTACT_BRANCH_RESULT.md`. The synchronized Radeon tree
 compiled and passed 264 tests.
+
+## Implemented primitive-learning boundary
+
+**Observation.** Adaptive retry could identify a failed primitive and create a
+writeback candidate, but the candidate had no frame interval or trainable task
+label. Existing demonstrations contained enough non-privileged execution
+signals to recover boundaries without reading stage annotations.
+
+**Decision.** Segment on sustained base motion plus left tri-suction attach and
+release events; relabel each segment with a primitive instruction; append one
+progress target; allow only the first 19 outputs into Harness. Reuse the existing
+offline Radeon training and frozen promotion gate instead of adding online
+weight mutation.
+
+**Failure and correction.** The first task table lost LeRobot's named pandas
+index and produced `Task cannot be None` before training. The builder was fixed
+to preserve the native v3 task schema, the rebuilt dataset loaded a non-null
+task and 20-D action, and the 10-step Radeon run completed.
+
+**Evidence boundary.** All 4,557 frames matched instrumentation labels and the
+checkpoint reloaded for one Harness call. This establishes implementation
+wiring only; the candidate is not promoted and no task-improvement or
+generalization claim is made. See `docs/PASH_PRIMITIVE_LEARNING.md`.

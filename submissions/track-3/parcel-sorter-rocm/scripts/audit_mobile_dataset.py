@@ -43,13 +43,18 @@ def main() -> int:
     if not info_path.is_file() or not parquet_files:
         raise FileNotFoundError(f"incomplete mobile dataset: {root}")
     info = json.loads(info_path.read_text(encoding="utf-8"))
+    action_feature = info["features"]["action"]
+    action_width = int(action_feature["shape"][0])
+    action_names = tuple(str(name) for name in action_feature.get("names", ()))
+    if action_width not in (19, 20):
+        raise ValueError(f"unsupported mobile action width: {action_width}")
     table = pq.read_table(parquet_files)
     policy_input_features = (
         "observation.state",
         *mobile_policy_visual_keys(args.policy_modality),
     )
     states = _fixed_list_array(table, "observation.state", 43, np)
-    actions = _fixed_list_array(table, "action", 19, np)
+    actions = _fixed_list_array(table, "action", action_width, np)
     stage_ids = np.asarray(
         table["observation.stage_id"].combine_chunks().to_numpy(), dtype=np.int64
     )
@@ -120,7 +125,10 @@ def main() -> int:
     errors = []
     if int(info["total_episodes"]) < args.min_episodes or len(table) != expected_frames:
         errors.append("episode_or_frame_count")
-    if states.shape != (expected_frames, 43) or actions.shape != (expected_frames, 19):
+    if states.shape != (expected_frames, 43) or actions.shape != (
+        expected_frames,
+        action_width,
+    ):
         errors.append("state_action_shape")
     if not np.isfinite(states).all() or not np.isfinite(actions).all():
         errors.append("non_finite_state_or_action")
@@ -154,6 +162,15 @@ def main() -> int:
         errors.append("missing_policy_input_feature")
     if "observation.privileged_state" in policy_input_features:
         errors.append("privileged_policy_leakage")
+    progress_enabled = action_width == 20
+    progress = actions[:, 19] if progress_enabled else None
+    if progress_enabled and (
+        len(action_names) != 20
+        or action_names[-1] != "primitive_progress"
+        or float(progress.min()) < 0.0
+        or float(progress.max()) > 1.0
+    ):
+        errors.append("primitive_progress_contract")
 
     payload = {
         "schema_version": 1,
@@ -167,6 +184,9 @@ def main() -> int:
         "episode_stage_counts": episode_stage_counts,
         "state_shape": list(states.shape),
         "action_shape": list(actions.shape),
+        "primitive_progress_enabled": progress_enabled,
+        "primitive_progress_min": float(progress.min()) if progress_enabled else None,
+        "primitive_progress_max": float(progress.max()) if progress_enabled else None,
         "base_action_speed_max_m_s": float(base_speed.max()),
         "action_quaternion_norm_error_max": quaternion_norm_error,
         "tool_command_values": tool_values,

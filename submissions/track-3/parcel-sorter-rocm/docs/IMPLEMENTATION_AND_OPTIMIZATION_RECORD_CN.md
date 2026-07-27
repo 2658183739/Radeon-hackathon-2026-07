@@ -331,3 +331,19 @@ smoke 在完整接入前发现并修正了一个共享排序函数边界错误�
 `docs/PARCEL_FINGER_CONSTRAINT_STABILITY_PROTOCOL_CN.md` 和
 `docs/PARCEL_ADAPTER_CONTACT_BRANCH_RESULT_CN.md`。同步后的 Radeon 源码树编译通过，并通过
 全部 264 项测试。
+
+## 已实现的 Primitive 学习边界
+
+**观察。**自适应重试能够定位失败 primitive 并创建写回候选，但候选没有帧区间和可训练任务标签。
+现有示范已包含足以恢复边界的非特权执行信号，不需要读取阶段标注。
+
+**决策。**使用持续底盘运动与左侧三吸盘的吸附/释放事件切分；为每段改写 primitive 指令并追加
+一个进度监督；只有前 19 维输出能够进入 Harness。继续复用 Radeon 离线训练和冻结晋级门，
+不引入运行中权重修改。
+
+**失败与修正。**第一版任务表丢失 LeRobot 的具名 pandas 索引，训练在开始前报
+`Task cannot be None`。构建器随后按 v3 原生任务契约修正，重建数据能返回非空任务和 20 维动作，
+10 步 Radeon 训练完成。
+
+**证据边界。**4,557 帧全部与审计标签一致，checkpoint 完成一次 Harness 重载调用。这只证明
+实现接线；候选没有晋级，也不声明任务提升或泛化。详见 `docs/PASH_PRIMITIVE_LEARNING_CN.md`。

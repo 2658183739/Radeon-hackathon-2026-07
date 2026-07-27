@@ -404,6 +404,20 @@ PASH-VLA 的 `pash-v25-summary.json` 在同一对象上开启 Force-Memory：68 
 
 该证据只证明单案例协同机理和集成，不是成功率、未见几何体泛化或 Sim-to-Real 结果。
 
+## PASH Primitive 学习 Radeon 冒烟
+
+`training/pash-primitive-dataset-v2-manifest.json` 及数据审计绑定 7 个 episode、4,557 帧的
+纯事件切分，生成 24 条 primitive 条件任务和带进度的 20 维动作。
+`training/pash-primitive-smolvla-rocm-smoke-v1.json` 绑定单 Radeon 上 10 次真实 AMP 更新、
+checkpoint 哈希和一次推理证据，原始训练日志一并保留。
+
+该证据证明数据、ROCm 训练、checkpoint 重载、primitive 提示和 19 维 Harness 执行边界可运行。
+10 步不能证明收敛、任务提升、泛化或延迟性能，也不构成 checkpoint 晋级。
+
+`mobile_bimanual/primitive_learning_v1/summary.json` 记录随后一个 Radeon 闭环机理案例：任务
+以 1.28 cm 放置误差完成，调用 SmolVLA 79 次，Harness 完整回退 2 次，紧急停止 0 次，学习
+残差实际作用 3,578 个物理步。该单案例不是成功率、泛化结果或 checkpoint 晋级。
+
 ## PASH 双臂几何 Harness
 
 `mobile_bimanual/dual_arm_depth_v1/` 保存完整 Radeon summary、运行日志、压缩指标和本地/远端 SHA-256。固定的 1.44 m 超长纸箱完成抬升、30 cm 运输、放置和释放；双臂 IK 接受 24 次，左右臂各有 24 次非零学习残差，累计执行 2,356 个物理步，工具间距变化为 0。最大托架接触力 30.68 N，放置误差 3.19 cm，断吸和紧急停止均为 0。深度侧路判断场景清晰，因此没有压低权限。该证据是单案例机理验证，不是泛化率或重试收益。

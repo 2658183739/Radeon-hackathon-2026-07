@@ -174,8 +174,9 @@ def main() -> int:
     config = PreTrainedConfig.from_pretrained(args.checkpoint, local_files_only=True)
     if config.input_features["observation.state"].shape != (43,):
         raise RuntimeError("checkpoint does not use the audited 43-D mobile state")
-    if config.output_features["action"].shape != (19,):
-        raise RuntimeError("checkpoint does not produce the audited 19-D mobile action")
+    action_width = int(config.output_features["action"].shape[0])
+    if action_width not in (19, 20):
+        raise RuntimeError("checkpoint must produce 19-D control with optional progress")
     config.device = "cuda"
     config.n_action_steps = 1
     policy = get_policy_class(config.type).from_pretrained(
@@ -219,10 +220,14 @@ def main() -> int:
             action = postprocessor(policy.select_action(preprocessor(batch)))
             torch.cuda.synchronize()
             latency_ms = (time.perf_counter() - started) * 1000.0
-        predicted = [float(value) for value in action.detach().cpu().reshape(-1)]
-        expert = [float(value) for value in sample["action"].reshape(-1)]
+        policy_output = [float(value) for value in action.detach().cpu().reshape(-1)]
+        expert_output = [float(value) for value in sample["action"].reshape(-1)]
+        predicted = policy_output[:19]
+        expert = expert_output[:19]
         state = [float(value) for value in sample["observation.state"].reshape(-1)]
-        finite = len(predicted) == 19 and all(math.isfinite(value) for value in predicted)
+        finite = len(policy_output) == action_width and all(
+            math.isfinite(value) for value in policy_output
+        )
         result: dict[str, Any] = {
             "stage": stage_name,
             "episode_index": episode_index,
@@ -231,6 +236,15 @@ def main() -> int:
             "latency_ms": latency_ms,
             "action_shape": list(action.shape),
             "finite": finite,
+            "primitive_progress": (
+                {
+                    "predicted": policy_output[19],
+                    "target": expert_output[19],
+                    "absolute_error": abs(policy_output[19] - expert_output[19]),
+                }
+                if action_width == 20
+                else None
+            ),
         }
         if finite:
             try:
@@ -277,7 +291,7 @@ def main() -> int:
     latencies = [float(item["latency_ms"]) for item in stage_results]
     valid = all(
         item["finite"]
-        and item["action_shape"] == [1, 19]
+        and item["action_shape"] == [1, action_width]
         and item.get("executor", {}).get("accepted", False)
         for item in stage_results
     )
@@ -335,6 +349,15 @@ def main() -> int:
         ),
         "state_shape": list(config.input_features["observation.state"].shape),
         "action_shape": list(config.output_features["action"].shape),
+        "primitive_progress_enabled": action_width == 20,
+        "mean_primitive_progress_absolute_error": (
+            statistics.fmean(
+                float(item["primitive_progress"]["absolute_error"])
+                for item in stage_results
+            )
+            if action_width == 20
+            else None
+        ),
         "max_state_dim": int(config.max_state_dim),
         "max_action_dim": int(config.max_action_dim),
         "selection": (

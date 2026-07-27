@@ -38,6 +38,10 @@ The new [PASH adaptive-retry loop](docs/PASH_ADAPTIVE_RETRY.md) adds primitive-g
 task/global strategy memory, at most three audited attempts, and an isolated primitive-acquisition
 writeback manifest. Its first single-Radeon development case succeeded on the first attempt; this
 verifies integration but does not yet establish a retry-recovery rate.
+The [PASH primitive-learning extension](docs/PASH_PRIMITIVE_LEARNING.md) now converts audited
+demonstrations into six primitive instructions plus a progress channel. A 4,557-frame dataset
+audit and 10-step Radeon SmolVLA smoke passed; this proves the train/reload path, not task
+improvement, so the frozen v2 checkpoint remains active pending the existing promotion gate.
 The [PASH dual-arm geometry Harness](docs/PASH_DUAL_ARM_DEPTH.md) now projects both SmolVLA arm
 proposals into a rigid-object-consistent common motion, uses metric depth as a deterministic risk
 sidecar, and fades learned authority before placement. In one Radeon mechanism case, both arms

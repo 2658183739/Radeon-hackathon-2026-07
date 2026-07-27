@@ -579,6 +579,22 @@ cradle force. This is a method regression run only; no new statistical holdout w
 This is one cooperative mechanism and integration case, not a task success rate, unseen-geometry
 generalization result, or sim-to-real result.
 
+## PASH primitive-learning Radeon smoke
+
+`training/pash-primitive-dataset-v2-manifest.json` and its audit bind the event-only segmentation
+of 7 episodes and 4,557 frames into 24 primitive-conditioned tasks with a 20-D action including
+progress. `training/pash-primitive-smolvla-rocm-smoke-v1.json` binds 10 real AMP updates on one
+Radeon, the saved checkpoint hash, and the single-inference evidence. The raw log is retained.
+
+This evidence proves dataset, ROCm training, checkpoint reload, primitive prompting, and the
+19-D Harness execution boundary. Ten steps do not prove convergence, task improvement,
+generalization, or latency performance; no checkpoint promotion is claimed.
+
+`mobile_bimanual/primitive_learning_v1/summary.json` records one subsequent Radeon closed-loop
+mechanism case. The task completed with 1.28 cm placement error, 79 SmolVLA calls, two Harness
+fallbacks, zero emergency stops, and 3,578 learned-residual physics steps. This single case is not
+a success rate, a generalization result, or a checkpoint promotion.
+
 ## PASH dual-arm geometry Harness
 
 `mobile_bimanual/dual_arm_depth_v1/` contains the complete Radeon summary,
