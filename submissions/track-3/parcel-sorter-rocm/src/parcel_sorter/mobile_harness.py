@@ -143,6 +143,7 @@ def select_mobile_harness_action(
     stage: str,
     config: MobileHarnessConfig = MobileHarnessConfig(),
     maximum_vla_scale: float = 1.0,
+    maximum_vla_scale_reason: str = "force_memory_scale_gate",
 ) -> MobileHarnessDecision:
     """Generate residual candidates and select the largest verified VLA contribution.
 
@@ -153,6 +154,8 @@ def select_mobile_harness_action(
 
     if not math.isfinite(maximum_vla_scale) or not 0.0 <= maximum_vla_scale <= 1.0:
         raise ValueError("maximum_vla_scale must be finite and in [0, 1]")
+    if not maximum_vla_scale_reason:
+        raise ValueError("maximum_vla_scale_reason cannot be empty")
     state_values = _finite_vector(state, 43, "state")
     expert = _finite_vector(expert_action, 19, "expert action")
     raw_vla = tuple(float(value) for value in vla_action)
@@ -189,6 +192,7 @@ def select_mobile_harness_action(
             config=config,
             rejected_vla=rejected_vla,
             maximum_vla_scale=maximum_vla_scale,
+            maximum_vla_scale_reason=maximum_vla_scale_reason,
         )
         for scale in config.candidate_scales
     )
@@ -319,6 +323,7 @@ def _candidate(
     config: MobileHarnessConfig,
     rejected_vla: bool,
     maximum_vla_scale: float,
+    maximum_vla_scale_reason: str,
 ) -> MobileHarnessCandidate:
     expert_base_speed = math.hypot(expert[0], expert[1])
     precision_handoff = stage == "grasp_approach" and expert_base_speed < 0.025
@@ -441,7 +446,7 @@ def _candidate(
     if rejected_vla and scale > 0.0:
         reasons.append("invalid_vla_action")
     if scale > maximum_vla_scale + 1e-9:
-        reasons.append("force_memory_scale_gate")
+        reasons.append(maximum_vla_scale_reason)
     if stage == "release" and tool_corrections:
         reasons.append("stage_tool_interlock")
     if precision_handoff:
@@ -452,7 +457,7 @@ def _candidate(
             "base_lateral_gate",
             "base_hold_gate",
             "invalid_vla_action",
-            "force_memory_scale_gate",
+            maximum_vla_scale_reason,
         }
         or reason.startswith("decode_error:")
         for reason in reasons

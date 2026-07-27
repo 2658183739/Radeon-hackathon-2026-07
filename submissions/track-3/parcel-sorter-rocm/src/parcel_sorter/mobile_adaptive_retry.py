@@ -15,15 +15,20 @@ class RetryStrategy:
     policy_mode: str
     force_memory: bool
     learned_arm_authority: bool
+    cooperative_safe: bool
+    depth_sidecar: bool
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-PASH_ARM = RetryStrategy("pash_arm", "base_arm_residual", True, True)
-PASH_BASE = RetryStrategy("pash_base", "base_residual", True, False)
-EXPERT_RECOVERY = RetryStrategy("expert_recovery", "shadow", False, False)
-DEFAULT_STRATEGIES = (PASH_ARM, PASH_BASE, EXPERT_RECOVERY)
+PASH_DUAL_ARM = RetryStrategy(
+    "pash_dual_arm", "base_dual_arm_residual", True, True, True, True
+)
+PASH_ARM = RetryStrategy("pash_arm", "base_arm_residual", True, True, False, True)
+PASH_BASE = RetryStrategy("pash_base", "base_residual", True, False, True, True)
+EXPERT_RECOVERY = RetryStrategy("expert_recovery", "shadow", False, False, True, False)
+DEFAULT_STRATEGIES = (PASH_DUAL_ARM, PASH_ARM, PASH_BASE, EXPERT_RECOVERY)
 
 
 def classify_mobile_failure(summary: dict[str, Any]) -> str | None:
@@ -158,7 +163,9 @@ def choose_retry_strategy(
     attempted = set(attempted_strategy_names)
     candidates = list(strategies)
     if cooperative_cradle:
-        candidates = [item for item in candidates if not item.learned_arm_authority]
+        candidates = [item for item in candidates if item.cooperative_safe]
+    else:
+        candidates = [item for item in candidates if item.name != PASH_DUAL_ARM.name]
     if previous_failure == "force_safety_abort":
         candidates = [item for item in candidates if item.name == EXPERT_RECOVERY.name]
     elif previous_failure in {
@@ -173,7 +180,12 @@ def choose_retry_strategy(
     untried = [item for item in candidates if item.name not in attempted]
     if untried:
         candidates = untried
-    preference = {PASH_ARM.name: 2, PASH_BASE.name: 1, EXPERT_RECOVERY.name: 0}
+    preference = {
+        PASH_DUAL_ARM.name: 3,
+        PASH_ARM.name: 2,
+        PASH_BASE.name: 1,
+        EXPERT_RECOVERY.name: 0,
+    }
     return max(
         candidates,
         key=lambda item: (memory.score(context=context, strategy=item), preference[item.name]),

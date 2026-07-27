@@ -38,6 +38,12 @@ The new [PASH adaptive-retry loop](docs/PASH_ADAPTIVE_RETRY.md) adds primitive-g
 task/global strategy memory, at most three audited attempts, and an isolated primitive-acquisition
 writeback manifest. Its first single-Radeon development case succeeded on the first attempt; this
 verifies integration but does not yet establish a retry-recovery rate.
+The [PASH dual-arm geometry Harness](docs/PASH_DUAL_ARM_DEPTH.md) now projects both SmolVLA arm
+proposals into a rigid-object-consistent common motion, uses metric depth as a deterministic risk
+sidecar, and fades learned authority before placement. In one Radeon mechanism case, both arms
+received 24 material updates over 2,356 physics steps while tool separation remained unchanged;
+the 1.44 m carton completed the task at 3.19 cm placement error with zero suction breaks and no
+35 N violation. This remains one fixed case, not a generalization rate.
 
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis

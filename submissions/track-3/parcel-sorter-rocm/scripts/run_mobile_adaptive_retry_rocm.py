@@ -102,6 +102,8 @@ def main() -> int:
         ]
         if strategy.force_memory:
             command.append("--force-memory-harness")
+        if strategy.depth_sidecar:
+            command.append("--depth-risk-sidecar")
         if args.cooperative_cradle:
             command.append("--cooperative-cradle")
         if args.task_text:
@@ -145,6 +147,10 @@ def main() -> int:
                             "force_memory_tighten_count",
                             "force_memory_full_fallback_count",
                             "mean_force_memory_scale_cap",
+                            "depth_sidecar_enabled",
+                            "depth_sidecar_tighten_count",
+                            "depth_sidecar_fail_closed_count",
+                            "mean_depth_sidecar_scale_cap",
                             "inference_calls",
                             "applied_physics_steps",
                             "arm_residual",

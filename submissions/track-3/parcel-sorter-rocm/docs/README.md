@@ -2,6 +2,7 @@
 
 | Topic | English | 中文 |
 | --- | --- | --- |
+| PASH dual-arm geometry Harness | [Method and Radeon evidence](PASH_DUAL_ARM_DEPTH.md) | [方法与 Radeon 证据](PASH_DUAL_ARM_DEPTH_CN.md) |
 | Reproduction | [README](../README.md) | [README 中文](../README_CN.md) |
 | Technical report | [Technical report](../TECHNICAL_REPORT.md) | [技术报告](../TECHNICAL_REPORT_CN.md) |
 | Architecture | [Architecture](ARCHITECTURE.md) | [架构](ARCHITECTURE_CN.md) |

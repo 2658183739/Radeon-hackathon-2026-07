@@ -41,14 +41,16 @@ near-line, reversible process.
 
 | Strategy | Learned authority | Force Memory | Role |
 | --- | --- | --- | --- |
+| `pash_dual_arm` | base plus rigid-projected dual-arm transport residual; depth sidecar | on | default cooperative-carry attempt |
 | `pash_arm` | base plus bounded left-arm transport residual | on | default high-capability attempt |
 | `pash_base` | base residual only; expert arms | on | safe recovery after contact or precision failure |
 | `expert_recovery` | shadow VLA; expert execution | off | conservative recovery after force risk or exhausted learned strategies |
 
 A 35 N event permits only expert recovery on the next attempt. Suction, lift,
 placement, or release failures remove learned arm authority. Cooperative-cradle
-runs also exclude arm residuals because full dual-arm residual control has not
-passed its gate.
+runs may use `pash_dual_arm` because its differential residual is locked to
+zero, both targets pass one multi-link IK, and learned authority fades before
+placement; they still exclude the independent left-arm `pash_arm` mode.
 
 ## Task and global memory
 

@@ -578,3 +578,15 @@ cradle force. This is a method regression run only; no new statistical holdout w
 
 This is one cooperative mechanism and integration case, not a task success rate, unseen-geometry
 generalization result, or sim-to-real result.
+
+## PASH dual-arm geometry Harness
+
+`mobile_bimanual/dual_arm_depth_v1/` contains the complete Radeon summary,
+runtime log, compact index, and local/remote SHA-256 manifests for the first
+rigid-object-projected dual-arm SmolVLA run. The fixed 1.44 m carton passed lift,
+30 cm transport, placement, and release. The Harness accepted 24 dual-arm IK
+updates; both arms had 24 material residuals over 2,356 physics steps, and tool
+separation change was exactly zero. Peak cradle force was 30.68 N, placement
+error was 3.19 cm, suction breaks and emergency stops were zero. Metric depth
+remained clear and imposed no scale reduction. This is a single mechanism case,
+not a generalization or retry-benefit result.

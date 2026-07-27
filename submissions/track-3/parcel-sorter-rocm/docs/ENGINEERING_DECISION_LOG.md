@@ -2301,3 +2301,28 @@ unchanged. The active protocol SHA-256 is `31f1b73d...1dbfc4`.
 ## Next experiment gate
 
 The next learned-policy comparison is limited to one or two held-out closed-loop episodes per checkpoint. If SmolVLA remains in `approach`, change one factor at a time: action-chunk horizon/refresh first, then target representation. Do not claim a VLA improvement from offline loss alone.
+
+### 97. Authorize projected dual-arm transport, not unconstrained dual-arm VLA
+
+**Problem.** The left-arm residual ablation proved learned Cartesian actuation,
+but its precision gate rejected promotion. Cooperative transport therefore had
+no path for both VLA arm proposals to enter physics without risking payload
+span drift or late placement errors.
+
+**Decision.** Add a transport-only projection that decomposes left/right
+proposals into common and differential motion. Cooperative carry removes the
+differential component, locks orientation and tools to the expert, fades arm
+authority to zero from 120 mm to 25 mm remaining distance, and validates both
+targets in one multi-link IK call. Keep RGB SmolVLA; use metric depth only as a
+fail-closed Harness scale sidecar because the paired RGB-D model was rejected.
+
+**Reason.** This exposes genuinely bimanual learned actuation while preserving
+the rigid payload constraint and the previous negative RGB-D/arm-residual
+decisions. It also provides a clean ablation factor without changing the
+foundation checkpoint.
+
+**Evidence.** One Radeon run on the fixed 1.44 m carton passed. Both arms had
+24 material updates, 2,356 physics steps used a dual-arm residual, maximum tool
+separation change was zero, placement error was 3.19 cm, peak cradle force was
+30.68 N, and no emergency stop occurred. This authorizes the mechanism in the
+adaptive strategy set; it does not establish a success rate or generalization.

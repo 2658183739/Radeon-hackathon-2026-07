@@ -466,3 +466,9 @@ Apache-2.0；具体仓库、revision 和用途见 `THIRD_PARTY_NOTICES.md` 与
 模型权重不直接提交 Git。最终 PR 前仍需填写与 Luma 一致的团队名和法定姓名、上传
 带 SHA-256 的正式权重与数据、录制 3-5 分钟演示视频，并从最终 Git 提交重新跑一次
 完整流程。具体见 [SUBMISSION_CHECKLIST_CN.md](SUBMISSION_CHECKLIST_CN.md)。
+
+## 2026-07-27 双臂几何 Harness 更新
+
+新增 [PASH 双臂几何 Harness](docs/PASH_DUAL_ARM_DEPTH_CN.md)：冻结的 RGB SmolVLA 在运输阶段同时提出左右臂位置，系统先投影为刚体一致的共同运动，再进行双臂联合 IK；米制深度作为确定性风险侧路，接近放置点时学习式权限逐渐降为零。
+
+单张 Radeon 上的固定 1.44 m 超长纸箱案例已通过：左右臂各有 24 次非零更新，双臂残差实际执行 2,356 个物理步，工具间距变化为 0，最终放置误差 3.19 cm，断吸为 0，最大托架接触力 30.68 N，未触发 35 N 安全线。该结果只证明机理闭环，不代表泛化成功率。

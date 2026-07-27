@@ -39,6 +39,8 @@ is mechanism evidence, not a generalization claim.
   near-line self-improvement that can also reject regressions?
 - **RQ4:** Can tri-suction/V-cradle cooperation extend handling beyond the
   length envelope of one parallel gripper?
+- **RQ5:** Can rigid-object projection and a deterministic metric-depth sidecar
+  safely expose both learned arm proposals without degrading payload geometry?
 
 ## Method
 
@@ -105,6 +107,7 @@ v20 expert run rather than tuned backward from v24 or v25 success.
 | Cooperative chain v19-v24 | Two passes and four retained mechanism failures | Incremental IK, placement confirmation, and deadline gate form a causal chain |
 | PASH-v25 mechanism case | Pass; 11 tightenings, 2 fallbacks, 0 emergency stops | Force Memory entered the Radeon loop without breaking this case |
 | Adaptive-retry mechanism case | First attempt passed; 84 inferences and 30/30 left-arm IK | Primitive/task-global memory path ran on Radeon; no retry-benefit claim yet |
+| Dual-arm depth-sidecar mechanism case | Pass; 24/24 material left/right updates, 2,356 arm-residual physics steps, 0 m span change | Both VLA arm proposals entered the Radeon loop under rigid projection; one case only |
 
 ## Planned paper figures and tables
 

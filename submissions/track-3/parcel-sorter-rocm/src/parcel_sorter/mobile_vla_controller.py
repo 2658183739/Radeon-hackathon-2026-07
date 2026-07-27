@@ -9,6 +9,7 @@ import time
 from typing import Any, Iterable
 
 from .dataset import metric_depth_to_visual_rgb
+from .mobile_depth_sidecar import depth_risk_scale_cap
 from .mobile_dataset import MOBILE_DEPTH_RGB_KEY, MOBILE_RGB_KEY
 from .mobile_harness import (
     MobileHarnessConfig,
@@ -27,6 +28,7 @@ class MobileSmolVLAHarnessController:
         seed: int = 20260727,
         harness_config: MobileHarnessConfig = MobileHarnessConfig(),
         force_memory_enabled: bool = False,
+        depth_sidecar_enabled: bool = False,
     ) -> None:
         import torch
         from lerobot.configs.policies import PreTrainedConfig
@@ -59,6 +61,7 @@ class MobileSmolVLAHarnessController:
         )
         self._harness_config = harness_config
         self._force_memory_enabled = bool(force_memory_enabled)
+        self._depth_sidecar_enabled = bool(depth_sidecar_enabled)
         self._force_history_n: deque[float] = deque(
             maxlen=harness_config.force_memory_window
         )
@@ -117,15 +120,23 @@ class MobileSmolVLAHarnessController:
             self._force_history_n,
             config=self._harness_config,
         )
+        depth_risk = depth_risk_scale_cap(depth) if self._depth_sidecar_enabled else None
+        force_scale_cap = force_memory.scale_cap if self._force_memory_enabled else 1.0
+        depth_scale_cap = depth_risk.scale_cap if depth_risk is not None else 1.0
+        maximum_vla_scale = min(force_scale_cap, depth_scale_cap)
+        maximum_vla_scale_reason = (
+            "depth_geometry_scale_gate"
+            if depth_scale_cap < force_scale_cap
+            else "force_memory_scale_gate"
+        )
         decision = select_mobile_harness_action(
             state=state_values,
             expert_action=expert_values,
             vla_action=predicted,
             stage=stage,
             config=self._harness_config,
-            maximum_vla_scale=(
-                force_memory.scale_cap if self._force_memory_enabled else 1.0
-            ),
+            maximum_vla_scale=maximum_vla_scale,
+            maximum_vla_scale_reason=maximum_vla_scale_reason,
         )
         self._calls += 1
         telemetry = {
@@ -147,6 +158,10 @@ class MobileSmolVLAHarnessController:
             "selected_base_action": list(decision.selected.action[:3]),
             "force_memory_enabled": self._force_memory_enabled,
             "force_memory": force_memory.to_dict(),
+            "depth_sidecar_enabled": self._depth_sidecar_enabled,
+            "depth_risk": depth_risk.to_dict() if depth_risk is not None else None,
+            "combined_scale_cap": maximum_vla_scale,
+            "combined_scale_cap_reason": maximum_vla_scale_reason,
         }
         return decision.selected.action, telemetry
 

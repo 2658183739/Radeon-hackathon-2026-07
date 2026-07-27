@@ -4,6 +4,7 @@ from parcel_sorter.mobile_adaptive_retry import (
     EXPERT_RECOVERY,
     PASH_ARM,
     PASH_BASE,
+    PASH_DUAL_ARM,
     EpisodicStrategyMemory,
     build_primitive_acquisition_manifest,
     choose_retry_strategy,
@@ -41,11 +42,22 @@ class MobileAdaptiveRetryTests(unittest.TestCase):
         )
         self.assertEqual(selected, PASH_BASE)
 
-    def test_cooperative_payload_never_selects_arm_residual(self) -> None:
+    def test_cooperative_payload_selects_rigid_safe_dual_arm_projection(self) -> None:
         selected = choose_retry_strategy(
             memory=EpisodicStrategyMemory(),
             context="long_carton:medium:initial",
             previous_failure=None,
+            cooperative_cradle=True,
+        )
+        self.assertEqual(selected, PASH_DUAL_ARM)
+        self.assertTrue(selected.cooperative_safe)
+        self.assertTrue(selected.depth_sidecar)
+
+    def test_cooperative_precision_failure_removes_dual_arm_authority(self) -> None:
+        selected = choose_retry_strategy(
+            memory=EpisodicStrategyMemory(),
+            context="long_carton:medium:placement_success",
+            previous_failure="placement_success",
             cooperative_cradle=True,
         )
         self.assertEqual(selected, PASH_BASE)
