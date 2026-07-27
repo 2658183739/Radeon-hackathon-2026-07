@@ -43,6 +43,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", choices=("rocm", "cuda"), default="rocm")
     parser.add_argument("--steps", type=int, default=240)
+    parser.add_argument("--inward-m", type=float, default=0.08)
+    parser.add_argument("--vertical-m", type=float, default=-0.08)
+    parser.add_argument("--right-y-offset-m", type=float, default=0.0)
     parser.add_argument(
         "--output", type=Path, default=Path("outputs/mobile-bimanual-arms-v1")
     )
@@ -56,6 +59,12 @@ def main() -> int:
     args = parser.parse_args()
     if args.steps < 1:
         parser.error("steps must be positive")
+    if not 0.0 <= args.inward_m <= 0.60:
+        parser.error("inward-m must be in [0, 0.60]")
+    if not -0.30 <= args.vertical_m <= 0.30:
+        parser.error("vertical-m must be in [-0.30, 0.30]")
+    if not -0.20 <= args.right_y_offset_m <= 0.20:
+        parser.error("right-y-offset-m must be in [-0.20, 0.20]")
 
     gs, torch, np = initialize_genesis(args.backend)
     source = Path(gs.__file__).resolve().parent / "assets/xml/franka_sim/bi-franka_panda.xml"
@@ -124,13 +133,15 @@ def main() -> int:
     center_y = 0.5 * (initial_positions[0][1] + initial_positions[1][1])
     targets = []
     for arm_index, position in enumerate(initial_positions):
-        inward_x = 0.08 if arm_index == 0 else -0.08
+        inward_x = args.inward_m if arm_index == 0 else -args.inward_m
         targets.append(
             np.asarray(
                 (
                     position[0] + inward_x,
-                    position[1] + 0.20 * (center_y - position[1]),
-                    position[2] - 0.08,
+                    position[1]
+                    + 0.20 * (center_y - position[1])
+                    + (args.right_y_offset_m if arm_index == 1 else 0.0),
+                    position[2] + args.vertical_m,
                 )
             )
         )
@@ -257,6 +268,9 @@ def main() -> int:
         "end_effectors": END_EFFECTOR_LINK_NAMES,
         "initial_positions_m": initial_positions,
         "target_positions_m": [target.tolist() for target in targets],
+        "requested_inward_m": args.inward_m,
+        "requested_vertical_m": args.vertical_m,
+        "requested_right_y_offset_m": args.right_y_offset_m,
         "final_positions_m": final_positions,
         "ik_error": ik_error_values.tolist(),
         "final_position_error_m": position_errors,

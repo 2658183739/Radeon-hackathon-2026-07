@@ -88,8 +88,10 @@ evaluation uses stable episode IDs even when the evaluator filters profiles.
 
 The mobile mainline augments the upstream Bi-Franka MJCF with an original
 `x/y/yaw` base, physical chassis collision, three compliant left-arm cups, and
-a right-arm V-cradle for 21 DoF total. Current successful transport uses the
-left suction arm; cooperative right-cradle load sharing is not yet verified.
+a physical right-arm V-cradle for 21 DoF total. The left suction arm has a
+multi-parameter frozen evaluation. Cooperative load sharing completed lift,
+30 cm transport, placement, and release in one 1.44 m rigid-carton development
+case, but has not completed a cooperative generalization campaign.
 
 ## 5. Perception and action contracts
 
@@ -133,8 +135,11 @@ inside the same control and safety envelope.
 The mobile loop combines a 3 Hz SmolVLA/Harness slow loop with a 240 Hz physics
 and safety loop. Harness generates five residual scales and checks progress,
 speed, displacement, finite values, and the 35 N boundary. Three physical cups
-use contact, compliant force, and breakable constraints to seal, lift, carry a
-parcel for 30 cm, place it, and release it.
+use contact, compliant force, and breakable constraints. Cooperative payloads
+raise the minimum expert-direction progress to 75% and use a one-way deadline
+gate calibrated from an independent expert execution, preventing a safe but
+slow VLA residual from exhausting the transport window. Dual-arm lift starts
+only after cup sealing and sustained physical cradle contact.
 
 ### 6.1 Experimental geometry-aware grasp planner
 
@@ -255,7 +260,8 @@ from being dominated by episode zero.
 | Failure-bridge SmolVLA v3, same frozen set | 91/100; failed Wilson non-inferiority and was not promoted |
 | Paired RGB-D, 42 stages | Harness MAE +1.35%, latency +9.65%; RGB retained |
 | Left-arm residual, new frozen 100+100 | 94/100 vs 94/100; 1.40 cm vs 2.45 cm placement error; not promoted |
-| Mobile-focused unit tests | 41 passing on Radeon |
+| Cooperative extra-long-carton development case | 8.53 cm lift, 30 cm transport, 2.16 cm error, zero suction breaks; mechanism evidence only |
+| Mobile-focused unit tests | 48 passing on Radeon |
 
 The 96/100 mobile SmolVLA v2 holdout is the primary learned-policy result. The
 120-episode single-arm expert and ACT runs remain historical controlled baselines.
@@ -294,7 +300,9 @@ Other current limitations are:
   candidates were rejected for crossing the 35 N safety boundary.
 - Diffusion has only a one-step path smoke and VLA-Adapter is not integrated.
 - Selected SmolVLA controls base residuals only. The tested left-arm residual is
-  disabled after its accuracy regression, and right-cradle cooperation is unverified.
+  disabled after its accuracy regression. Right-cradle cooperation has one
+  deterministic extra-long-carton development success but no frozen multi-size,
+  multi-mass, or multi-friction generalization result.
 - The 100-trial randomization covers size, mass, friction, and offset and does not
   establish unseen-geometry generalization.
 - Evaluation is simulation-only; sim-to-real calibration is outside this
@@ -313,11 +321,16 @@ single isolated model. Its main design choices are:
 - separation of policy state from privileged simulator state;
 - one safety and action contract shared by expert and learned policies;
 - bounded Harness-Lite policy drift and isolated failure-driven promotion;
+- short contact-force memory gating for payload-aware residual control;
 - complete audit retention even when failures are excluded from imitation data;
 - disjoint episode-range evaluation to reduce checkpoint-selection bias;
 - a tri-suction mobile dual-arm embodiment with explicit parcel strata;
 - one-GPU ROCm execution spanning simulation, training, inference, and holdout;
 - explicit performance and limitation reporting alongside task success.
+
+This is a system-level PASH-VLA method rather than a claim of a newly trained
+foundation model. The Force-Memory branch remains a development candidate until
+its matched Radeon gate is completed.
 
 ## 13. Deliverables
 

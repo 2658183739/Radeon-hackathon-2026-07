@@ -23,8 +23,11 @@ generalization claim.
 - Slow-fast control: 3 Hz VLA/Harness and 240 Hz deterministic safety loop.
 
 Metric depth is recorded but is not an input to this checkpoint. The successful
-run used the left suction arm; cooperative load sharing by the right cradle is
-not yet validated.
+run used the left suction arm; cooperative load sharing by the right cradle was
+not validated in this earlier v2 result. A later independent v24 development
+case completed right-cradle contact, dual-arm lift, 30 cm transport, and release;
+see `MOBILE_COOPERATIVE_CRADLE_ABLATION.md`. This update does not change the
+formal statistical boundary of the SmolVLA v2 baseline.
 
 ## Harness-Lite
 

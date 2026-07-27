@@ -10,6 +10,11 @@ import statistics
 
 from parcel_sorter.genesis_env import initialize_genesis
 from parcel_sorter.mobile_dataset import MobileBimanualFrame, MobileBimanualLeRobotWriter
+from parcel_sorter.mobile_harness import (
+    MobileHarnessConfig,
+    transport_deadline_requires_expert,
+)
+from parcel_sorter.mobile_cradle import MobileVCradleMonitor
 from parcel_sorter.mobile_bimanual import (
     ARM_JOINT_NAMES,
     BASE_JOINT_NAMES,
@@ -19,7 +24,10 @@ from parcel_sorter.mobile_bimanual import (
     joint_dof_indices,
 )
 from parcel_sorter.mobile_suction import MobileTriSuctionController
-from parcel_sorter.mobile_task import clamp_position_residual_to_anchor
+from parcel_sorter.mobile_task import (
+    clamp_position_residual_to_anchor,
+    placement_within_release_gate,
+)
 from parcel_sorter.mobile_vla_controller import MobileSmolVLAHarnessController
 from parcel_sorter.provenance import runtime_report
 from parcel_sorter.suction import rotate_vector
@@ -71,8 +79,18 @@ def main() -> int:
     parser.add_argument("--parcel-mass-kg", type=float, default=0.40)
     parser.add_argument("--parcel-friction", type=float, default=0.80)
     parser.add_argument("--parcel-offset-m", type=float, nargs=2, default=(0.0, 0.0))
+    parser.add_argument(
+        "--cooperative-cradle",
+        action="store_true",
+        help="synchronize the right V cradle for wide-parcel lift, transport, and place",
+    )
     parser.add_argument("--task-text")
     parser.add_argument("--smolvla-checkpoint", type=Path)
+    parser.add_argument(
+        "--force-memory-harness",
+        action="store_true",
+        help="cap SmolVLA residual scale using short contact-force history",
+    )
     parser.add_argument(
         "--policy-mode",
         choices=("shadow", "base_residual", "base_arm_residual"),
@@ -82,8 +100,11 @@ def main() -> int:
     args = parser.parse_args()
     if args.image_size < 32:
         parser.error("image-size must be at least 32")
-    if any(not 0.02 <= value <= 0.60 for value in args.parcel_size_m):
-        parser.error("parcel dimensions must be in [0.02, 0.60] m")
+    max_parcel_dimension_m = 1.70 if args.cooperative_cradle else 0.60
+    if any(not 0.02 <= value <= max_parcel_dimension_m for value in args.parcel_size_m):
+        parser.error(
+            f"parcel dimensions must be in [0.02, {max_parcel_dimension_m:.2f}] m"
+        )
     if not 0.05 <= args.parcel_mass_kg <= 5.0:
         parser.error("parcel mass must be in [0.05, 5.0] kg")
     if not 0.1 <= args.parcel_friction <= 2.0:
@@ -94,6 +115,10 @@ def main() -> int:
         parser.error("policy-hz must be a positive divisor of 30")
     if args.policy_mode != "shadow" and args.smolvla_checkpoint is None:
         parser.error("residual policy modes require --smolvla-checkpoint")
+    if args.cooperative_cradle and args.parcel_size_m[0] < 0.28:
+        parser.error("cooperative cradle requires parcel X dimension >= 0.28 m")
+    if args.cooperative_cradle and args.policy_mode == "base_arm_residual":
+        parser.error("cooperative cradle is not compatible with left-arm residual ablation")
 
     gs, torch, np = initialize_genesis(args.backend)
     source = Path(gs.__file__).resolve().parent / "assets/xml/franka_sim/bi-franka_panda.xml"
@@ -109,7 +134,11 @@ def main() -> int:
         show_viewer=False,
     )
     scene.add_entity(gs.morphs.Plane())
-    pedestal_position = np.asarray((-0.6800, 0.7500, 1.3000))
+    pedestal_position = np.asarray(
+        (0.0, 0.7500, 1.3000)
+        if args.cooperative_cradle
+        else (-0.6800, 0.7500, 1.3000)
+    )
     transport_delta = np.asarray((0.3000, 0.0, 0.0))
     destination_pedestal_position = pedestal_position + transport_delta
     parcel_size = np.asarray(args.parcel_size_m, dtype=np.float64)
@@ -121,16 +150,21 @@ def main() -> int:
             parcel_support_z + 0.002,
         )
     )
+    pedestal_size_x = (
+        max(0.16, float(parcel_size[0]) + 0.04)
+        if args.cooperative_cradle
+        else 0.16
+    )
     scene.add_entity(
         gs.morphs.Box(
-            size=(0.16, 0.08, 0.10),
+            size=(pedestal_size_x, 0.08, 0.10),
             pos=tuple(pedestal_position.tolist()),
             fixed=True,
         )
     )
     scene.add_entity(
         gs.morphs.Box(
-            size=(0.16, 0.08, 0.10),
+            size=(pedestal_size_x, 0.08, 0.10),
             pos=tuple(destination_pedestal_position.tolist()),
             fixed=True,
         )
@@ -196,6 +230,8 @@ def main() -> int:
     tool_axis = _normalized(rotate_vector(hand_quaternion, (0.0, 0.0, 1.0)), np)
     parcel_half_extent_on_axis = _box_ray_extent(tool_axis, parcel_size)
     cup_tip_offset_m = 0.112
+    cradle_tip_offset_m = 0.270
+    cooperative_contact_penetration_m = 0.006
     planned_parcel_position = hand_position + tool_axis * (
         cup_tip_offset_m + parcel_half_extent_on_axis
     )
@@ -239,33 +275,112 @@ def main() -> int:
         np.asarray(_flat(left_hand.get_quat())),
         np.asarray(_flat(right_hand.get_quat())),
     )
-    center_y = 0.5 * (pregrasp_start_positions[0][1] + pregrasp_start_positions[1][1])
-    left_pregrasp_target = pregrasp_start_positions[0] + np.asarray(
-        (0.08, 0.20 * (center_y - pregrasp_start_positions[0][1]), -0.08)
+    left_contact_lateral_offset = np.zeros(3)
+    right_cradle_contact_target = None
+    left_pregrasp_tcp_target = None
+    right_pregrasp_tcp_target = None
+    if args.cooperative_cradle:
+        cooperative_span_m = float(parcel_size[0]) * 0.5 - 0.04
+        left_contact_lateral_offset = np.asarray((-cooperative_span_m, 0.0, 0.0))
+        right_contact_lateral_offset = np.asarray((cooperative_span_m, 0.0, 0.0))
+        right_tool_axis = _normalized(
+            rotate_vector(tuple(pregrasp_quaternions[1].tolist()), (0.0, 0.0, 1.0)),
+            np,
+        )
+        right_half_extent_on_axis = _box_ray_extent(right_tool_axis, parcel_size)
+        left_contact_surface = (
+            settled_parcel_position
+            + left_contact_lateral_offset
+            - tool_axis
+            * (parcel_half_extent_on_axis - cooperative_contact_penetration_m)
+        )
+        right_contact_surface = (
+            settled_parcel_position
+            + right_contact_lateral_offset
+            - right_tool_axis
+            * (right_half_extent_on_axis - cooperative_contact_penetration_m)
+        )
+        left_pregrasp_tcp_target = left_contact_surface - tool_axis * 0.040
+        right_pregrasp_tcp_target = right_contact_surface - right_tool_axis * 0.040
+        right_cradle_contact_target = (
+            right_contact_surface - right_tool_axis * cradle_tip_offset_m
+        )
+        pregrasp_targets = (
+            left_pregrasp_tcp_target - tool_axis * cup_tip_offset_m,
+            right_pregrasp_tcp_target - right_tool_axis * cradle_tip_offset_m,
+        )
+    else:
+        center_y = 0.5 * (
+            pregrasp_start_positions[0][1] + pregrasp_start_positions[1][1]
+        )
+        left_pregrasp_target = pregrasp_start_positions[0] + np.asarray(
+            (0.08, 0.20 * (center_y - pregrasp_start_positions[0][1]), -0.08)
+        )
+        # The base supplies the final horizontal approach; align the suction array
+        # with the settled parcel centre once so the arm can hold a fixed IK branch.
+        left_pregrasp_target[2] = settled_parcel_position[2] - tool_axis[2] * (
+            cup_tip_offset_m + parcel_half_extent_on_axis + 0.040
+        )
+        pregrasp_targets = (
+            left_pregrasp_target,
+            pregrasp_start_positions[1]
+            + np.asarray(
+                (-0.08, 0.20 * (center_y - pregrasp_start_positions[1][1]), -0.08)
+            ),
+        )
+    pregrasp_init_qpos = np.asarray(_flat(robot.get_qpos()))
+    if args.cooperative_cradle:
+        pregrasp_solution = robot.inverse_kinematics_multilink(
+            links=(left_hand, right_hand),
+            poss=(left_pregrasp_tcp_target, right_pregrasp_tcp_target),
+            quats=pregrasp_quaternions,
+            local_points=(
+                np.asarray((0.0, 0.0, cup_tip_offset_m)),
+                np.asarray((0.0, 0.0, cradle_tip_offset_m)),
+            ),
+            init_qpos=pregrasp_init_qpos,
+            respect_joint_limit=True,
+            max_samples=12,
+            max_solver_iters=80,
+            damping=0.02,
+            max_step_size=0.15,
+            dofs_idx_local=arm_dofs,
+        )
+        pregrasp_values = np.asarray(_flat(pregrasp_solution))
+    else:
+        pregrasp_solution = robot.inverse_kinematics_multilink(
+            links=(left_hand, right_hand),
+            poss=pregrasp_targets,
+            quats=pregrasp_quaternions,
+            init_qpos=pregrasp_init_qpos,
+            respect_joint_limit=True,
+            max_samples=12,
+            max_solver_iters=50,
+            damping=0.02,
+            max_step_size=0.25,
+            dofs_idx_local=arm_dofs,
+        )
+        pregrasp_values = np.asarray(_flat(pregrasp_solution))
+    cradle_monitor = (
+        MobileVCradleMonitor(robot=robot, parcel=parcel, torch=torch)
+        if args.cooperative_cradle
+        else None
     )
-    # The base supplies the final horizontal approach; align the suction array
-    # with the settled parcel centre once so the arm can hold a fixed IK branch.
-    left_pregrasp_target[2] = settled_parcel_position[2] - tool_axis[2] * (
-        cup_tip_offset_m + parcel_half_extent_on_axis + 0.040
-    )
-    pregrasp_targets = (
-        left_pregrasp_target,
-        pregrasp_start_positions[1]
-        + np.asarray((-0.08, 0.20 * (center_y - pregrasp_start_positions[1][1]), -0.08)),
-    )
-    pregrasp_solution = robot.inverse_kinematics_multilink(
-        links=(left_hand, right_hand),
-        poss=pregrasp_targets,
-        quats=pregrasp_quaternions,
-        init_qpos=np.asarray(_flat(robot.get_qpos())),
-        respect_joint_limit=True,
-        max_samples=12,
-        max_solver_iters=50,
-        damping=0.02,
-        max_step_size=0.25,
-        dofs_idx_local=arm_dofs,
-    )
-    pregrasp_values = np.asarray(_flat(pregrasp_solution))
+    cradle_lift_contact_steps = 0
+    cradle_transport_contact_steps = 0
+    cradle_place_contact_steps = 0
+    cradle_lift_steps = 0
+    cradle_transport_steps = 0
+    cradle_place_steps = 0
+    cooperative_lift_ik_attempts = 0
+    cooperative_lift_ik_accepts = 0
+    cooperative_lift_ik_rejections = 0
+    cooperative_place_ik_attempts = 0
+    cooperative_place_ik_accepts = 0
+    cooperative_place_ik_rejections = 0
+    cradle_engage_steps = 0
+    cradle_engage_contact_steps = 0
+    cradle_engaged_before_lift = False
     writer = None
     if args.record_dataset is not None:
         writer = MobileBimanualLeRobotWriter(
@@ -280,8 +395,16 @@ def main() -> int:
         f"Classify the {args.parcel_profile} parcel, pick it with tri-suction, "
         f"transport it to the {args.parcel_profile} sorting station, and place it safely."
     )
+    harness_config = MobileHarnessConfig(
+        min_progress_ratio=0.75 if args.cooperative_cradle else 0.50
+    )
+    transport_capacity_ratio = 0.60 if args.cooperative_cradle else 0.75
     policy_controller = (
-        MobileSmolVLAHarnessController(args.smolvla_checkpoint)
+        MobileSmolVLAHarnessController(
+            args.smolvla_checkpoint,
+            harness_config=harness_config,
+            force_memory_enabled=args.force_memory_harness,
+        )
         if args.smolvla_checkpoint is not None
         else None
     )
@@ -326,8 +449,11 @@ def main() -> int:
         if camera is None:
             raise RuntimeError("mobile observation requires an RGB-D camera")
         left_contact_force_n = 0.0
+        right_contact_force_n = 0.0
         if suction_controller is not None:
             _, left_contact_force_n = suction_controller.contact_snapshot()
+        if cradle_monitor is not None:
+            _, right_contact_force_n = cradle_monitor.snapshot()
         rgb, depth, _, _ = camera.render(rgb=True, depth=True)
         current_qpos = np.asarray(_flat(robot.get_qpos()))
         base_velocity = _flat(robot.get_dofs_velocity(base_dofs))
@@ -344,7 +470,7 @@ def main() -> int:
             *left_pose,
             *right_pose,
             left_contact_force_n,
-            0.0,
+            right_contact_force_n,
             float(destination_pedestal_position[0]),
             float(destination_pedestal_position[1]),
             0.0,
@@ -471,8 +597,19 @@ def main() -> int:
             )
         recorded_frames += 1
 
-    robot.control_dofs_position(pregrasp_values[arm_dofs], arm_dofs)
-    for _ in range(240 if scene_stable else 0):
+    pregrasp_start_arm_qpos = np.asarray(_flat(robot.get_qpos()))[arm_dofs]
+    pregrasp_target_arm_qpos = pregrasp_values[arm_dofs]
+    pregrasp_physics_steps = 1200 if args.cooperative_cradle else 240
+    for pregrasp_step in range(1, pregrasp_physics_steps + 1 if scene_stable else 1):
+        if args.cooperative_cradle:
+            progress = min(pregrasp_step / 480.0, 1.0)
+            smooth_progress = progress * progress * (3.0 - 2.0 * progress)
+            pregrasp_command = pregrasp_start_arm_qpos + smooth_progress * (
+                pregrasp_target_arm_qpos - pregrasp_start_arm_qpos
+            )
+        else:
+            pregrasp_command = pregrasp_target_arm_qpos
+        robot.control_dofs_position(pregrasp_command, arm_dofs)
         scene.step()
         record_control_frame(
             stage="pregrasp",
@@ -488,6 +625,10 @@ def main() -> int:
         math.dist(_flat(left_hand.get_pos()), pregrasp_targets[0].tolist()),
         math.dist(_flat(right_hand.get_pos()), pregrasp_targets[1].tolist()),
     )
+    pregrasp_final_positions = (
+        _flat(left_hand.get_pos()),
+        _flat(right_hand.get_pos()),
+    )
 
     contact_quaternion = np.asarray(_flat(hand.get_quat()))
     approach_axis = _normalized(
@@ -495,9 +636,14 @@ def main() -> int:
     )
     current_parcel_position = np.asarray(_flat(parcel.get_pos()))
     current_half_extent_on_axis = _box_ray_extent(approach_axis, parcel_size)
-    contact_penetration_m = 0.003
-    contact_hand_target = current_parcel_position - approach_axis * (
-        cup_tip_offset_m + current_half_extent_on_axis - contact_penetration_m
+    contact_penetration_m = (
+        cooperative_contact_penetration_m if args.cooperative_cradle else 0.003
+    )
+    contact_hand_target = (
+        current_parcel_position
+        + left_contact_lateral_offset
+        - approach_axis
+        * (cup_tip_offset_m + current_half_extent_on_axis - contact_penetration_m)
     )
     precontact_target = contact_hand_target - approach_axis * 0.040
 
@@ -520,10 +666,24 @@ def main() -> int:
         current_axis = _normalized(
             rotate_vector(current_quaternion, (0.0, 0.0, 1.0)), np
         )
-        dynamic_contact_target = np.asarray(_flat(parcel.get_pos())) - approach_axis * (
-            cup_tip_offset_m + current_half_extent_on_axis - contact_penetration_m
+        dynamic_contact_surface = (
+            np.asarray(_flat(parcel.get_pos()))
+            + left_contact_lateral_offset
+            - approach_axis
+            * (current_half_extent_on_axis - contact_penetration_m)
         )
-        horizontal_error = dynamic_contact_target[:2] - current_position[:2]
+        dynamic_contact_target = (
+            dynamic_contact_surface - approach_axis * cup_tip_offset_m
+        )
+        current_tcp = current_position + current_axis * cup_tip_offset_m
+        if args.cooperative_cradle:
+            horizontal_error = dynamic_contact_surface[:2] - current_tcp[:2]
+            if abs(float(horizontal_error[0])) > 0.010:
+                horizontal_error[1] = 0.0
+            else:
+                horizontal_error[0] = 0.0
+        else:
+            horizontal_error = dynamic_contact_target[:2] - current_position[:2]
         base_velocity_xy = horizontal_error * 2.0
         base_speed = float(np.linalg.norm(base_velocity_xy))
         if base_speed > 0.05:
@@ -561,8 +721,13 @@ def main() -> int:
             ),
         )
         actual_hand_position = _flat(hand.get_pos())
+        actual_tcp = np.asarray(actual_hand_position) + current_axis * cup_tip_offset_m
         distance_to_contact_m = float(
-            np.linalg.norm(np.asarray(actual_hand_position[:2]) - dynamic_contact_target[:2])
+            np.linalg.norm(
+                actual_tcp[:2] - dynamic_contact_surface[:2]
+                if args.cooperative_cradle
+                else np.asarray(actual_hand_position[:2]) - dynamic_contact_target[:2]
+            )
         )
         axis_alignment = float(np.dot(current_axis, approach_axis))
         if approach_step % 12 == 0 or sealed or force_n >= 35.0:
@@ -588,38 +753,149 @@ def main() -> int:
     robot.control_dofs_velocity(np.zeros(3), base_dofs)
 
     latched = suction.try_latch()
+    if latched and args.cooperative_cradle and cradle_monitor is not None:
+        engage_start_right_hand = np.asarray(_flat(right_hand.get_pos()))
+        engage_left_qpos = np.asarray(_flat(robot.get_qpos()))[left_arm_dofs]
+        engage_right_command = np.asarray(_flat(robot.get_qpos()))[right_arm_dofs]
+        consecutive_cradle_contact_steps = 0
+        for engage_step in range(1, 241):
+            cradle_engage_steps += 1
+            engage_progress = min(engage_step / 120.0, 1.0)
+            if (engage_step - 1) % 8 == 0:
+                engage_target = (
+                    engage_start_right_hand
+                    + np.asarray(right_tool_axis) * (0.015 * engage_progress)
+                )
+                engage_solution = robot.inverse_kinematics(
+                    link=right_hand,
+                    pos=engage_target,
+                    quat=np.asarray(_flat(right_hand.get_quat())),
+                    init_qpos=np.asarray(_flat(robot.get_qpos())),
+                    respect_joint_limit=True,
+                    max_samples=4,
+                    max_solver_iters=40,
+                    damping=0.03,
+                    max_step_size=0.08,
+                    dofs_idx_local=right_arm_dofs,
+                )
+                candidate = np.asarray(_flat(engage_solution))[right_arm_dofs]
+                if np.isfinite(candidate).all():
+                    engage_right_command = candidate
+            robot.control_dofs_position(engage_left_qpos, left_arm_dofs)
+            robot.control_dofs_position(engage_right_command, right_arm_dofs)
+            suction.update()
+            scene.step()
+            cradle_contacts, cradle_force_n = cradle_monitor.snapshot()
+            if cradle_contacts > 0:
+                cradle_engage_contact_steps += 1
+                consecutive_cradle_contact_steps += 1
+            else:
+                consecutive_cradle_contact_steps = 0
+            if (
+                suction.attachment is None
+                or cradle_force_n >= 35.0
+                or consecutive_cradle_contact_steps >= 24
+            ):
+                break
+        cradle_engaged_before_lift = bool(
+            suction.attachment is not None
+            and consecutive_cradle_contact_steps >= 24
+            and cradle_monitor.max_contact_force_n < 35.0
+        )
     lift_trace = []
     lift_target_delta_m = 0.10 + min(
         0.02, max(0.0, args.parcel_mass_kg - 0.40) * 0.08
-    )
+    ) + (0.02 if args.cooperative_cradle else 0.0)
     if latched:
         start_hand = np.asarray(_flat(hand.get_pos()))
+        start_right_hand = np.asarray(_flat(right_hand.get_pos()))
         start_qpos = np.asarray(_flat(robot.get_qpos()))
-        start_arm_qpos = start_qpos[left_arm_dofs]
+        controlled_arm_dofs = arm_dofs if args.cooperative_cradle else left_arm_dofs
+        start_arm_qpos = start_qpos[controlled_arm_dofs]
         lift_target = start_hand + np.asarray((0.0, 0.0, lift_target_delta_m))
-        lift_quaternion = np.asarray(_flat(hand.get_quat()))
-        solution = robot.inverse_kinematics(
-            link=hand,
-            pos=lift_target,
-            quat=lift_quaternion,
-            init_qpos=start_qpos,
-            respect_joint_limit=True,
-            max_samples=8,
-            max_solver_iters=80,
-            damping=0.02,
-            max_step_size=0.15,
-            dofs_idx_local=left_arm_dofs,
+        right_lift_target = start_right_hand + np.asarray(
+            (0.0, 0.0, lift_target_delta_m)
         )
-        target_arm_qpos = np.asarray(_flat(solution))[left_arm_dofs]
+        lift_quaternion = np.asarray(_flat(hand.get_quat()))
+        right_lift_quaternion = np.asarray(_flat(right_hand.get_quat()))
+        if not args.cooperative_cradle:
+            solution = robot.inverse_kinematics(
+                link=hand,
+                pos=lift_target,
+                quat=lift_quaternion,
+                init_qpos=start_qpos,
+                respect_joint_limit=True,
+                max_samples=8,
+                max_solver_iters=80,
+                damping=0.02,
+                max_step_size=0.15,
+                dofs_idx_local=left_arm_dofs,
+            )
+            target_arm_qpos = np.asarray(_flat(solution))[controlled_arm_dofs]
+        else:
+            target_arm_qpos = start_arm_qpos.copy()
         for physics_step in range(1, 721):
             progress = min(physics_step / 480.0, 1.0)
             smooth_progress = progress * progress * (3.0 - 2.0 * progress)
-            command = start_arm_qpos + smooth_progress * (
-                target_arm_qpos - start_arm_qpos
+            if args.cooperative_cradle and (physics_step - 1) % 8 == 0:
+                cooperative_lift_ik_attempts += 1
+                current_qpos = np.asarray(_flat(robot.get_qpos()))
+                desired_offset = np.asarray(
+                    (0.0, 0.0, lift_target_delta_m * smooth_progress)
+                )
+                try:
+                    left_incremental_solution = robot.inverse_kinematics(
+                        link=hand,
+                        pos=start_hand + desired_offset,
+                        quat=lift_quaternion,
+                        init_qpos=current_qpos,
+                        respect_joint_limit=True,
+                        max_samples=4,
+                        max_solver_iters=40,
+                        damping=0.03,
+                        max_step_size=0.08,
+                        dofs_idx_local=left_arm_dofs,
+                    )
+                    right_incremental_solution = robot.inverse_kinematics(
+                        link=right_hand,
+                        pos=start_right_hand + desired_offset,
+                        quat=right_lift_quaternion,
+                        init_qpos=current_qpos,
+                        respect_joint_limit=True,
+                        max_samples=4,
+                        max_solver_iters=40,
+                        damping=0.03,
+                        max_step_size=0.08,
+                        dofs_idx_local=right_arm_dofs,
+                    )
+                    candidate_full_qpos = current_qpos.copy()
+                    candidate_full_qpos[left_arm_dofs] = np.asarray(
+                        _flat(left_incremental_solution)
+                    )[left_arm_dofs]
+                    candidate_full_qpos[right_arm_dofs] = np.asarray(
+                        _flat(right_incremental_solution)
+                    )[right_arm_dofs]
+                    candidate_qpos = candidate_full_qpos[arm_dofs]
+                    if not np.isfinite(candidate_qpos).all():
+                        raise ValueError("incremental dual-arm IK returned non-finite values")
+                except (RuntimeError, ValueError):
+                    cooperative_lift_ik_rejections += 1
+                else:
+                    target_arm_qpos = candidate_qpos
+                    cooperative_lift_ik_accepts += 1
+            command = (
+                target_arm_qpos
+                if args.cooperative_cradle
+                else start_arm_qpos
+                + smooth_progress * (target_arm_qpos - start_arm_qpos)
             )
-            robot.control_dofs_position(command, left_arm_dofs)
+            robot.control_dofs_position(command, controlled_arm_dofs)
             suction.update()
             scene.step()
+            if cradle_monitor is not None:
+                cradle_lift_steps += 1
+                cradle_contacts, _ = cradle_monitor.snapshot()
+                cradle_lift_contact_steps += int(cradle_contacts > 0)
             record_control_frame(
                 stage="lift",
                 base_action=np.zeros(3),
@@ -627,8 +903,9 @@ def main() -> int:
                 + np.asarray((0.0, 0.0, lift_target_delta_m * smooth_progress)),
                 left_quaternion=lift_quaternion,
                 left_tool_command=1.0,
-                right_position=pregrasp_targets[1],
-                right_quaternion=pregrasp_quaternions[1],
+                right_position=start_right_hand
+                + np.asarray((0.0, 0.0, lift_target_delta_m * smooth_progress)),
+                right_quaternion=right_lift_quaternion,
                 right_tool_command=1.0,
                 suction_controller=suction,
             )
@@ -638,7 +915,13 @@ def main() -> int:
                         "physics_step": physics_step,
                         "target_hand_position_m": lift_target.tolist(),
                         "actual_hand_position_m": _flat(hand.get_pos()),
+                        "actual_right_hand_position_m": _flat(right_hand.get_pos()),
                         "parcel_position_m": _flat(parcel.get_pos()),
+                        "cradle": (
+                            cradle_monitor.summary()
+                            if cradle_monitor is not None
+                            else None
+                        ),
                         **suction.summary(),
                     }
                 )
@@ -653,9 +936,24 @@ def main() -> int:
         and lift_delta >= 0.08
         and suction.max_force_n < 35.0
         and suction.max_contact_force_n < 35.0
+        and (
+            not args.cooperative_cradle
+            or (
+                cradle_monitor is not None
+                and cradle_engaged_before_lift
+                and cradle_lift_steps > 0
+                and cradle_lift_contact_steps / cradle_lift_steps >= 0.50
+                and cradle_monitor.max_contact_force_n < 35.0
+            )
+        )
     )
     transport_trace = []
     transport_success = False
+    transport_deadline_handoff = False
+    transport_deadline_handoff_step = None
+    transport_deadline_handoff_distance_m = None
+    transport_deadline_handoff_remaining_s = None
+    transport_deadline_handoff_physics_steps = 0
     if lift_success:
         transport_start_base = np.asarray(_flat(robot.get_qpos()))[base_dofs]
         transport_target_base = transport_start_base + transport_delta
@@ -672,28 +970,58 @@ def main() -> int:
                 velocity_xy *= 0.05 / speed_m_s
                 speed_m_s = 0.05
             expert_velocity_xy = velocity_xy.copy()
+            expert_forward_speed_m_s = (
+                float(np.dot(expert_velocity_xy, error_xy / distance_m))
+                if distance_m > 1e-9
+                else 0.0
+            )
             if (
                 args.policy_mode in {"base_residual", "base_arm_residual"}
                 and latest_policy_action is not None
                 and latest_policy_stage == "transport"
             ):
-                velocity_xy = np.asarray(latest_policy_action[:2], dtype=np.float64)
+                remaining_time_s = (2401 - physics_step) / 240.0
+                if not transport_deadline_handoff:
+                    transport_deadline_handoff = transport_deadline_requires_expert(
+                        distance_m=distance_m,
+                        remaining_time_s=remaining_time_s,
+                        expert_forward_speed_m_s=expert_forward_speed_m_s,
+                        minimum_capacity_ratio=transport_capacity_ratio,
+                    )
+                    if transport_deadline_handoff:
+                        transport_deadline_handoff_step = physics_step
+                        transport_deadline_handoff_distance_m = distance_m
+                        transport_deadline_handoff_remaining_s = remaining_time_s
+                if transport_deadline_handoff:
+                    velocity_xy = expert_velocity_xy
+                    transport_deadline_handoff_physics_steps += 1
+                else:
+                    velocity_xy = np.asarray(
+                        latest_policy_action[:2], dtype=np.float64
+                    )
+                    policy_applied_physics_steps += 1
                 speed_m_s = float(np.linalg.norm(velocity_xy))
-                policy_applied_physics_steps += 1
             robot.control_dofs_velocity(
                 np.asarray((velocity_xy[0], velocity_xy[1], 0.0)), base_dofs
             )
-            arm_command = target_arm_qpos
-            if (
-                args.policy_mode == "base_arm_residual"
-                and latest_policy_left_arm_qpos is not None
-                and latest_policy_arm_stage == "transport"
-            ):
-                arm_command = latest_policy_left_arm_qpos
-                arm_policy_applied_physics_steps += 1
-            robot.control_dofs_position(arm_command, left_arm_dofs)
+            if args.cooperative_cradle:
+                robot.control_dofs_position(target_arm_qpos, arm_dofs)
+            else:
+                arm_command = target_arm_qpos
+                if (
+                    args.policy_mode == "base_arm_residual"
+                    and latest_policy_left_arm_qpos is not None
+                    and latest_policy_arm_stage == "transport"
+                ):
+                    arm_command = latest_policy_left_arm_qpos
+                    arm_policy_applied_physics_steps += 1
+                robot.control_dofs_position(arm_command, left_arm_dofs)
             suction.update()
             scene.step()
+            if cradle_monitor is not None:
+                cradle_transport_steps += 1
+                cradle_contacts, _ = cradle_monitor.snapshot()
+                cradle_transport_contact_steps += int(cradle_contacts > 0)
             record_control_frame(
                 stage="transport",
                 base_action=np.asarray((velocity_xy[0], velocity_xy[1], 0.0)),
@@ -715,6 +1043,11 @@ def main() -> int:
                         "base_position_xy_m": _flat(robot.get_qpos())[base_dofs[0] : base_dofs[1] + 1],
                         "distance_to_destination_m": distance_m,
                         "parcel_position_m": _flat(parcel.get_pos()),
+                        "cradle": (
+                            cradle_monitor.summary()
+                            if cradle_monitor is not None
+                            else None
+                        ),
                         **suction.summary(),
                     }
                 )
@@ -730,40 +1063,129 @@ def main() -> int:
                 (initial_parcel_position + transport_delta)[:2].tolist(),
             )
             <= 0.040
+            and (
+                not args.cooperative_cradle
+                or (
+                    cradle_transport_steps > 0
+                    and cradle_transport_contact_steps / cradle_transport_steps >= 0.50
+                )
+            )
         )
 
     place_trace = []
     placed_before_release = False
     released = False
+    consecutive_place_target_steps = 0
+    place_completed_early = False
     if transport_success:
         place_start_hand = np.asarray(_flat(hand.get_pos()))
+        place_start_right_hand = np.asarray(_flat(right_hand.get_pos()))
         place_start_qpos = np.asarray(_flat(robot.get_qpos()))
-        place_start_arm_qpos = place_start_qpos[left_arm_dofs]
+        controlled_place_dofs = arm_dofs if args.cooperative_cradle else left_arm_dofs
+        place_start_arm_qpos = place_start_qpos[controlled_place_dofs]
         place_drop_m = lift_target_delta_m - 0.015
         place_target = place_start_hand - np.asarray((0.0, 0.0, place_drop_m))
-        place_quaternion = np.asarray(_flat(hand.get_quat()))
-        place_solution = robot.inverse_kinematics(
-            link=hand,
-            pos=place_target,
-            quat=place_quaternion,
-            init_qpos=place_start_qpos,
-            respect_joint_limit=True,
-            max_samples=8,
-            max_solver_iters=80,
-            damping=0.02,
-            max_step_size=0.15,
-            dofs_idx_local=left_arm_dofs,
+        right_place_target = place_start_right_hand - np.asarray(
+            (0.0, 0.0, place_drop_m)
         )
-        place_target_arm_qpos = np.asarray(_flat(place_solution))[left_arm_dofs]
+        place_quaternion = np.asarray(_flat(hand.get_quat()))
+        right_place_quaternion = np.asarray(_flat(right_hand.get_quat()))
+        expected_placed_position = initial_parcel_position + transport_delta
+        if not args.cooperative_cradle:
+            place_solution = robot.inverse_kinematics(
+                link=hand,
+                pos=place_target,
+                quat=place_quaternion,
+                init_qpos=place_start_qpos,
+                respect_joint_limit=True,
+                max_samples=8,
+                max_solver_iters=80,
+                damping=0.02,
+                max_step_size=0.15,
+                dofs_idx_local=left_arm_dofs,
+            )
+            place_target_arm_qpos = np.asarray(_flat(place_solution))[
+                controlled_place_dofs
+            ]
+        else:
+            place_target_arm_qpos = place_start_arm_qpos.copy()
         for physics_step in range(1, 721):
             progress = min(physics_step / 480.0, 1.0)
             smooth_progress = progress * progress * (3.0 - 2.0 * progress)
-            command = place_start_arm_qpos + smooth_progress * (
-                place_target_arm_qpos - place_start_arm_qpos
+            if args.cooperative_cradle and (physics_step - 1) % 8 == 0:
+                cooperative_place_ik_attempts += 1
+                current_qpos = np.asarray(_flat(robot.get_qpos()))
+                desired_offset = np.asarray(
+                    (0.0, 0.0, -place_drop_m * smooth_progress)
+                )
+                try:
+                    left_incremental_solution = robot.inverse_kinematics(
+                        link=hand,
+                        pos=place_start_hand + desired_offset,
+                        quat=place_quaternion,
+                        init_qpos=current_qpos,
+                        respect_joint_limit=True,
+                        max_samples=4,
+                        max_solver_iters=40,
+                        damping=0.03,
+                        max_step_size=0.08,
+                        dofs_idx_local=left_arm_dofs,
+                    )
+                    right_incremental_solution = robot.inverse_kinematics(
+                        link=right_hand,
+                        pos=place_start_right_hand + desired_offset,
+                        quat=right_place_quaternion,
+                        init_qpos=current_qpos,
+                        respect_joint_limit=True,
+                        max_samples=4,
+                        max_solver_iters=40,
+                        damping=0.03,
+                        max_step_size=0.08,
+                        dofs_idx_local=right_arm_dofs,
+                    )
+                    candidate_full_qpos = current_qpos.copy()
+                    candidate_full_qpos[left_arm_dofs] = np.asarray(
+                        _flat(left_incremental_solution)
+                    )[left_arm_dofs]
+                    candidate_full_qpos[right_arm_dofs] = np.asarray(
+                        _flat(right_incremental_solution)
+                    )[right_arm_dofs]
+                    candidate_qpos = candidate_full_qpos[arm_dofs]
+                    if not np.isfinite(candidate_qpos).all():
+                        raise ValueError(
+                            "incremental dual-arm place IK returned non-finite values"
+                        )
+                except (RuntimeError, ValueError):
+                    cooperative_place_ik_rejections += 1
+                else:
+                    place_target_arm_qpos = candidate_qpos
+                    cooperative_place_ik_accepts += 1
+            command = (
+                place_target_arm_qpos
+                if args.cooperative_cradle
+                else place_start_arm_qpos
+                + smooth_progress * (place_target_arm_qpos - place_start_arm_qpos)
             )
-            robot.control_dofs_position(command, left_arm_dofs)
+            robot.control_dofs_position(command, controlled_place_dofs)
             suction.update()
             scene.step()
+            if cradle_monitor is not None:
+                cradle_place_steps += 1
+                cradle_contacts, _ = cradle_monitor.snapshot()
+                cradle_place_contact_steps += int(cradle_contacts > 0)
+            if (
+                args.cooperative_cradle
+                and suction.attachment is not None
+                and placement_within_release_gate(
+                    _flat(parcel.get_pos()), expected_placed_position
+                )
+            ):
+                consecutive_place_target_steps += 1
+            else:
+                consecutive_place_target_steps = 0
+            place_completed_early = bool(
+                args.cooperative_cradle and consecutive_place_target_steps >= 24
+            )
             record_control_frame(
                 stage="place",
                 base_action=np.zeros(3),
@@ -771,29 +1193,41 @@ def main() -> int:
                 - np.asarray((0.0, 0.0, place_drop_m * smooth_progress)),
                 left_quaternion=place_quaternion,
                 left_tool_command=1.0,
-                right_position=_flat(right_hand.get_pos()),
-                right_quaternion=_flat(right_hand.get_quat()),
+                right_position=place_start_right_hand
+                - np.asarray((0.0, 0.0, place_drop_m * smooth_progress)),
+                right_quaternion=right_place_quaternion,
                 right_tool_command=1.0,
                 suction_controller=suction,
             )
-            if physics_step % 40 == 0 or suction.attachment is None:
+            if (
+                physics_step % 40 == 0
+                or suction.attachment is None
+                or place_completed_early
+            ):
                 place_trace.append(
                     {
                         "physics_step": physics_step,
                         "actual_hand_position_m": _flat(hand.get_pos()),
+                        "actual_right_hand_position_m": _flat(right_hand.get_pos()),
                         "parcel_position_m": _flat(parcel.get_pos()),
+                        "cradle": (
+                            cradle_monitor.summary()
+                            if cradle_monitor is not None
+                            else None
+                        ),
                         **suction.summary(),
                     }
                 )
             if suction.attachment is None:
                 break
-        expected_placed_position = initial_parcel_position + transport_delta
+            if place_completed_early:
+                break
         parcel_before_release = np.asarray(_flat(parcel.get_pos()))
         placed_before_release = bool(
             suction.attachment is not None
-            and float(np.linalg.norm(parcel_before_release[:2] - expected_placed_position[:2]))
-            <= 0.040
-            and abs(float(parcel_before_release[2] - expected_placed_position[2])) <= 0.025
+            and placement_within_release_gate(
+                parcel_before_release, expected_placed_position
+            )
         )
         if placed_before_release:
             suction.release()
@@ -823,6 +1257,9 @@ def main() -> int:
         and placement_error_m <= 0.040
         and suction.max_force_n < 35.0
         and suction.max_contact_force_n < 35.0
+        and (
+            cradle_monitor is None or cradle_monitor.max_contact_force_n < 35.0
+        )
     )
     dataset_saved = False
     if writer is not None:
@@ -844,6 +1281,14 @@ def main() -> int:
             else None
         ),
         "requested_hz": args.policy_hz if policy_controller is not None else 0,
+        "minimum_expert_progress_ratio": harness_config.min_progress_ratio,
+        "force_memory_enabled": args.force_memory_harness,
+        "transport_capacity_ratio": transport_capacity_ratio,
+        "transport_deadline_handoff": transport_deadline_handoff,
+        "transport_deadline_handoff_step": transport_deadline_handoff_step,
+        "transport_deadline_handoff_distance_m": transport_deadline_handoff_distance_m,
+        "transport_deadline_handoff_remaining_s": transport_deadline_handoff_remaining_s,
+        "transport_deadline_handoff_physics_steps": transport_deadline_handoff_physics_steps,
         "inference_calls": len(policy_trace),
         "mean_latency_ms": statistics.fmean(policy_latencies) if policy_latencies else None,
         "p95_latency_ms": (
@@ -908,7 +1353,11 @@ def main() -> int:
     }
     payload = {
         "runtime": runtime_report(),
-        "task": "mobile tri-suction parcel pickup, transport, and place",
+        "task": (
+            "mobile cooperative tri-suction and V-cradle parcel transport"
+            if args.cooperative_cradle
+            else "mobile tri-suction parcel pickup, transport, and place"
+        ),
         "parcel_profile": args.parcel_profile,
         "parcel_mass_kg": args.parcel_mass_kg,
         "parcel_size_m": parcel_size.tolist(),
@@ -920,9 +1369,16 @@ def main() -> int:
         "approach_axis_world": approach_axis.tolist(),
         "precontact_target_m": precontact_target.tolist(),
         "contact_hand_target_m": contact_hand_target.tolist(),
+        "right_cradle_contact_target_m": (
+            right_cradle_contact_target.tolist()
+            if right_cradle_contact_target is not None
+            else None
+        ),
         "contact_penetration_m": contact_penetration_m,
         "max_approach_base_speed_m_s": max_base_speed_m_s,
         "pregrasp_tracking_error_m": list(pregrasp_tracking_error_m),
+        "pregrasp_targets_m": [target.tolist() for target in pregrasp_targets],
+        "pregrasp_final_positions_m": list(pregrasp_final_positions),
         "planned_parcel_position_m": planned_parcel_position.tolist(),
         "parcel_spawn_position_m": parcel_spawn.tolist(),
         "pedestal_position_m": pedestal_position.tolist(),
@@ -939,6 +1395,9 @@ def main() -> int:
         "lift_success": lift_success,
         "transport_success": transport_success,
         "placed_before_release": placed_before_release,
+        "place_release_gate_required_steps": 24,
+        "place_release_gate_consecutive_steps": consecutive_place_target_steps,
+        "place_completed_early": place_completed_early,
         "released": released,
         "placement_error_m": placement_error_m,
         "latched": latched,
@@ -959,6 +1418,45 @@ def main() -> int:
             "privileged_state_in_policy": False,
         },
         "suction": suction.summary(),
+        "cradle": {
+            "enabled": args.cooperative_cradle,
+            "lift_contact_steps": cradle_lift_contact_steps,
+            "lift_steps": cradle_lift_steps,
+            "lift_contact_ratio": (
+                cradle_lift_contact_steps / cradle_lift_steps
+                if cradle_lift_steps
+                else 0.0
+            ),
+            "transport_contact_steps": cradle_transport_contact_steps,
+            "transport_steps": cradle_transport_steps,
+            "transport_contact_ratio": (
+                cradle_transport_contact_steps / cradle_transport_steps
+                if cradle_transport_steps
+                else 0.0
+            ),
+            "place_contact_steps": cradle_place_contact_steps,
+            "place_steps": cradle_place_steps,
+            "place_contact_ratio": (
+                cradle_place_contact_steps / cradle_place_steps
+                if cradle_place_steps
+                else 0.0
+            ),
+            "minimum_required_lift_transport_contact_ratio": (
+                0.50 if args.cooperative_cradle else None
+            ),
+            "engage_steps": cradle_engage_steps,
+            "engage_contact_steps": cradle_engage_contact_steps,
+            "engaged_before_lift": cradle_engaged_before_lift,
+            "incremental_lift_ik_attempts": cooperative_lift_ik_attempts,
+            "incremental_lift_ik_accepts": cooperative_lift_ik_accepts,
+            "incremental_lift_ik_rejections": cooperative_lift_ik_rejections,
+            "incremental_place_ik_attempts": cooperative_place_ik_attempts,
+            "incremental_place_ik_accepts": cooperative_place_ik_accepts,
+            "incremental_place_ik_rejections": cooperative_place_ik_rejections,
+            "physical": (
+                cradle_monitor.summary() if cradle_monitor is not None else None
+            ),
+        },
         "success": success,
     }
     args.output.mkdir(parents=True, exist_ok=True)

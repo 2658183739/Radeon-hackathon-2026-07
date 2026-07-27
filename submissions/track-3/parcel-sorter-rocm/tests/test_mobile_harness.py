@@ -2,8 +2,11 @@ import math
 import unittest
 
 from parcel_sorter.mobile_harness import (
+    MobileHarnessConfig,
     build_mobile_failure_replay_manifest,
+    force_memory_scale_cap,
     select_mobile_harness_action,
+    transport_deadline_requires_expert,
 )
 
 
@@ -24,6 +27,70 @@ def _action(*, left_tool: float = 1.0) -> tuple[float, ...]:
 
 
 class MobileHarnessTests(unittest.TestCase):
+    def test_force_memory_preserves_full_scale_for_stable_low_contact(self) -> None:
+        decision = force_memory_scale_cap((4.0, 4.5, 4.2, 4.6))
+        self.assertEqual(decision.scale_cap, 1.0)
+        self.assertEqual(decision.reasons, ("stable_force_history",))
+
+    def test_force_memory_caps_vla_for_rising_contact(self) -> None:
+        memory = force_memory_scale_cap((4.0, 5.0, 8.0, 12.0))
+        self.assertEqual(memory.scale_cap, 0.0)
+        decision = select_mobile_harness_action(
+            state=_state(),
+            expert_action=_action(),
+            vla_action=_action(),
+            stage="transport",
+            maximum_vla_scale=memory.scale_cap,
+        )
+        self.assertEqual(decision.selected.scale, 0.0)
+        self.assertTrue(decision.fallback_to_expert)
+        self.assertTrue(
+            any(
+                "force_memory_scale_gate" in candidate.reasons
+                for candidate in decision.candidates
+                if candidate.scale > 0.0
+            )
+        )
+
+    def test_transport_deadline_handoff_preserves_completion_capacity(self) -> None:
+        self.assertFalse(
+            transport_deadline_requires_expert(
+                distance_m=0.30,
+                remaining_time_s=10.0,
+                expert_forward_speed_m_s=0.05,
+            )
+        )
+        self.assertTrue(
+            transport_deadline_requires_expert(
+                distance_m=0.045,
+                remaining_time_s=1.0,
+                expert_forward_speed_m_s=0.05,
+            )
+        )
+        self.assertFalse(
+            transport_deadline_requires_expert(
+                distance_m=0.004,
+                remaining_time_s=0.1,
+                expert_forward_speed_m_s=0.0,
+            )
+        )
+
+    def test_payload_aware_progress_floor_bounds_transport_slowdown(self) -> None:
+        expert = list(_action())
+        expert[:3] = [0.05, 0.0, 0.0]
+        vla = list(expert)
+        vla[:3] = [0.0, 0.0, 0.0]
+        decision = select_mobile_harness_action(
+            state=_state(),
+            expert_action=expert,
+            vla_action=vla,
+            stage="transport",
+            config=MobileHarnessConfig(min_progress_ratio=0.75),
+        )
+        self.assertGreater(decision.selected.scale, 0.0)
+        self.assertAlmostEqual(decision.selected.min_progress_ratio, 0.75)
+        self.assertAlmostEqual(decision.selected.action[0], 0.0375)
+
     def test_selects_largest_safe_bounded_residual(self) -> None:
         expert = _action()
         vla = list(expert)

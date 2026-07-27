@@ -561,3 +561,20 @@ parameter variation over four rigid parcel profiles in simulation, not unseen ge
 42-stage paired ablation, automatic modality gate, one online development integration run, and
 remote checkpoint hashes. RGB-D was operational but did not improve Harness MAE, so RGB remains
 selected and no broad RGB-D task-success claim is made.
+
+## Mobile dual-arm tri-suction/V-cradle cooperation
+
+`mobile_bimanual/cooperative_cradle_v1/comparison.json` binds the v19-v24 paired development
+chain on one fixed `1.44 x 0.12 x 0.18 m` rigid carton. v20 establishes expert cooperative lift,
+30 cm transport, placement, and release. v21-v23 retain the negative VLA progress and late-handoff
+results. v24 uses a 0.60 capacity ratio calibrated from the independent expert execution and
+completes the task with 2.16 cm final error, zero suction breaks, and 30.65 N peak cradle force.
+SmolVLA materially actuates 647 physics steps before the deadline gate makes a one-way expert
+handoff. `REMOTE_SHA256SUMS` records hashes for all seven complete remote summaries.
+
+`pash-v25-summary.json` records the same object with Force-Memory enabled: 11 of 68 calls tightened
+the residual and two fully fell back; the task succeeded with 2.11 cm final error and 30.64 N peak
+cradle force. This is a method regression run only; no new statistical holdout was opened.
+
+This is one cooperative mechanism and integration case, not a task success rate, unseen-geometry
+generalization result, or sim-to-real result.

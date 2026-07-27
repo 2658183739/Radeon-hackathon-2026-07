@@ -1603,3 +1603,29 @@ implementations are now hash-bound; embedded source fingerprints must match
 the live files. Protocol and sample-contract audits pass; the active SHA-256 is
 `31f1b73d...1dbfc4`. Candidate generation, IK/FK thresholds, the 75% profile
 gate, and the 5 s latency gate are unchanged.
+
+### Record 98: Close the extra-long-carton cooperative mechanism chain
+
+The experiment fixed a `1.44 x 0.12 x 0.18 m`, 0.40 kg, friction-0.90 carton
+and 30 cm transport while preserving the 35 N, 8 cm lift, base/parcel position,
+and pre-release height gates. v19 replaced one-shot dual-arm endpoint IK with
+independent incremental IK. It reduced final error to 2.26 cm but continued
+descending after placement and broke suction. v20 required the unchanged
+placement gate to hold for 24 consecutive physics steps, stopped descent, and
+actively released; the expert cooperative mechanism completed the task.
+
+With SmolVLA v2 base residuals, the historical 50% expert-progress floor and a
+75% cooperative floor still exhausted the transport window in v21 and v22.
+v23 added a one-way deadline survival gate, but an uncalibrated 0.75 actuator
+capacity handed off too late. v24 changed only that capacity to 0.60, calibrated
+from the independent v20 expert execution. It lifted 8.53 cm, transported 30 cm,
+placed at 2.16 cm error, and released with zero suction breaks. Cradle, suction
+constraint, and cup-contact peaks remained below 35 N. VLA materially actuated
+647 physics steps before the deadline gate permanently handed control to the
+expert.
+
+The physical V-cradle, segmented dual-arm IK, placement confirmation, and
+payload-aware deadline gate are retained. This closes one mechanism and
+integration case only. It does not replace the formal SmolVLA v2 96/100 baseline
+or establish cooperative generalization across new size, mass, friction, and
+offset combinations.

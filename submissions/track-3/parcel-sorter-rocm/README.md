@@ -22,6 +22,16 @@ SmolVLA arm-position residuals during transport. Baseline and candidate both sco
 zero force violations and 2,306/0 accepted/rejected candidate IK updates, but mean placement
 error increased from 1.40 cm to 2.45 cm. The preregistered gate rejected the mode, so v2 remains
 base-residual only.
+The [tri-suction/V-cradle cooperative ablation](docs/MOBILE_COOPERATIVE_CRADLE_ABLATION.md)
+completed dual-arm lift, 30 cm transport, placement, and release of a 1.44 m rigid carton on one
+Radeon. SmolVLA v2 materially actuated 647 physics steps before a load-aware deadline gate made a
+one-way expert handoff; final error was 2.16 cm and peak cradle force was 30.65 N. This is one
+deterministic mechanism case, not a success-rate or unseen-geometry claim, and it does not replace
+the 96/100 formal baseline.
+The resulting method is documented as [PASH-VLA](docs/PASH_VLA_METHOD.md): a payload-aware
+Force-Memory Harness candidate layered over SmolVLA, with failure replay and isolated promotion.
+The force-memory branch is an explicit development candidate and is not silently substituted for
+the frozen v2 checkpoint before its matched Radeon gate.
 
 Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
 picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis
@@ -533,11 +543,16 @@ held base drift to 1.35 mm, and ran at 405 simulation FPS. Physical parcel
 pickup and navigation-to-manipulation success are still pending and are not
 claimed.
 
-The optional hybrid-tool asset mounts three physical suction-cup collision
-geometries on the left arm and a two-rail V cradle on the right arm. It
-compiled and moved on Radeon at 454 FPS. A matched parallel-jaw long-parcel
-probe pushed the parcel but did not establish bilateral contact, so that
-failure is retained and the cooperative-lift claim remains closed.
+The hybrid-tool asset mounts three physical compliant suction cups on the left
+arm and a two-rail collision V cradle on the right arm. Two sealed cups plus 24
+consecutive cradle-contact physics steps gate cooperative lift. Independent
+incremental IK for both arms and a 24-step placement-confirmation gate completed
+one 1.44 m rigid-carton development case: 8.53 cm lift, 30 cm transport, active
+release, 2.16 cm final error, zero suction breaks, and 30.65 N peak cradle force.
+SmolVLA v2 executed bounded base residuals for 647 physics steps; a calibrated
+deadline gate then handed the remaining transport to the expert. This closes
+the mechanism/integration case only; multi-parameter cooperative generalization
+and sim-to-real remain open.
 
 `mobile_task.py` fixes the retraining contract at 19 actions: three bounded
 base velocities and two eight-dimensional Cartesian/gripper commands. The
@@ -560,7 +575,8 @@ The raw result is tracked in
 `mobile-navigation-v1.json`, `mobile-bimanual-arms-v2.json`,
 `mobile-bimanual-hybrid-tools-v1.json`, and the retained
 `mobile-bimanual-pick-v3-failure.json` negative result. The first successful physical suction lift
-is `mobile-suction-lift-v40-success.json`.
+is `mobile-suction-lift-v40-success.json`. The cooperative v19-v24 comparison and remote summary
+hashes are under `evidence/mobile_bimanual/cooperative_cradle_v1/`.
 
 ## Development process
 

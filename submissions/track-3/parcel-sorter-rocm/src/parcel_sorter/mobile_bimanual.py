@@ -413,7 +413,7 @@ def _append_v_cradle_geometries(gripper: ET.Element) -> None:
         attributes = {
             "type": "box",
             "size": "0.012 0.050 0.070",
-            "pos": f"{sign * 0.043:.6f} 0 0.150",
+            "pos": f"{sign * 0.043:.6f} 0 0.204",
             "euler": f"0 {sign * 0.55:.6f} 0",
         }
         ET.SubElement(

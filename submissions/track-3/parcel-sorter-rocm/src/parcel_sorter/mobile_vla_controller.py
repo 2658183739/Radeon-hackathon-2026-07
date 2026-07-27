@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import math
+from collections import deque
 from pathlib import Path
 import time
 from typing import Any, Iterable
 
 from .dataset import metric_depth_to_visual_rgb
 from .mobile_dataset import MOBILE_DEPTH_RGB_KEY, MOBILE_RGB_KEY
-from .mobile_harness import MobileHarnessConfig, select_mobile_harness_action
+from .mobile_harness import (
+    MobileHarnessConfig,
+    force_memory_scale_cap,
+    select_mobile_harness_action,
+)
 
 
 class MobileSmolVLAHarnessController:
@@ -21,6 +26,7 @@ class MobileSmolVLAHarnessController:
         *,
         seed: int = 20260727,
         harness_config: MobileHarnessConfig = MobileHarnessConfig(),
+        force_memory_enabled: bool = False,
     ) -> None:
         import torch
         from lerobot.configs.policies import PreTrainedConfig
@@ -52,6 +58,10 @@ class MobileSmolVLAHarnessController:
             self._policy.config, pretrained_path=str(checkpoint)
         )
         self._harness_config = harness_config
+        self._force_memory_enabled = bool(force_memory_enabled)
+        self._force_history_n: deque[float] = deque(
+            maxlen=harness_config.force_memory_window
+        )
         self._uses_depth_rgb = MOBILE_DEPTH_RGB_KEY in visual_keys
         self._seed = int(seed)
         self._calls = 0
@@ -102,12 +112,20 @@ class MobileSmolVLAHarnessController:
             torch.cuda.synchronize()
             latency_ms = (time.perf_counter() - started) * 1000.0
         predicted = tuple(float(value) for value in action.detach().cpu().reshape(-1))
+        self._force_history_n.append(max(abs(state_values[38]), abs(state_values[39])))
+        force_memory = force_memory_scale_cap(
+            self._force_history_n,
+            config=self._harness_config,
+        )
         decision = select_mobile_harness_action(
             state=state_values,
             expert_action=expert_values,
             vla_action=predicted,
             stage=stage,
             config=self._harness_config,
+            maximum_vla_scale=(
+                force_memory.scale_cap if self._force_memory_enabled else 1.0
+            ),
         )
         self._calls += 1
         telemetry = {
@@ -127,6 +145,8 @@ class MobileSmolVLAHarnessController:
             "raw_base_action": list(predicted[:3]),
             "expert_base_action": list(expert_values[:3]),
             "selected_base_action": list(decision.selected.action[:3]),
+            "force_memory_enabled": self._force_memory_enabled,
+            "force_memory": force_memory.to_dict(),
         }
         return decision.selected.action, telemetry
 
@@ -148,6 +168,7 @@ class MobileSmolVLAHarnessController:
             stage="pregrasp",
         )
         self._calls = 0
+        self._force_history_n.clear()
 
     def _reset(self) -> None:
         for component in (self._policy, self._preprocessor, self._postprocessor):

@@ -21,6 +21,10 @@ class MobileHarnessConfig:
     max_cartesian_step_m: float = 0.04
     min_progress_ratio: float = 0.50
     force_limit_n: float = 35.0
+    force_memory_window: int = 6
+    force_memory_soft_limit_n: float = 20.0
+    force_memory_rise_deadband_n: float = 2.0
+    force_memory_rise_limit_n: float = 8.0
 
     def __post_init__(self) -> None:
         positive = (
@@ -32,6 +36,9 @@ class MobileHarnessConfig:
             self.max_base_yaw_rate_rad_s,
             self.max_cartesian_step_m,
             self.force_limit_n,
+            self.force_memory_soft_limit_n,
+            self.force_memory_rise_deadband_n,
+            self.force_memory_rise_limit_n,
         )
         if any(not math.isfinite(value) or value <= 0.0 for value in positive):
             raise ValueError("mobile harness limits must be finite and positive")
@@ -44,6 +51,12 @@ class MobileHarnessConfig:
             raise ValueError("candidate scales must be finite values in [0, 1]")
         if 0.0 not in self.candidate_scales:
             raise ValueError("candidate scales must include the expert fallback 0.0")
+        if self.force_memory_window < 2:
+            raise ValueError("force_memory_window must be at least two samples")
+        if self.force_memory_soft_limit_n >= self.force_limit_n:
+            raise ValueError("force memory soft limit must be below the force limit")
+        if self.force_memory_rise_deadband_n >= self.force_memory_rise_limit_n:
+            raise ValueError("force memory rise deadband must be below the rise limit")
 
 
 @dataclass(frozen=True)
@@ -70,6 +83,58 @@ class MobileHarnessDecision:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class ForceMemoryDecision:
+    scale_cap: float
+    peak_force_n: float
+    force_rise_n: float
+    sample_count: int
+    reasons: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def force_memory_scale_cap(
+    force_history_n: Iterable[float],
+    *,
+    config: MobileHarnessConfig = MobileHarnessConfig(),
+) -> ForceMemoryDecision:
+    """Turn recent contact-force history into a conservative VLA scale cap."""
+
+    history = tuple(float(value) for value in force_history_n)
+    if any(not math.isfinite(value) or value < 0.0 for value in history):
+        raise ValueError("force history must contain finite non-negative values")
+    history = history[-config.force_memory_window :]
+    if not history:
+        return ForceMemoryDecision(1.0, 0.0, 0.0, 0, ("no_force_history",))
+    peak_force_n = max(history)
+    force_rise_n = max(0.0, history[-1] - min(history))
+    load_risk = max(
+        0.0,
+        (peak_force_n - config.force_memory_soft_limit_n)
+        / (config.force_limit_n - config.force_memory_soft_limit_n),
+    )
+    rise_risk = max(
+        0.0,
+        (force_rise_n - config.force_memory_rise_deadband_n)
+        / (config.force_memory_rise_limit_n - config.force_memory_rise_deadband_n),
+    )
+    risk = min(1.0, max(load_risk, rise_risk))
+    reasons = []
+    if load_risk > 0.0:
+        reasons.append("sustained_force_risk")
+    if rise_risk > 0.0:
+        reasons.append("rising_force_risk")
+    return ForceMemoryDecision(
+        scale_cap=1.0 - risk,
+        peak_force_n=peak_force_n,
+        force_rise_n=force_rise_n,
+        sample_count=len(history),
+        reasons=tuple(reasons or ("stable_force_history",)),
+    )
+
+
 def select_mobile_harness_action(
     *,
     state: Iterable[float],
@@ -77,6 +142,7 @@ def select_mobile_harness_action(
     vla_action: Iterable[float],
     stage: str,
     config: MobileHarnessConfig = MobileHarnessConfig(),
+    maximum_vla_scale: float = 1.0,
 ) -> MobileHarnessDecision:
     """Generate residual candidates and select the largest verified VLA contribution.
 
@@ -85,6 +151,8 @@ def select_mobile_harness_action(
     from the expert because a sign error can release a parcel immediately.
     """
 
+    if not math.isfinite(maximum_vla_scale) or not 0.0 <= maximum_vla_scale <= 1.0:
+        raise ValueError("maximum_vla_scale must be finite and in [0, 1]")
     state_values = _finite_vector(state, 43, "state")
     expert = _finite_vector(expert_action, 19, "expert action")
     raw_vla = tuple(float(value) for value in vla_action)
@@ -120,6 +188,7 @@ def select_mobile_harness_action(
             stage=stage,
             config=config,
             rejected_vla=rejected_vla,
+            maximum_vla_scale=maximum_vla_scale,
         )
         for scale in config.candidate_scales
     )
@@ -143,6 +212,38 @@ def select_mobile_harness_action(
         emergency_stop=False,
         rejected_vla=rejected_vla,
     )
+
+
+def transport_deadline_requires_expert(
+    *,
+    distance_m: float,
+    remaining_time_s: float,
+    expert_forward_speed_m_s: float,
+    completion_tolerance_m: float = 0.005,
+    minimum_capacity_ratio: float = 0.75,
+) -> bool:
+    """Fail over when conservative expert capacity cannot meet the deadline."""
+
+    values = (
+        distance_m,
+        remaining_time_s,
+        expert_forward_speed_m_s,
+        completion_tolerance_m,
+        minimum_capacity_ratio,
+    )
+    if any(not math.isfinite(value) for value in values):
+        raise ValueError("transport deadline inputs must be finite")
+    if distance_m < 0.0 or expert_forward_speed_m_s < 0.0:
+        raise ValueError("transport distance and speed cannot be negative")
+    if remaining_time_s <= 0.0 or completion_tolerance_m <= 0.0:
+        raise ValueError("transport time and tolerance must be positive")
+    if not 0.0 < minimum_capacity_ratio <= 1.0:
+        raise ValueError("minimum capacity ratio must be in (0, 1]")
+    remaining_distance_m = max(0.0, distance_m - completion_tolerance_m)
+    conservative_capacity_m = (
+        remaining_time_s * expert_forward_speed_m_s * minimum_capacity_ratio
+    )
+    return remaining_distance_m > conservative_capacity_m + 1e-9
 
 
 def build_mobile_failure_replay_manifest(
@@ -217,6 +318,7 @@ def _candidate(
     stage: str,
     config: MobileHarnessConfig,
     rejected_vla: bool,
+    maximum_vla_scale: float,
 ) -> MobileHarnessCandidate:
     expert_base_speed = math.hypot(expert[0], expert[1])
     precision_handoff = stage == "grasp_approach" and expert_base_speed < 0.025
@@ -338,6 +440,8 @@ def _candidate(
         reasons.append(f"decode_error:{exc}")
     if rejected_vla and scale > 0.0:
         reasons.append("invalid_vla_action")
+    if scale > maximum_vla_scale + 1e-9:
+        reasons.append("force_memory_scale_gate")
     if stage == "release" and tool_corrections:
         reasons.append("stage_tool_interlock")
     if precision_handoff:
@@ -348,6 +452,7 @@ def _candidate(
             "base_lateral_gate",
             "base_hold_gate",
             "invalid_vla_action",
+            "force_memory_scale_gate",
         }
         or reason.startswith("decode_error:")
         for reason in reasons

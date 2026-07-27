@@ -163,6 +163,18 @@ class MobileBimanualTests(unittest.TestCase):
                 len([geom for geom in right_geoms if "v_cradle" in geom.attrib.get("name", "") and "collision" in geom.attrib.get("name", "")]),
                 2,
             )
+            cradle_collision_geoms = [
+                geom
+                for geom in right_geoms
+                if "v_cradle" in geom.attrib.get("name", "")
+                and "collision" in geom.attrib.get("name", "")
+            ]
+            self.assertTrue(
+                all(geom.attrib["size"] == "0.012 0.050 0.070" for geom in cradle_collision_geoms)
+            )
+            self.assertTrue(
+                all(geom.attrib["pos"].endswith(" 0 0.204") for geom in cradle_collision_geoms)
+            )
             left_root = ET.parse(left_include.attrib["file"]).getroot()
             gripper = left_root.find(".//body[@name='panda0_gripper']")
             self.assertIsNotNone(gripper)

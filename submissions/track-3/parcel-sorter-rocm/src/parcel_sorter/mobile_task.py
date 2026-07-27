@@ -208,6 +208,32 @@ def clamp_position_residual_to_anchor(
     )  # type: ignore[return-value]
 
 
+def placement_within_release_gate(
+    parcel_position_m: Iterable[float],
+    expected_position_m: Iterable[float],
+    *,
+    max_xy_error_m: float = 0.040,
+    max_z_error_m: float = 0.025,
+) -> bool:
+    """Return whether a parcel is inside the audited pre-release position gate."""
+
+    parcel = tuple(float(value) for value in parcel_position_m)
+    expected = tuple(float(value) for value in expected_position_m)
+    if len(parcel) != 3 or len(expected) != 3:
+        raise ValueError("parcel and expected positions must be 3-D")
+    if any(not math.isfinite(value) for value in (*parcel, *expected)):
+        raise ValueError("parcel and expected positions must be finite")
+    if min(max_xy_error_m, max_z_error_m) <= 0.0 or not all(
+        math.isfinite(value) for value in (max_xy_error_m, max_z_error_m)
+    ):
+        raise ValueError("placement tolerances must be finite and positive")
+    return bool(
+        math.hypot(parcel[0] - expected[0], parcel[1] - expected[1])
+        <= max_xy_error_m
+        and abs(parcel[2] - expected[2]) <= max_z_error_m
+    )
+
+
 def _decode_arm(values: tuple[float, ...]) -> ArmCartesianCommand:
     quat = values[3:7]
     norm = math.sqrt(sum(value * value for value in quat))

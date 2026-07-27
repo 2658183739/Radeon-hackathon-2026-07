@@ -8,10 +8,23 @@ from parcel_sorter.mobile_task import (
     clamp_position_residual_to_anchor,
     decode_mobile_bimanual_action,
     limit_mobile_arm_step,
+    placement_within_release_gate,
 )
 
 
 class MobileBimanualActionTests(unittest.TestCase):
+    def test_placement_release_gate_uses_xy_and_z_tolerances(self) -> None:
+        expected = (0.30, 0.75, 1.44)
+        self.assertTrue(
+            placement_within_release_gate((0.3187, 0.7375, 1.4399), expected)
+        )
+        self.assertFalse(
+            placement_within_release_gate((0.35, 0.75, 1.44), expected)
+        )
+        self.assertFalse(
+            placement_within_release_gate((0.30, 0.75, 1.47), expected)
+        )
+
     def test_clamps_cumulative_arm_residual_about_frozen_anchor(self) -> None:
         anchor = (0.40, 0.10, 0.30)
         bounded = clamp_position_residual_to_anchor((0.43, 0.10, 0.30), anchor)

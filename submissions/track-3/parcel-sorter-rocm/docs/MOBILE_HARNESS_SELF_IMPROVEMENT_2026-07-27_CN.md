@@ -19,7 +19,9 @@ Harness-Lite 离线消融、失败课程生成，以及单张 AMD Radeon `gfx110
 - 3 Hz VLA/Harness 慢环和 240 Hz 确定性安全快环。
 
 公制深度已经采集，但未输入本 checkpoint。成功回合使用左侧吸盘臂；右侧托架协同
-分担负载尚未验证。
+分担负载在本文早期 v2 结果中尚未验证。随后独立的 v24 协同开发案例已完成右托架
+接触、双臂抬升、30 cm 运输和释放；该更新结果见 `MOBILE_COOPERATIVE_CRADLE_ABLATION_CN.md`，
+不改变本文关于 SmolVLA v2 正式基线的统计边界。
 
 ## Harness-Lite 方法
 
