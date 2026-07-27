@@ -81,6 +81,51 @@ def _box_ray_extent(axis: object, box_size: object) -> float:
     return min(intersections)
 
 
+def _shape_ray_extent(
+    axis: object,
+    parcel_size: object,
+    shape: str,
+    orientation_mode: str,
+    yaw_rad: float,
+    np: object,
+) -> float:
+    """Return the centre-to-surface distance along a world-space ray."""
+
+    direction = _normalized(axis, np)
+    size = np.asarray(parcel_size, dtype=np.float64)
+    if shape == "box":
+        cosine, sine = math.cos(yaw_rad), math.sin(yaw_rad)
+        local_axis = np.asarray(
+            (
+                cosine * direction[0] + sine * direction[1],
+                -sine * direction[0] + cosine * direction[1],
+                direction[2],
+            )
+        )
+        return _box_ray_extent(local_axis, size)
+
+    if orientation_mode == "upright":
+        cylinder_axis = np.asarray((0.0, 0.0, 1.0))
+        radius = float(size[0]) / 2.0
+        half_height = float(size[2]) / 2.0
+    elif orientation_mode == "horizontal":
+        cylinder_axis = np.asarray((math.cos(yaw_rad), math.sin(yaw_rad), 0.0))
+        radius = float(size[1]) / 2.0
+        half_height = float(size[0]) / 2.0
+    else:
+        raise ValueError(f"unsupported cylinder orientation: {orientation_mode}")
+    axial = abs(float(np.dot(direction, cylinder_axis)))
+    radial = math.sqrt(max(0.0, 1.0 - axial * axial))
+    intersections = []
+    if radial > 1e-9:
+        intersections.append(radius / radial)
+    if axial > 1e-9:
+        intersections.append(half_height / axial)
+    if not intersections:
+        raise ValueError("cylinder approach axis has no finite component")
+    return min(intersections)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", choices=("rocm", "cuda"), default="rocm")
@@ -114,6 +159,13 @@ def main() -> int:
     parser.add_argument("--media-width", type=int, default=640)
     parser.add_argument("--media-height", type=int, default=480)
     parser.add_argument("--parcel-profile", default="carton")
+    parser.add_argument("--parcel-shape", choices=("box", "cylinder"), default="box")
+    parser.add_argument(
+        "--parcel-orientation",
+        choices=("yaw", "upright", "horizontal"),
+        default="yaw",
+    )
+    parser.add_argument("--parcel-yaw-rad", type=float, default=0.0)
     parser.add_argument(
         "--parcel-size-m", type=float, nargs=3, default=(0.20, 0.12, 0.20)
     )
@@ -173,12 +225,13 @@ def main() -> int:
     if args.image_size < 32:
         parser.error("image-size must be at least 32")
     max_parcel_dimension_m = 1.70 if args.cooperative_cradle else 0.60
-    if any(not 0.02 <= value <= max_parcel_dimension_m for value in args.parcel_size_m):
+    if any(not 0.01 <= value <= max_parcel_dimension_m for value in args.parcel_size_m):
         parser.error(
-            f"parcel dimensions must be in [0.02, {max_parcel_dimension_m:.2f}] m"
+            f"parcel dimensions must be in [0.01, {max_parcel_dimension_m:.2f}] m"
         )
-    if not 0.05 <= args.parcel_mass_kg <= 5.0:
-        parser.error("parcel mass must be in [0.05, 5.0] kg")
+    max_parcel_mass_kg = 8.0 if args.cooperative_cradle else 5.0
+    if not 0.05 <= args.parcel_mass_kg <= max_parcel_mass_kg:
+        parser.error(f"parcel mass must be in [0.05, {max_parcel_mass_kg:.1f}] kg")
     if not 0.1 <= args.parcel_friction <= 2.0:
         parser.error("parcel friction must be in [0.1, 2.0]")
     if any(abs(value) > 0.025 for value in args.parcel_offset_m):
@@ -205,6 +258,19 @@ def main() -> int:
         parser.error("cooperative cradle requires parcel X dimension >= 0.28 m")
     if args.cooperative_cradle and args.policy_mode == "base_arm_residual":
         parser.error("cooperative cradle is not compatible with left-arm residual ablation")
+    if args.parcel_shape == "box" and args.parcel_orientation != "yaw":
+        parser.error("box parcels require --parcel-orientation yaw")
+    if args.parcel_shape == "cylinder":
+        if args.parcel_orientation == "yaw":
+            parser.error("cylinder parcels require upright or horizontal orientation")
+        diameter_indices = (0, 1) if args.parcel_orientation == "upright" else (1, 2)
+        if not math.isclose(
+            args.parcel_size_m[diameter_indices[0]],
+            args.parcel_size_m[diameter_indices[1]],
+            rel_tol=0.0,
+            abs_tol=1e-6,
+        ):
+            parser.error("cylinder diameter dimensions must be equal")
 
     gs, torch, np = initialize_genesis(args.backend)
     source = Path(gs.__file__).resolve().parent / "assets/xml/franka_sim/bi-franka_panda.xml"
@@ -235,7 +301,13 @@ def main() -> int:
         diffuse_texture=gs.textures.ColorTexture(color=profile_color)
     )
     parcel_size = np.asarray(args.parcel_size_m, dtype=np.float64)
-    parcel_support_z = pedestal_position[2] + 0.05 + parcel_size[2] / 2.0
+    parcel_half_height = (
+        float(parcel_size[1]) / 2.0
+        if args.parcel_shape == "cylinder"
+        and args.parcel_orientation == "horizontal"
+        else float(parcel_size[2]) / 2.0
+    )
+    parcel_support_z = pedestal_position[2] + 0.05 + parcel_half_height
     initial_parcel_position = np.asarray(
         (
             pedestal_position[0] + args.parcel_offset_m[0],
@@ -276,11 +348,29 @@ def main() -> int:
         ),
         surface=target_surface,
     )
-    parcel = scene.add_entity(
-        gs.morphs.Box(
+    parcel_euler = (0.0, 0.0, math.degrees(args.parcel_yaw_rad))
+    if args.parcel_shape == "box":
+        parcel_morph = gs.morphs.Box(
             size=tuple(parcel_size.tolist()),
             pos=tuple(initial_parcel_position.tolist()),
-        ),
+            euler=parcel_euler,
+        )
+    elif args.parcel_orientation == "upright":
+        parcel_morph = gs.morphs.Cylinder(
+            radius=float(parcel_size[0]) / 2.0,
+            height=float(parcel_size[2]),
+            pos=tuple(initial_parcel_position.tolist()),
+            euler=parcel_euler,
+        )
+    else:
+        parcel_morph = gs.morphs.Cylinder(
+            radius=float(parcel_size[1]) / 2.0,
+            height=float(parcel_size[0]),
+            pos=tuple(initial_parcel_position.tolist()),
+            euler=(0.0, 90.0, math.degrees(args.parcel_yaw_rad)),
+        )
+    parcel = scene.add_entity(
+        parcel_morph,
         material=gs.materials.Rigid(friction=args.parcel_friction),
         surface=target_surface,
     )
@@ -364,7 +454,14 @@ def main() -> int:
     hand_position = np.asarray(_flat(hand.get_pos()))
     hand_quaternion = tuple(_flat(hand.get_quat()))
     tool_axis = _normalized(rotate_vector(hand_quaternion, (0.0, 0.0, 1.0)), np)
-    parcel_half_extent_on_axis = _box_ray_extent(tool_axis, parcel_size)
+    parcel_half_extent_on_axis = _shape_ray_extent(
+        tool_axis,
+        parcel_size,
+        args.parcel_shape,
+        args.parcel_orientation,
+        args.parcel_yaw_rad,
+        np,
+    )
     cup_tip_offset_m = MOBILE_TRI_SUCTION_TIP_OFFSET_M
     cradle_tip_offset_m = 0.270
     cooperative_contact_penetration_m = (
@@ -432,7 +529,14 @@ def main() -> int:
             rotate_vector(tuple(pregrasp_quaternions[1].tolist()), (0.0, 0.0, 1.0)),
             np,
         )
-        right_half_extent_on_axis = _box_ray_extent(right_tool_axis, parcel_size)
+        right_half_extent_on_axis = _shape_ray_extent(
+            right_tool_axis,
+            parcel_size,
+            args.parcel_shape,
+            args.parcel_orientation,
+            args.parcel_yaw_rad,
+            np,
+        )
         left_contact_surface = (
             settled_parcel_position
             + left_contact_lateral_offset
@@ -939,7 +1043,14 @@ def main() -> int:
         rotate_vector(tuple(contact_quaternion.tolist()), (0.0, 0.0, 1.0)), np
     )
     current_parcel_position = np.asarray(_flat(parcel.get_pos()))
-    current_half_extent_on_axis = _box_ray_extent(approach_axis, parcel_size)
+    current_half_extent_on_axis = _shape_ray_extent(
+        approach_axis,
+        parcel_size,
+        args.parcel_shape,
+        args.parcel_orientation,
+        args.parcel_yaw_rad,
+        np,
+    )
     contact_penetration_m = (
         cooperative_contact_penetration_m
         if args.cooperative_cradle
@@ -1814,6 +1925,10 @@ def main() -> int:
             else "mobile tri-suction parcel pickup, transport, and place"
         ),
         "parcel_profile": args.parcel_profile,
+        "parcel_shape": args.parcel_shape,
+        "parcel_orientation": args.parcel_orientation,
+        "parcel_yaw_rad": args.parcel_yaw_rad,
+        "cooperative_cradle": args.cooperative_cradle,
         "parcel_mass_kg": args.parcel_mass_kg,
         "parcel_size_m": parcel_size.tolist(),
         "parcel_friction": args.parcel_friction,

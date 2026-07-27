@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import json
+import math
 from pathlib import Path
 import shutil
 import subprocess
@@ -18,11 +19,14 @@ def _validate_episode(item: dict[str, Any], seen: set[str]) -> None:
     if not episode_id or episode_id in seen:
         raise ValueError(f"episode_id must be non-empty and unique: {episode_id!r}")
     seen.add(episode_id)
+    cooperative_cradle = bool(item.get("cooperative_cradle", False))
+    max_dimension_m = 1.70 if cooperative_cradle else 0.60
     if len(item.get("size_m", ())) != 3 or any(
-        not 0.02 <= float(value) <= 0.60 for value in item["size_m"]
+        not 0.01 <= float(value) <= max_dimension_m for value in item["size_m"]
     ):
         raise ValueError(f"invalid size_m for {episode_id}")
-    if not 0.05 <= float(item.get("mass_kg", 0.0)) <= 5.0:
+    max_mass_kg = 8.0 if cooperative_cradle else 5.0
+    if not 0.05 <= float(item.get("mass_kg", 0.0)) <= max_mass_kg:
         raise ValueError(f"invalid mass_kg for {episode_id}")
     if not 0.1 <= float(item.get("friction", 0.0)) <= 2.0:
         raise ValueError(f"invalid friction for {episode_id}")
@@ -30,6 +34,23 @@ def _validate_episode(item: dict[str, Any], seen: set[str]) -> None:
         abs(float(value)) > 0.025 for value in item["offset_m"]
     ):
         raise ValueError(f"invalid offset_m for {episode_id}")
+    shape = str(item.get("shape", "box"))
+    orientation = str(item.get("orientation_mode", "yaw"))
+    if shape not in {"box", "cylinder"}:
+        raise ValueError(f"invalid shape for {episode_id}")
+    if orientation not in {"yaw", "upright", "horizontal"}:
+        raise ValueError(f"invalid orientation_mode for {episode_id}")
+    if (shape == "box") != (orientation == "yaw"):
+        raise ValueError(f"shape/orientation mismatch for {episode_id}")
+    if shape == "cylinder":
+        diameter_indices = (0, 1) if orientation == "upright" else (1, 2)
+        if abs(
+            float(item["size_m"][diameter_indices[0]])
+            - float(item["size_m"][diameter_indices[1]])
+        ) > 1e-6:
+            raise ValueError(f"cylinder diameter dimensions differ for {episode_id}")
+    if not -math.pi <= float(item.get("yaw_rad", 0.0)) <= math.pi:
+        raise ValueError(f"invalid yaw_rad for {episode_id}")
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -171,6 +192,12 @@ def main() -> int:
             str(shard / "run"),
             "--parcel-profile",
             str(item["profile"]),
+            "--parcel-shape",
+            str(item.get("shape", "box")),
+            "--parcel-orientation",
+            str(item.get("orientation_mode", "yaw")),
+            "--parcel-yaw-rad",
+            _cli_float(item.get("yaw_rad", 0.0)),
             "--parcel-size-m",
             *(_cli_float(value) for value in item["size_m"]),
             "--parcel-mass-kg",
@@ -180,6 +207,8 @@ def main() -> int:
             "--parcel-offset-m",
             *(_cli_float(value) for value in item["offset_m"]),
         ]
+        if item.get("cooperative_cradle"):
+            command.append("--cooperative-cradle")
         if not args.audit_only:
             command.extend(("--record-dataset", str(dataset_root)))
         if args.smolvla_checkpoint is not None:

@@ -141,10 +141,9 @@ def main() -> int:
         "profile_summaries": _profile_summaries(compact_runs),
         "runs": compact_runs,
         "claim_boundary": (
-            "frozen 100-trial parameter-generalization campaign over the configured four "
-            "rigid parcel profiles in simulation; not unseen-geometry or sim-to-real evidence"
-            if trials >= 100
-            else "frozen small-sample holdout gate; not a 100-trial final campaign"
+            f"frozen {trials}-trial simulation campaign over "
+            f"{len({run['profile'] for run in compact_runs})} configured parcel profiles; "
+            "deterministic expert baseline only, not VLA-actuated or sim-to-real evidence"
         ),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
