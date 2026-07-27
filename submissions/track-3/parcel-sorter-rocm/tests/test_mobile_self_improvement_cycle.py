@@ -8,6 +8,7 @@ from parcel_sorter.mobile_self_improvement_cycle import (
     build_randomized_mobile_campaign_config,
     build_replay_from_campaign_audit,
     promotion_gate,
+    validate_paired_campaigns,
     validate_split_isolation,
 )
 from scripts.collect_mobile_suction_dataset_rocm import _cli_float, _write_json
@@ -28,6 +29,32 @@ def _audit(*, successes: int, force_violations: int = 0) -> dict:
 
 
 class MobileSelfImprovementCycleTests(unittest.TestCase):
+    def test_paired_gate_requires_identical_ordered_physics(self) -> None:
+        runs = [
+            {
+                "profile": "small_carton",
+                "parameters": {
+                    "size_m": [0.2, 0.12, 0.2],
+                    "mass_kg": 0.4,
+                    "friction": 0.8,
+                    "offset_m": [0.0, 0.0],
+                },
+            },
+            {
+                "profile": "flat_mailer",
+                "parameters": {
+                    "size_m": [0.22, 0.15, 0.08],
+                    "mass_kg": 0.3,
+                    "friction": 0.6,
+                    "offset_m": [0.005, -0.004],
+                },
+            },
+        ]
+        pairing = validate_paired_campaigns({"runs": runs}, {"runs": list(runs)})
+        self.assertEqual(pairing["paired_trials"], 2)
+        with self.assertRaises(ValueError):
+            validate_paired_campaigns({"runs": runs}, {"runs": list(reversed(runs))})
+
     def test_builds_balanced_outcome_blind_development_campaign(self) -> None:
         config = build_randomized_mobile_campaign_config(
             campaign_id="arm-residual-dev-v1",

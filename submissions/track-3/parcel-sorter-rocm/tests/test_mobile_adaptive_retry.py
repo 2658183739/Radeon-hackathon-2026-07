@@ -2,11 +2,16 @@ import unittest
 
 from parcel_sorter.mobile_adaptive_retry import (
     EXPERT_RECOVERY,
+    FORCE_RETREAT,
+    NOMINAL_RECOVERY,
     PASH_ARM,
     PASH_BASE,
     PASH_DUAL_ARM,
+    SEAL_SEARCH_PLUS_Y,
     EpisodicStrategyMemory,
+    RecoveryRecipe,
     build_primitive_acquisition_manifest,
+    choose_recovery_plan,
     choose_retry_strategy,
     classify_mobile_failure,
     strategy_context,
@@ -61,6 +66,36 @@ class MobileAdaptiveRetryTests(unittest.TestCase):
             cooperative_cradle=True,
         )
         self.assertEqual(selected, PASH_BASE)
+
+    def test_recovery_plan_combines_safe_authority_and_parameter_recipe(self) -> None:
+        initial = choose_recovery_plan(
+            memory=EpisodicStrategyMemory(),
+            context="small_carton:medium:initial",
+            previous_failure=None,
+        )
+        self.assertEqual(initial.strategy, PASH_ARM)
+        self.assertEqual(initial.recipe, NOMINAL_RECOVERY)
+        seal_retry = choose_recovery_plan(
+            memory=EpisodicStrategyMemory(),
+            context="small_carton:medium:suction_latch",
+            previous_failure="suction_latch",
+        )
+        self.assertEqual(seal_retry.strategy, PASH_BASE)
+        self.assertEqual(seal_retry.recipe, SEAL_SEARCH_PLUS_Y)
+
+    def test_force_abort_recovery_is_slow_expert_only(self) -> None:
+        plan = choose_recovery_plan(
+            memory=EpisodicStrategyMemory(),
+            context="small_carton:medium:force_safety_abort",
+            previous_failure="force_safety_abort",
+        )
+        self.assertEqual(plan.strategy, EXPERT_RECOVERY)
+        self.assertEqual(plan.recipe, FORCE_RETREAT)
+        self.assertEqual(plan.recipe.approach_speed_scale, 0.5)
+
+    def test_recovery_recipe_rejects_unbounded_contact_search(self) -> None:
+        with self.assertRaises(ValueError):
+            RecoveryRecipe("unsafe", contact_offset_m=(0.009, 0.0))
 
     def test_memory_penalizes_force_aborts_and_retains_outcomes(self) -> None:
         context = strategy_context(
@@ -124,6 +159,11 @@ class MobileAdaptiveRetryTests(unittest.TestCase):
                 "success": True,
                 "failure_stage": None,
                 "strategy": PASH_BASE.to_dict(),
+                "dataset": {
+                    "saved": True,
+                    "root": "attempt-2/recovery-dataset",
+                    "frames": 600,
+                },
             },
         ]
         manifest = build_primitive_acquisition_manifest(attempts)
@@ -134,6 +174,36 @@ class MobileAdaptiveRetryTests(unittest.TestCase):
         self.assertEqual(
             manifest["successful_acquisitions"][0]["writeback_status"],
             "eligible_after_dataset_audit",
+        )
+        self.assertEqual(
+            manifest["successful_acquisitions"][0]["successful_dataset_frames"],
+            600,
+        )
+
+    def test_summary_without_recorded_trajectory_is_not_retraining_data(self) -> None:
+        attempts = [
+            {
+                "attempt_index": 0,
+                "summary_available": True,
+                "summary": "attempt-1/summary.json",
+                "success": False,
+                "failure_stage": "lift_success",
+                "strategy": PASH_ARM.to_dict(),
+            },
+            {
+                "attempt_index": 1,
+                "summary_available": True,
+                "summary": "attempt-2/summary.json",
+                "success": True,
+                "failure_stage": None,
+                "strategy": PASH_BASE.to_dict(),
+            },
+        ]
+        manifest = build_primitive_acquisition_manifest(attempts)
+        self.assertEqual(manifest["retraining_candidate_count"], 0)
+        self.assertEqual(
+            manifest["successful_acquisitions"][0]["writeback_status"],
+            "blocked_missing_trajectory",
         )
 
 

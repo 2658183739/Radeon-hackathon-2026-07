@@ -84,6 +84,16 @@ def main() -> int:
     parser.add_argument("--parcel-friction", type=float, default=0.80)
     parser.add_argument("--parcel-offset-m", type=float, nargs=2, default=(0.0, 0.0))
     parser.add_argument(
+        "--recovery-contact-offset-m", type=float, nargs=2, default=(0.0, 0.0)
+    )
+    parser.add_argument(
+        "--recovery-contact-penetration-delta-m", type=float, default=0.0
+    )
+    parser.add_argument("--recovery-approach-speed-scale", type=float, default=1.0)
+    parser.add_argument("--recovery-vertical-speed-scale", type=float, default=1.0)
+    parser.add_argument("--recovery-lift-height-delta-m", type=float, default=0.0)
+    parser.add_argument("--recovery-placement-clearance-m", type=float, default=0.015)
+    parser.add_argument(
         "--cooperative-cradle",
         action="store_true",
         help="synchronize the right V cradle for wide-parcel lift, transport, and place",
@@ -125,6 +135,18 @@ def main() -> int:
         parser.error("parcel friction must be in [0.1, 2.0]")
     if any(abs(value) > 0.025 for value in args.parcel_offset_m):
         parser.error("parcel XY offsets must be within 0.025 m")
+    if any(abs(value) > 0.008 for value in args.recovery_contact_offset_m):
+        parser.error("recovery contact offsets must remain within 0.008 m")
+    if not -0.0015 <= args.recovery_contact_penetration_delta_m <= 0.0015:
+        parser.error("recovery contact penetration delta must be within 0.0015 m")
+    if not 0.40 <= args.recovery_approach_speed_scale <= 1.0:
+        parser.error("recovery approach speed scale must be in [0.40, 1.0]")
+    if not 0.60 <= args.recovery_vertical_speed_scale <= 1.0:
+        parser.error("recovery vertical speed scale must be in [0.60, 1.0]")
+    if not 0.0 <= args.recovery_lift_height_delta_m <= 0.020:
+        parser.error("recovery lift height delta must be in [0, 0.020] m")
+    if not 0.008 <= args.recovery_placement_clearance_m <= 0.020:
+        parser.error("recovery placement clearance must be in [0.008, 0.020] m")
     if args.policy_hz <= 0 or 30 % args.policy_hz != 0:
         parser.error("policy-hz must be a positive divisor of 30")
     if args.policy_mode != "shadow" and args.smolvla_checkpoint is None:
@@ -245,7 +267,9 @@ def main() -> int:
     parcel_half_extent_on_axis = _box_ray_extent(tool_axis, parcel_size)
     cup_tip_offset_m = 0.112
     cradle_tip_offset_m = 0.270
-    cooperative_contact_penetration_m = 0.006
+    cooperative_contact_penetration_m = (
+        0.006 + args.recovery_contact_penetration_delta_m
+    )
     planned_parcel_position = hand_position + tool_axis * (
         cup_tip_offset_m + parcel_half_extent_on_axis
     )
@@ -289,14 +313,21 @@ def main() -> int:
         np.asarray(_flat(left_hand.get_quat())),
         np.asarray(_flat(right_hand.get_quat())),
     )
-    left_contact_lateral_offset = np.zeros(3)
+    recovery_contact_offset = np.asarray(
+        (*args.recovery_contact_offset_m, 0.0), dtype=np.float64
+    )
+    left_contact_lateral_offset = recovery_contact_offset.copy()
     right_cradle_contact_target = None
     left_pregrasp_tcp_target = None
     right_pregrasp_tcp_target = None
     if args.cooperative_cradle:
         cooperative_span_m = float(parcel_size[0]) * 0.5 - 0.04
-        left_contact_lateral_offset = np.asarray((-cooperative_span_m, 0.0, 0.0))
-        right_contact_lateral_offset = np.asarray((cooperative_span_m, 0.0, 0.0))
+        left_contact_lateral_offset = (
+            np.asarray((-cooperative_span_m, 0.0, 0.0)) + recovery_contact_offset
+        )
+        right_contact_lateral_offset = (
+            np.asarray((cooperative_span_m, 0.0, 0.0)) + recovery_contact_offset
+        )
         right_tool_axis = _normalized(
             rotate_vector(tuple(pregrasp_quaternions[1].tolist()), (0.0, 0.0, 1.0)),
             np,
@@ -758,7 +789,9 @@ def main() -> int:
     current_parcel_position = np.asarray(_flat(parcel.get_pos()))
     current_half_extent_on_axis = _box_ray_extent(approach_axis, parcel_size)
     contact_penetration_m = (
-        cooperative_contact_penetration_m if args.cooperative_cradle else 0.003
+        cooperative_contact_penetration_m
+        if args.cooperative_cradle
+        else 0.003 + args.recovery_contact_penetration_delta_m
     )
     contact_hand_target = (
         current_parcel_position
@@ -805,11 +838,12 @@ def main() -> int:
                 horizontal_error[0] = 0.0
         else:
             horizontal_error = dynamic_contact_target[:2] - current_position[:2]
-        base_velocity_xy = horizontal_error * 2.0
+        base_velocity_xy = horizontal_error * 2.0 * args.recovery_approach_speed_scale
         base_speed = float(np.linalg.norm(base_velocity_xy))
-        if base_speed > 0.05:
-            base_velocity_xy *= 0.05 / base_speed
-            base_speed = 0.05
+        approach_speed_limit_m_s = 0.05 * args.recovery_approach_speed_scale
+        if base_speed > approach_speed_limit_m_s:
+            base_velocity_xy *= approach_speed_limit_m_s / base_speed
+            base_speed = approach_speed_limit_m_s
         expert_base_velocity_xy = base_velocity_xy.copy()
         if (
             args.policy_mode
@@ -927,7 +961,7 @@ def main() -> int:
     lift_trace = []
     lift_target_delta_m = 0.10 + min(
         0.02, max(0.0, args.parcel_mass_kg - 0.40) * 0.08
-    ) + (0.02 if args.cooperative_cradle else 0.0)
+    ) + (0.02 if args.cooperative_cradle else 0.0) + args.recovery_lift_height_delta_m
     if latched:
         start_hand = np.asarray(_flat(hand.get_pos()))
         start_right_hand = np.asarray(_flat(right_hand.get_pos()))
@@ -957,7 +991,9 @@ def main() -> int:
         else:
             target_arm_qpos = start_arm_qpos.copy()
         for physics_step in range(1, 721):
-            progress = min(physics_step / 480.0, 1.0)
+            progress = min(
+                physics_step / (480.0 / args.recovery_vertical_speed_scale), 1.0
+            )
             smooth_progress = progress * progress * (3.0 - 2.0 * progress)
             if args.cooperative_cradle and (physics_step - 1) % 8 == 0:
                 cooperative_lift_ik_attempts += 1
@@ -1216,7 +1252,7 @@ def main() -> int:
         place_start_qpos = np.asarray(_flat(robot.get_qpos()))
         controlled_place_dofs = arm_dofs if args.cooperative_cradle else left_arm_dofs
         place_start_arm_qpos = place_start_qpos[controlled_place_dofs]
-        place_drop_m = lift_target_delta_m - 0.015
+        place_drop_m = lift_target_delta_m - args.recovery_placement_clearance_m
         place_target = place_start_hand - np.asarray((0.0, 0.0, place_drop_m))
         right_place_target = place_start_right_hand - np.asarray(
             (0.0, 0.0, place_drop_m)
@@ -1243,7 +1279,9 @@ def main() -> int:
         else:
             place_target_arm_qpos = place_start_arm_qpos.copy()
         for physics_step in range(1, 721):
-            progress = min(physics_step / 480.0, 1.0)
+            progress = min(
+                physics_step / (480.0 / args.recovery_vertical_speed_scale), 1.0
+            )
             smooth_progress = progress * progress * (3.0 - 2.0 * progress)
             if args.cooperative_cradle and (physics_step - 1) % 8 == 0:
                 cooperative_place_ik_attempts += 1
@@ -1571,6 +1609,14 @@ def main() -> int:
         "parcel_size_m": parcel_size.tolist(),
         "parcel_friction": args.parcel_friction,
         "parcel_offset_m": list(args.parcel_offset_m),
+        "recovery_parameters": {
+            "contact_offset_m": list(args.recovery_contact_offset_m),
+            "contact_penetration_delta_m": args.recovery_contact_penetration_delta_m,
+            "approach_speed_scale": args.recovery_approach_speed_scale,
+            "vertical_speed_scale": args.recovery_vertical_speed_scale,
+            "lift_height_delta_m": args.recovery_lift_height_delta_m,
+            "placement_clearance_m": args.recovery_placement_clearance_m,
+        },
         "task_text": task_text,
         "policy": policy_summary,
         "tool_axis_world": tool_axis.tolist(),

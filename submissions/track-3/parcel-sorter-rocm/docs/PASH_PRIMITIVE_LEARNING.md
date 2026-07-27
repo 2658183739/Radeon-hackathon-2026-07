@@ -3,10 +3,9 @@
 ## Status
 
 This extension converts the existing PASH retry writeback from a summary-only
-candidate into trainable primitive episodes. It has completed both a 10-step
-wiring smoke and a 2,800-step single-Radeon candidate training run. It has
-**not** yet passed the frozen promotion campaign, so the retained v2 checkpoint
-remains the production checkpoint.
+candidate into trainable primitive episodes. It has completed a 10-step wiring
+smoke, a 2,800-step single-Radeon training run, and the frozen 100-trial
+promotion evaluation. The candidate passed the registered gate at 94/100.
 
 | Capability | Evidence status |
 | --- | --- |
@@ -15,7 +14,8 @@ remains the production checkpoint.
 | Progress-channel SmolVLA training | 2,800 AMP steps, batch 8, completed on one Radeon/ROCm device |
 | Offline Harness ablation | 42/42 stage samples entered the safety envelope; raw VLA was 0/42 |
 | Closed-loop mechanism pair | both checkpoints succeeded; 2,800-step candidate placed at 0.90 cm |
-| Task improvement or generalization | not established by the single paired case |
+| Frozen task gate | candidate 94/100, baseline 96/100, zero force violations; promoted |
+| Generalization boundary | four rigid-profile parameter ranges only; unseen geometry and sim-to-real remain unproven |
 
 ## Method
 
@@ -128,6 +128,22 @@ one training trajectory (`n=1 run`), so no uncertainty band or convergence
 claim is added. `scripts/plot_primitive_training_curve.py` reproduces both
 formats from the complete log and rejects logs with a different update count.
 
+## Frozen 100-trial promotion
+
+The candidate and historical frozen baseline executed the same ordered 100
+physical parameter sets. Baseline was 96/100 and the 2,800-step candidate was
+94/100; the candidate Wilson 95% interval was `[0.87523, 0.97221]`. The
+candidate passed the 80% target, 5-point non-inferiority, Wilson lower-bound
+non-inferiority, zero-force-violation, 100/100 material VLA actuation, and
+100/100 one-Radeon/ROCm provenance checks. The registered gate therefore
+returned `promoted=true`.
+
+The full candidate audit, pairing proof, and checkpoint hashes are in
+`evidence/mobile_bimanual/primitive_learning_2800step_v1/`. The 94% result is
+restricted to size, mass, friction, and offset randomization over four
+supported rigid parcel profiles. It is not an unseen-geometry, deformable or
+transparent parcel, or sim-to-real claim.
+
 ## Matched closed-loop mechanism comparison
 
 Both the 10-step smoke checkpoint and the 2,800-step candidate were loaded into
@@ -173,5 +189,6 @@ the report cites the resolved arXiv record rather than the secondary article.
 
 This implementation is an original PASH adaptation for a tri-suction,
 V-cradle, mobile dual-Franka simulator. It does not copy Harness VLA or InSight
-code. The current 10-step smoke proves wiring, not convergence, task improvement,
-unseen-object generalization, autonomous VLM gap discovery, or sim-to-real.
+code. The frozen campaign proves the registered task gate over the supported
+parameter population, not unseen-object generalization, autonomous VLM gap
+discovery, or sim-to-real.

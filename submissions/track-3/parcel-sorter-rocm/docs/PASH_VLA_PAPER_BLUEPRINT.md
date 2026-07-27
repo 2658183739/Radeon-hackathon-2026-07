@@ -21,9 +21,13 @@ long-payload transport. Failed trajectories enter isolated bridge curricula for
 near-line Radeon retraining; a candidate is promoted only after frozen task,
 safety, actual-actuation, ROCm-provenance, and Wilson non-inferiority checks.
 Three compliant suction cups and a physical V-cradle provide bimanual load
-sharing. The retained SmolVLA v2 achieved 96/100 with zero 35 N violations on a
-frozen four-profile parameter-randomized campaign, while failure-trained v3
-scored 91/100 and was rejected automatically. In one 1.44 m extra-long-carton
+sharing. A primitive-steerable SmolVLA adds six instruction labels and one
+progress output; only its first 19 action dimensions can reach the Harness. The
+retained v2 baseline achieved 96/100 with zero 35 N violations on a frozen
+four-profile parameter-randomized campaign. Failure-trained v3 scored 91/100
+and was rejected, while the 2,800-step primitive-progress candidate scored
+94/100, passed the paired non-inferiority gate, and became the hash-verified
+active checkpoint. In one 1.44 m extra-long-carton
 development case, PASH-VLA completed an 8.52 cm lift, 30 cm transport, and
 placement at 2.11 cm error with zero suction breaks. Force Memory tightened 11
 of 68 inferences and requested two full expert fallbacks. The long-carton result
@@ -86,10 +90,12 @@ v20 expert run rather than tuned backward from v24 or v25 success.
 1. **PASH residual decision layer.** VLA proposals, expert progress, temporal
    force memory, and deadline liveness become one auditable candidate-selection
    problem instead of giving the VLA direct torque or tool authority.
-2. **Rejectable multi-timescale self-improvement.** Within-rollout Force Memory,
-   between-attempt primitive-gap/task-global memory, and between-campaign bridge
-   curricula, Radeon retraining, frozen evaluation, and Wilson promotion remain
-   isolated. Rejection of v3 is negative evidence that the guard works.
+2. **Rejectable multi-timescale skill acquisition.** Within-rollout Force
+   Memory, between-attempt primitive-gap/task-global memory, and
+   between-campaign primitive relabeling, Radeon retraining, frozen evaluation,
+   and Wilson promotion remain isolated. A rejected v3 and a promoted
+   primitive-progress checkpoint demonstrate both branches of the same gate;
+   successful promotion atomically updates a hash-verified model registry.
 3. **Payload-aware mobile bimanual embodiment.** Three compliant cups and a
    physical V-cradle combine seal checks, persistent contact, incremental
    dual-arm IK, and stable placement confirmation for long rigid cartons.
@@ -102,11 +108,12 @@ v20 expert run rather than tuned backward from v24 or v25 success.
 | Harness-Lite, same samples | MAE 0.005485; 36/36 passes | Bounded residuals improve in-distribution action agreement |
 | SmolVLA v2, frozen 100 trials | 96/100; zero force violations | Parameter robustness within four known profiles |
 | Failure-bridge v3, same holdout | 91/100; Wilson gate failed | Promotion can reject a regressing candidate |
+| Primitive-progress SmolVLA, paired 100+100 | 94/100 versus 96/100; zero force violations; promoted | Primitive steering and progress supervision retained task capability within the registered margin |
 | RGB-D versus RGB, 42 stages | MAE +1.35%; latency +9.65% | More modalities did not improve this checkpoint |
 | Left-arm residual, paired 100+100 | 94/100 versus 94/100; worse placement | The precision gate rejected excess action freedom |
 | Cooperative chain v19-v24 | Two passes and four retained mechanism failures | Incremental IK, placement confirmation, and deadline gate form a causal chain |
 | PASH-v25 mechanism case | Pass; 11 tightenings, 2 fallbacks, 0 emergency stops | Force Memory entered the Radeon loop without breaking this case |
-| Adaptive-retry mechanism case | First attempt passed; 84 inferences and 30/30 left-arm IK | Primitive/task-global memory path ran on Radeon; no retry-benefit claim yet |
+| Adaptive-retry known-failure case | Nominal lift failed; `gentle_lift` succeeded on attempt two; 673 audited frames | Parameterized Harness recovery and primitive-data writeback ran end to end; one paired case is not a recovery-rate estimate |
 | Dual-arm depth-sidecar mechanism case | Pass; 24/24 material left/right updates, 2,356 arm-residual physics steps, 0 m span change | Both VLA arm proposals entered the Radeon loop under rigid projection; one case only |
 
 ## Planned paper figures and tables
@@ -137,8 +144,8 @@ handling claims.
 
 - PASH-v25 is one deterministic long-carton case, not a success rate or a
   significance result.
-- The 96/100 campaign varies parameters within four known rigid profiles; it is
-  not unseen-geometry generalization.
+- The 96/100 baseline and 94/100 active checkpoint vary parameters within four
+  known rigid profiles; neither is unseen-geometry generalization.
 - Force Memory is Harness-side contact history, not a force token learned inside
   the foundation VLM.
 - Self-improvement runs between episodes and never updates weights during an

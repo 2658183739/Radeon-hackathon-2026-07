@@ -21,9 +21,11 @@ from parcel_sorter.mobile_self_improvement_cycle import (
     build_replay_from_campaign_audit,
     promotion_gate,
     sha256_file,
+    validate_paired_campaigns,
     validate_split_isolation,
     write_json,
 )
+from parcel_sorter.checkpoint_registry import activate_promoted_checkpoint
 
 
 BASE_STEP_ORDER = (
@@ -68,6 +70,12 @@ def main() -> int:
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--policy-hz", type=int, default=3)
     parser.add_argument("--evaluation-workers", type=int, default=4)
+    parser.add_argument(
+        "--active-checkpoint-registry",
+        type=Path,
+        default=PROJECT_ROOT / "configs" / "active_mobile_smolvla.json",
+        help="atomically updated only after the frozen promotion gate passes",
+    )
     parser.add_argument(
         "--primitive-learning",
         action="store_true",
@@ -212,7 +220,15 @@ def main() -> int:
     )
     for step in step_order:
         if step == "promotion_gate":
-            _run_promotion_gate(cycle_dir, candidate_checkpoint, state, state_path)
+            _run_promotion_gate(
+                root,
+                cycle_dir,
+                args.baseline_checkpoint.resolve(),
+                candidate_checkpoint,
+                args.active_checkpoint_registry.resolve(),
+                state,
+                state_path,
+            )
         elif state["steps"].get(step, {}).get("status") == "passed":
             continue
         else:
@@ -273,6 +289,11 @@ def _load_state(
             args.primitive_learning
         ):
             raise RuntimeError("resume rejected: primitive-learning mode changed")
+        registered_registry = state.get("inputs", {}).get("active_checkpoint_registry")
+        requested_registry = str(args.active_checkpoint_registry.resolve())
+        if registered_registry not in (None, requested_registry):
+            raise RuntimeError("resume rejected: active-checkpoint registry changed")
+        state.setdefault("inputs", {})["active_checkpoint_registry"] = requested_registry
         state["commands"] = commands
         state.setdefault("settings", {})["evaluation_workers"] = args.evaluation_workers
         return state
@@ -291,6 +312,7 @@ def _load_state(
             "base_training_config": str(args.base_training_config.resolve()),
             "base_training_config_sha256": sha256_file(args.base_training_config),
             "baseline_checkpoint": str(args.baseline_checkpoint.resolve()),
+            "active_checkpoint_registry": str(args.active_checkpoint_registry.resolve()),
             "replay_sha256": sha256_file(replay),
             "curriculum_sha256": sha256_file(curriculum),
             "holdout_sha256": sha256_file(holdout),
@@ -337,26 +359,63 @@ def _run_command(
 
 
 def _run_promotion_gate(
-    cycle_dir: Path, checkpoint: Path, state: dict[str, Any], state_path: Path
+    root: Path,
+    cycle_dir: Path,
+    baseline_checkpoint: Path,
+    checkpoint: Path,
+    active_registry: Path,
+    state: dict[str, Any],
+    state_path: Path,
 ) -> None:
-    baseline = _read_json(cycle_dir / "baseline-holdout-audit.json")
-    candidate = _read_json(cycle_dir / "candidate-holdout-audit.json")
+    baseline_audit = cycle_dir / "baseline-holdout-audit.json"
+    candidate_audit = cycle_dir / "candidate-holdout-audit.json"
+    baseline = _read_json(baseline_audit)
+    candidate = _read_json(candidate_audit)
     result = promotion_gate(baseline, candidate)
+    pairing = validate_paired_campaigns(baseline, candidate)
+    candidate_artifact = checkpoint / "model.safetensors"
+    baseline_artifact = baseline_checkpoint / "model.safetensors"
+    if not candidate_artifact.is_file():
+        raise FileNotFoundError(f"candidate model artifact is missing: {candidate_artifact}")
+    pairing.update(
+        {
+            "baseline_audit": str(baseline_audit),
+            "baseline_audit_sha256": sha256_file(baseline_audit),
+            "candidate_audit": str(candidate_audit),
+            "candidate_audit_sha256": sha256_file(candidate_audit),
+            "baseline_checkpoint_sha256": (
+                sha256_file(baseline_artifact) if baseline_artifact.is_file() else None
+            ),
+            "candidate_checkpoint_sha256": sha256_file(candidate_artifact),
+        }
+    )
+    result["pairing"] = pairing
     result["candidate_checkpoint"] = str(checkpoint)
     result_path = cycle_dir / "promotion-gate.json"
     write_json(result_path, result)
     if result["promoted"]:
+        active = activate_promoted_checkpoint(
+            active_registry,
+            project_root=root,
+            checkpoint=checkpoint,
+            promotion_evidence=result_path,
+        )
         write_json(
             cycle_dir / "promoted-checkpoint.json",
             {
                 "checkpoint": str(checkpoint),
                 "promotion_gate": str(result_path),
                 "promotion_gate_sha256": sha256_file(result_path),
+                "active_checkpoint_registry": str(active_registry),
+                "active_checkpoint": active.to_dict(),
             },
         )
     state["steps"]["promotion_gate"] = {
         "status": "passed" if result["promoted"] else "rejected",
         "result": str(result_path),
+        "active_checkpoint_registry": (
+            str(active_registry) if result["promoted"] else None
+        ),
     }
     write_json(state_path, state)
 

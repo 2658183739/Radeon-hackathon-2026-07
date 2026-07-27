@@ -47,7 +47,9 @@ cd /workspace/parcel-sorter-opt-v1
 - 每个回合都有 VLA 实际执行；
 - 每个回合均记录为单张 AMD Radeon 和 ROCm。
 
-未通过只写出 `completed_not_promoted` 和逐项失败原因，不覆盖现有 checkpoint。
+统计门执行前还会逐项比较基线与候选的有序物理参数序列。未通过只写出
+`completed_not_promoted` 和逐项失败原因，不覆盖现有 checkpoint。通过后程序会原子替换
+`configs/active_mobile_smolvla.json`；下一回合加载前同时校验模型 SHA-256 与晋级证据 SHA-256。
 
 ## 2026-07-27 实测结果
 
@@ -91,3 +93,10 @@ Radeon。收集器审计发现两个缺失 summary 的基础设施失败，并�
 离线消融、基线/候选紧凑闭环证据、Wilson 区间和晋级决策。完整数据及模型仍保存在
 Radeon 工作区；Git 仅提交小体积协议、代码和紧凑证据。
 本次紧凑证据及 SHA-256 位于 `evidence/mobile_bimanual/self_improvement_v3/`。
+
+## 后续 primitive-progress 晋级
+
+被拒绝的 v3 继续作为负结果保留，但它不是当前活动模型。后续 2,800 步 primitive-progress
+候选复用了配对冻结 100 回合协议，以 94/100 对比 96/100 基线，35 N 力越界为零，并通过全部
+登记门。模型文件与晋级记录现在组成 `configs/active_mobile_smolvla.json` 的双哈希活动指针。
+后续周期继续遵守同一规则：候选被拒绝时该文件逐字节不变；候选通过时只在回合之间原子激活。

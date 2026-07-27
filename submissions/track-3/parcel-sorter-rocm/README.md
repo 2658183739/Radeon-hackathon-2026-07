@@ -36,13 +36,17 @@ The corresponding [paper blueprint](docs/PASH_VLA_PAPER_BLUEPRINT.md) fixes the 
 equations, ablation table, figure plan, evidence boundaries, and publication-integrity checklist.
 The new [PASH adaptive-retry loop](docs/PASH_ADAPTIVE_RETRY.md) adds primitive-gap diagnosis,
 task/global strategy memory, at most three audited attempts, and an isolated primitive-acquisition
-writeback manifest. Its first single-Radeon development case succeeded on the first attempt; this
-verifies integration but does not yet establish a retry-recovery rate.
+writeback path. Version 2 replayed a registered lift failure from the frozen 100-trial campaign,
+selected `pash_base@gentle_lift` after the failed first attempt, succeeded on the second attempt,
+and saved 673 audited RGB-D/state/action frames. This is paired mechanism evidence, not a recovery rate.
 The [PASH primitive-learning extension](docs/PASH_PRIMITIVE_LEARNING.md) now converts audited
 demonstrations into six primitive instructions plus a progress channel. A 4,557-frame dataset
-audit, 2,800-step Radeon training run, 42-sample offline Harness ablation, and one matched
-closed-loop mechanism pair passed. The candidate placed at 0.90 cm, but one pair does not prove
-generalization, so the frozen v2 checkpoint remains active pending the existing promotion gate.
+audit, 2,800-step Radeon training run, 42-sample offline Harness ablation, and frozen 100-trial
+evaluation passed. The candidate scored 94/100 with zero force violations and passed paired
+non-inferiority against the 96/100 baseline. `configs/active_mobile_smolvla.json` now activates it
+only after verifying both the model artifact and promotion-evidence hashes. Future improvement
+cycles compare the ordered baseline/candidate physics exactly and update this registry atomically;
+a rejected candidate cannot replace the deployed checkpoint.
 The [PASH dual-arm geometry Harness](docs/PASH_DUAL_ARM_DEPTH.md) now projects both SmolVLA arm
 proposals into a rigid-object-consistent common motion, uses metric depth as a deterministic risk
 sidecar, and fades learned authority before placement. In one Radeon mechanism case, both arms

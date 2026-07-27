@@ -45,7 +45,11 @@ A candidate writes `promoted-checkpoint.json` only when both baseline and candid
 the same holdout of at least 100 trials, candidate success is at least 80%, point-estimate and
 Wilson-lower-bound non-inferiority stay within five percentage points, force violations are
 zero, VLA actuation occurs in every trial, and every trial records one Radeon GPU with ROCm.
-Rejected candidates remain isolated and report `completed_not_promoted` with individual checks.
+The baseline and candidate physical-parameter sequences are compared exactly before the
+statistical gate is accepted. Rejected candidates remain isolated and report
+`completed_not_promoted` with individual checks. A passing candidate atomically replaces
+`configs/active_mobile_smolvla.json`; the registry stores and verifies both the model SHA-256
+and promotion-evidence SHA-256 before the next episode can load it.
 
 ## Measured result on 2026-07-27
 
@@ -87,3 +91,14 @@ logs, dataset audit, offline ablation, compact paired campaigns, Wilson interval
 promotion decision. Large datasets and weights remain in the Radeon workspace.
 Compact evidence and SHA-256 values are checked in under
 `evidence/mobile_bimanual/self_improvement_v3/`.
+
+## Subsequent primitive-progress promotion
+
+The rejected v3 result remains negative evidence; it is not the current model.
+The later 2,800-step primitive-progress candidate reused the paired frozen
+100-trial protocol, scored 94/100 against the 96/100 baseline, had zero force
+violations, and passed every registered gate. Its model artifact and promotion
+record now form the active double-hash registry in
+`configs/active_mobile_smolvla.json`. Future cycles use the same rule: rejected
+candidates leave that file byte-for-byte unchanged, while a passing candidate
+is activated atomically between episodes.

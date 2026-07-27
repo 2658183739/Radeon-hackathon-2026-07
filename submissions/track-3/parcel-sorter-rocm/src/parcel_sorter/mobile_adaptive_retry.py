@@ -22,6 +22,67 @@ class RetryStrategy:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class RecoveryRecipe:
+    """Small, bounded physical adjustment applied between whole-task attempts."""
+
+    name: str
+    approach_speed_scale: float = 1.0
+    contact_offset_m: tuple[float, float] = (0.0, 0.0)
+    contact_penetration_delta_m: float = 0.0
+    vertical_speed_scale: float = 1.0
+    lift_height_delta_m: float = 0.0
+    placement_clearance_m: float = 0.015
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("recovery recipe name must be non-empty")
+        values = (
+            self.approach_speed_scale,
+            *self.contact_offset_m,
+            self.contact_penetration_delta_m,
+            self.vertical_speed_scale,
+            self.lift_height_delta_m,
+            self.placement_clearance_m,
+        )
+        if any(not math.isfinite(value) for value in values):
+            raise ValueError("recovery recipe values must be finite")
+        if not 0.40 <= self.approach_speed_scale <= 1.0:
+            raise ValueError("approach_speed_scale must be in [0.40, 1.0]")
+        if any(abs(value) > 0.008 for value in self.contact_offset_m):
+            raise ValueError("contact offsets must remain within 8 mm")
+        if not -0.0015 <= self.contact_penetration_delta_m <= 0.0015:
+            raise ValueError("contact penetration adjustment must remain within 1.5 mm")
+        if not 0.60 <= self.vertical_speed_scale <= 1.0:
+            raise ValueError("vertical_speed_scale must be in [0.60, 1.0]")
+        if not 0.0 <= self.lift_height_delta_m <= 0.020:
+            raise ValueError("lift height adjustment must be in [0, 20] mm")
+        if not 0.008 <= self.placement_clearance_m <= 0.020:
+            raise ValueError("placement clearance must be in [8, 20] mm")
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class RecoveryPlan:
+    """Harness decision containing both policy authority and physical recovery."""
+
+    strategy: RetryStrategy
+    recipe: RecoveryRecipe
+
+    @property
+    def key(self) -> str:
+        return f"{self.strategy.name}@{self.recipe.name}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "key": self.key,
+            "strategy": self.strategy.to_dict(),
+            "recipe": self.recipe.to_dict(),
+        }
+
+
 PASH_DUAL_ARM = RetryStrategy(
     "pash_dual_arm", "base_dual_arm_residual", True, True, True, True
 )
@@ -29,6 +90,44 @@ PASH_ARM = RetryStrategy("pash_arm", "base_arm_residual", True, True, False, Tru
 PASH_BASE = RetryStrategy("pash_base", "base_residual", True, False, True, True)
 EXPERT_RECOVERY = RetryStrategy("expert_recovery", "shadow", False, False, True, False)
 DEFAULT_STRATEGIES = (PASH_DUAL_ARM, PASH_ARM, PASH_BASE, EXPERT_RECOVERY)
+
+NOMINAL_RECOVERY = RecoveryRecipe("nominal")
+SEAL_SEARCH_PLUS_Y = RecoveryRecipe(
+    "seal_search_plus_y",
+    approach_speed_scale=0.75,
+    contact_offset_m=(0.0, 0.006),
+    contact_penetration_delta_m=0.001,
+)
+SEAL_SEARCH_MINUS_Y = RecoveryRecipe(
+    "seal_search_minus_y",
+    approach_speed_scale=0.60,
+    contact_offset_m=(0.0, -0.006),
+    contact_penetration_delta_m=0.001,
+)
+GENTLE_LIFT = RecoveryRecipe(
+    "gentle_lift",
+    approach_speed_scale=0.75,
+    contact_penetration_delta_m=0.0005,
+    vertical_speed_scale=0.75,
+    lift_height_delta_m=0.015,
+)
+PRECISION_PLACE = RecoveryRecipe(
+    "precision_place",
+    vertical_speed_scale=0.75,
+    placement_clearance_m=0.010,
+)
+FORCE_RETREAT = RecoveryRecipe(
+    "force_retreat",
+    approach_speed_scale=0.50,
+    contact_penetration_delta_m=-0.001,
+    vertical_speed_scale=0.70,
+)
+TRANSPORT_STABILIZE = RecoveryRecipe(
+    "transport_stabilize",
+    approach_speed_scale=0.75,
+    vertical_speed_scale=0.70,
+    lift_height_delta_m=0.010,
+)
 
 
 def classify_mobile_failure(summary: dict[str, Any]) -> str | None:
@@ -113,11 +212,43 @@ class EpisodicStrategyMemory:
         success: bool,
         force_abort: bool,
     ) -> None:
+        self.record_key(
+            context=context,
+            arm_name=strategy.name,
+            success=success,
+            force_abort=force_abort,
+        )
+
+    def record_plan(
+        self,
+        *,
+        context: str,
+        plan: RecoveryPlan,
+        success: bool,
+        force_abort: bool,
+    ) -> None:
+        self.record_key(
+            context=context,
+            arm_name=plan.key,
+            success=success,
+            force_abort=force_abort,
+        )
+
+    def record_key(
+        self,
+        *,
+        context: str,
+        arm_name: str,
+        success: bool,
+        force_abort: bool,
+    ) -> None:
         if not context:
             raise ValueError("context must be non-empty")
+        if not arm_name:
+            raise ValueError("strategy-memory arm name must be non-empty")
         for key in (context, _global_context(context)):
             stats = self.contexts.setdefault(key, {}).setdefault(
-                strategy.name,
+                arm_name,
                 {"attempts": 0, "successes": 0, "force_aborts": 0},
             )
             stats["attempts"] = int(stats.get("attempts") or 0) + 1
@@ -125,18 +256,24 @@ class EpisodicStrategyMemory:
             stats["force_aborts"] = int(stats.get("force_aborts") or 0) + int(force_abort)
 
     def score(self, *, context: str, strategy: RetryStrategy) -> float:
-        task_score = self._score_one(context=context, strategy=strategy)
+        return self.score_key(context=context, arm_name=strategy.name)
+
+    def score_plan(self, *, context: str, plan: RecoveryPlan) -> float:
+        return self.score_key(context=context, arm_name=plan.key)
+
+    def score_key(self, *, context: str, arm_name: str) -> float:
+        task_score = self._score_one(context=context, arm_name=arm_name)
         global_key = _global_context(context)
-        global_stats = self.contexts.get(global_key, {}).get(strategy.name, {})
+        global_stats = self.contexts.get(global_key, {}).get(arm_name, {})
         if int(global_stats.get("attempts") or 0) == 0:
             return task_score
         return 0.75 * task_score + 0.25 * self._score_one(
-            context=global_key, strategy=strategy
+            context=global_key, arm_name=arm_name
         )
 
-    def _score_one(self, *, context: str, strategy: RetryStrategy) -> float:
+    def _score_one(self, *, context: str, arm_name: str) -> float:
         context_stats = self.contexts.get(context, {})
-        stats = context_stats.get(strategy.name, {})
+        stats = context_stats.get(arm_name, {})
         attempts = int(stats.get("attempts") or 0)
         successes = int(stats.get("successes") or 0)
         force_aborts = int(stats.get("force_aborts") or 0)
@@ -161,22 +298,13 @@ def choose_retry_strategy(
     """Choose the highest-scoring strategy allowed by failure-specific safety rules."""
 
     attempted = set(attempted_strategy_names)
-    candidates = list(strategies)
-    if cooperative_cradle:
-        candidates = [item for item in candidates if item.cooperative_safe]
-    else:
-        candidates = [item for item in candidates if item.name != PASH_DUAL_ARM.name]
-    if previous_failure == "force_safety_abort":
-        candidates = [item for item in candidates if item.name == EXPERT_RECOVERY.name]
-    elif previous_failure in {
-        "suction_latch",
-        "lift_success",
-        "placement_success",
-        "release_success",
-    }:
-        candidates = [item for item in candidates if not item.learned_arm_authority]
-    if not candidates:
-        raise ValueError("no retry strategy satisfies the safety constraints")
+    candidates = list(
+        _allowed_strategies(
+            previous_failure=previous_failure,
+            cooperative_cradle=cooperative_cradle,
+            strategies=strategies,
+        )
+    )
     untried = [item for item in candidates if item.name not in attempted]
     if untried:
         candidates = untried
@@ -189,6 +317,68 @@ def choose_retry_strategy(
     return max(
         candidates,
         key=lambda item: (memory.score(context=context, strategy=item), preference[item.name]),
+    )
+
+
+def recovery_recipes(previous_failure: str | None) -> tuple[RecoveryRecipe, ...]:
+    """Return only pre-registered, safety-bounded recipes for a failure class."""
+
+    if previous_failure is None:
+        return (NOMINAL_RECOVERY,)
+    if previous_failure == "suction_latch":
+        return (SEAL_SEARCH_PLUS_Y, SEAL_SEARCH_MINUS_Y)
+    if previous_failure == "lift_success":
+        return (GENTLE_LIFT, TRANSPORT_STABILIZE)
+    if previous_failure == "transport_success":
+        return (TRANSPORT_STABILIZE, GENTLE_LIFT)
+    if previous_failure in {"placement_success", "release_success"}:
+        return (PRECISION_PLACE,)
+    if previous_failure == "force_safety_abort":
+        return (FORCE_RETREAT,)
+    return (NOMINAL_RECOVERY,)
+
+
+def choose_recovery_plan(
+    *,
+    memory: EpisodicStrategyMemory,
+    context: str,
+    previous_failure: str | None,
+    attempted_plan_keys: Iterable[str] = (),
+    cooperative_cradle: bool = False,
+    strategies: Iterable[RetryStrategy] = DEFAULT_STRATEGIES,
+) -> RecoveryPlan:
+    """Select a memory-scored Harness plan without changing model weights online."""
+
+    allowed = _allowed_strategies(
+        previous_failure=previous_failure,
+        cooperative_cradle=cooperative_cradle,
+        strategies=strategies,
+    )
+    plans = tuple(
+        RecoveryPlan(strategy, recipe)
+        for strategy in allowed
+        for recipe in recovery_recipes(previous_failure)
+    )
+    attempted = set(attempted_plan_keys)
+    untried = tuple(plan for plan in plans if plan.key not in attempted)
+    candidates = untried or plans
+    strategy_preference = {
+        PASH_DUAL_ARM.name: 3,
+        PASH_ARM.name: 2,
+        PASH_BASE.name: 1,
+        EXPERT_RECOVERY.name: 0,
+    }
+    recipe_preference = {
+        recipe.name: -index
+        for index, recipe in enumerate(recovery_recipes(previous_failure))
+    }
+    return max(
+        candidates,
+        key=lambda plan: (
+            memory.score_plan(context=context, plan=plan),
+            strategy_preference[plan.strategy.name],
+            recipe_preference[plan.recipe.name],
+        ),
     )
 
 
@@ -216,6 +406,10 @@ def summarize_adaptive_attempts(attempts: list[dict[str, Any]]) -> dict[str, Any
             if item.get("failure_stage") is not None
         ],
         "strategies_attempted": [str(item["strategy"]["name"]) for item in attempts],
+        "recovery_plans_attempted": [
+            str((item.get("recovery_plan") or {}).get("key") or "legacy")
+            for item in attempts
+        ],
         "attempts": attempts,
         "claim_boundary": (
             "eventual success includes bounded retries and must not be reported as first-attempt "
@@ -248,13 +442,21 @@ def build_primitive_acquisition_manifest(
             gaps.append(dict(pending_gap))
             continue
         if attempt.get("success") and pending_gap is not None:
+            dataset = attempt.get("dataset") or {}
+            dataset_saved = bool(dataset.get("saved"))
             acquisitions.append(
                 {
                     **pending_gap,
                     "recovery_attempt_index": int(attempt["attempt_index"]),
                     "recovery_strategy": str(attempt["strategy"]["name"]),
                     "successful_summary": attempt.get("summary"),
-                    "writeback_status": "eligible_after_dataset_audit",
+                    "successful_dataset_root": dataset.get("root"),
+                    "successful_dataset_frames": int(dataset.get("frames") or 0),
+                    "writeback_status": (
+                        "eligible_after_dataset_audit"
+                        if dataset_saved
+                        else "blocked_missing_trajectory"
+                    ),
                     "primitive_task_text": (
                         f"Recover the {pending_gap['primitive']} primitive while preserving "
                         "the 35 N force limit and complete the parcel task."
@@ -267,12 +469,40 @@ def build_primitive_acquisition_manifest(
         "protocol": "pash-primitive-acquisition-v1",
         "primitive_gaps": gaps,
         "successful_acquisitions": acquisitions,
-        "retraining_candidate_count": len(acquisitions),
+        "retraining_candidate_count": sum(
+            item["writeback_status"] == "eligible_after_dataset_audit"
+            for item in acquisitions
+        ),
         "claim_boundary": (
             "successful recovery summaries are candidates for audited primitive-level data "
             "extraction; they are not training data until sensor/action frames pass dataset audit"
         ),
     }
+
+
+def _allowed_strategies(
+    *,
+    previous_failure: str | None,
+    cooperative_cradle: bool,
+    strategies: Iterable[RetryStrategy],
+) -> tuple[RetryStrategy, ...]:
+    candidates = list(strategies)
+    if cooperative_cradle:
+        candidates = [item for item in candidates if item.cooperative_safe]
+    else:
+        candidates = [item for item in candidates if item.name != PASH_DUAL_ARM.name]
+    if previous_failure == "force_safety_abort":
+        candidates = [item for item in candidates if item.name == EXPERT_RECOVERY.name]
+    elif previous_failure in {
+        "suction_latch",
+        "lift_success",
+        "placement_success",
+        "release_success",
+    }:
+        candidates = [item for item in candidates if not item.learned_arm_authority]
+    if not candidates:
+        raise ValueError("no retry strategy satisfies the safety constraints")
+    return tuple(candidates)
 
 
 def _global_context(context: str) -> str:

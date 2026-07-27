@@ -46,6 +46,11 @@ InSight 原始论文已核验为 [arXiv:2606.24884](https://arxiv.org/abs/2606.2
 继续使用学习型机械臂残差。协同 V 型托架任务可以使用 `pash_dual_arm`：其差分残差强制为零，
 左右目标通过同一次多末端 IK，并在放置前逐渐撤权；独立左臂的 `pash_arm` 仍被协同任务排除。
 
+v2 将策略权限与小范围物理恢复参数组成同一个可记忆决策。吸附失败只允许在正负 6 mm 内搜索
+吸盘中心；抬升失败使用 0.75 倍接近/垂直速度、增加 0.5 mm 接触和 15 mm 抬升；放置失败把
+释放间隙从 15 mm 收紧到 10 mm；力中止只能使用 0.5 倍接近速度和减少 1 mm 接触的专家恢复。
+所有参数在命令行入口再次校验，不能绕过三次上限或 35 N 门。
+
 ## 双层经验记忆
 
 记忆键同时写入：
@@ -63,8 +68,9 @@ global context = *       : mass_band : previous_failed_primitive
 
 闭环按 `scene_stability -> suction_latch -> lift -> transport -> placement -> release` 顺序确定
 第一个缺口。若后续尝试成功，`primitive-acquisition-manifest.json` 会把失败摘要、恢复策略、
-成功摘要和 primitive 文本写成候选。候选必须再次通过传感器帧、动作维度、任务标签和数据隔离
-审计，才能进入 SmolVLA 训练；仅有 summary 不会被伪装成训练数据。
+成功摘要、实际 LeRobot 数据根和 primitive 文本写成候选。只有成功尝试真实保存轨迹且通过
+传感器帧、动作维度、任务标签和数据隔离审计后，候选才允许进入 SmolVLA 训练；仅有 summary
+会被明确标记为 `blocked_missing_trajectory`。
 
 ## Radeon 开发验证
 
@@ -76,13 +82,24 @@ global context = *       : mass_band : previous_failed_primitive
 该结果只验证新入口和记忆写入可运行，不能证明重试提高成功率。完整证据见
 `evidence/mobile_bimanual/adaptive_retry_v1/`。
 
+## v2 已知失败恢复验证
+
+v2 没有扩大测试总体，而是复用 100 回合冻结评估中的已知失败
+`primitive-v2-dry-run-holdout-005`。第一次 `pash_arm@nominal` 再次在 `lift_success` 门失败；
+第二次自动选择 `pash_base@gentle_lift` 并成功，放置误差 1.44 cm，接触峰值 4.84 N，断吸和
+力中止均为零。成功尝试保存 673 帧 RGB-D/状态/动作数据，数据审计全部通过，并产生一个可进入
+primitive 切分的再训练候选。证据与哈希位于 `evidence/mobile_bimanual/adaptive_retry_v2/`。
+
+这是一个配对机理验证，只能说明恢复链路真实执行并生成可训练数据，不能估计总体恢复率或支持
+“自进化提高成功率”的统计结论。
+
 ## 运行
 
 ```bash
 PYTHONPATH=src:. python scripts/run_mobile_adaptive_retry_rocm.py \
   --output outputs/pash-adaptive-retry \
   --strategy-memory outputs/pash-strategy-memory.json \
-  --smolvla-checkpoint <checkpoint> \
+  --smolvla-checkpoint configs/active_mobile_smolvla.json \
   --backend rocm --max-attempts 3 --policy-hz 3 \
   --parcel-profile small_carton \
   --parcel-size-m 0.20 0.12 0.20 \

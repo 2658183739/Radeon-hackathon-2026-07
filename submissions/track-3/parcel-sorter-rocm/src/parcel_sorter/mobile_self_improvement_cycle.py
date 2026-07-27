@@ -269,6 +269,29 @@ def promotion_gate(
     }
 
 
+def validate_paired_campaigns(
+    baseline: dict[str, Any], candidate: dict[str, Any]
+) -> dict[str, Any]:
+    """Prove that baseline and candidate used the same ordered physical trials."""
+
+    baseline_runs = list(baseline.get("runs") or ())
+    candidate_runs = list(candidate.get("runs") or ())
+    if not baseline_runs or not candidate_runs:
+        raise ValueError("paired campaign audits must contain runs")
+    baseline_signatures = [_run_physical_signature(run) for run in baseline_runs]
+    candidate_signatures = [_run_physical_signature(run) for run in candidate_runs]
+    if baseline_signatures != candidate_signatures:
+        raise ValueError("baseline and candidate physical parameter sequences differ")
+    if len(set(candidate_signatures)) != len(candidate_signatures):
+        raise ValueError("paired campaign contains duplicate physical signatures")
+    return {
+        "status": "passed",
+        "physical_parameter_sequences_equal": True,
+        "paired_trials": len(candidate_signatures),
+        "unique_physical_signatures": len(set(candidate_signatures)),
+    }
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -293,3 +316,16 @@ def _episode_signature(item: dict[str, Any]) -> tuple[Any, ...]:
         *(round(float(value), 6) for value in item.get("offset_m", ())),
     )
     return tuple(values)
+
+
+def _run_physical_signature(run: dict[str, Any]) -> tuple[Any, ...]:
+    parameters = run.get("parameters") or {}
+    return _episode_signature(
+        {
+            "profile": run.get("profile") or parameters.get("profile"),
+            "size_m": parameters.get("size_m", ()),
+            "mass_kg": parameters.get("mass_kg"),
+            "friction": parameters.get("friction"),
+            "offset_m": parameters.get("offset_m", ()),
+        }
+    )

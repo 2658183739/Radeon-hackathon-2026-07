@@ -9,10 +9,11 @@ import subprocess
 import sys
 from typing import Any
 
+from parcel_sorter.checkpoint_registry import load_active_checkpoint
 from parcel_sorter.mobile_adaptive_retry import (
     EpisodicStrategyMemory,
     build_primitive_acquisition_manifest,
-    choose_retry_strategy,
+    choose_recovery_plan,
     classify_mobile_failure,
     strategy_context,
     summarize_adaptive_attempts,
@@ -51,13 +52,24 @@ def main() -> int:
         parser.error("max-attempts must be in [1, 3]")
     if args.output.exists() and any(args.output.iterdir()):
         parser.error("output directory must be absent or empty")
+    checkpoint_selection: dict[str, Any] = {
+        "source": "direct_path",
+        "checkpoint": str(args.smolvla_checkpoint),
+    }
+    if args.smolvla_checkpoint.is_file():
+        try:
+            selected = load_active_checkpoint(args.smolvla_checkpoint)
+        except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
+            parser.error(f"active checkpoint verification failed: {exc}")
+        args.smolvla_checkpoint = selected.checkpoint
+        checkpoint_selection = {"source": "promoted_registry", **selected.to_dict()}
     if not args.smolvla_checkpoint.exists() and not args.dry_run:
         parser.error("SmolVLA checkpoint does not exist")
 
     memory_path = args.strategy_memory or args.output / "strategy-memory.json"
     memory = EpisodicStrategyMemory.load(memory_path)
     evaluator = Path(__file__).resolve().parent / "evaluate_mobile_suction_lift_rocm.py"
-    attempted_names: list[str] = []
+    attempted_plan_keys: list[str] = []
     attempt_records: list[dict[str, Any]] = []
     previous_failure: str | None = None
 
@@ -67,15 +79,18 @@ def main() -> int:
             mass_kg=args.parcel_mass_kg,
             previous_failure=previous_failure,
         )
-        strategy = choose_retry_strategy(
+        recovery_plan = choose_recovery_plan(
             memory=memory,
             context=context,
             previous_failure=previous_failure,
-            attempted_strategy_names=attempted_names,
+            attempted_plan_keys=attempted_plan_keys,
             cooperative_cradle=args.cooperative_cradle,
         )
-        attempted_names.append(strategy.name)
+        strategy = recovery_plan.strategy
+        recipe = recovery_plan.recipe
+        attempted_plan_keys.append(recovery_plan.key)
         attempt_dir = args.output / f"attempt-{attempt_index + 1:02d}-{strategy.name}"
+        recovery_dataset = attempt_dir / "recovery-dataset"
         command = [
             sys.executable,
             str(evaluator),
@@ -99,6 +114,20 @@ def main() -> int:
             strategy.policy_mode,
             "--policy-hz",
             str(args.policy_hz),
+            "--record-dataset",
+            str(recovery_dataset),
+            "--recovery-contact-offset-m",
+            *(_float(value) for value in recipe.contact_offset_m),
+            "--recovery-contact-penetration-delta-m",
+            _float(recipe.contact_penetration_delta_m),
+            "--recovery-approach-speed-scale",
+            _float(recipe.approach_speed_scale),
+            "--recovery-vertical-speed-scale",
+            _float(recipe.vertical_speed_scale),
+            "--recovery-lift-height-delta-m",
+            _float(recipe.lift_height_delta_m),
+            "--recovery-placement-clearance-m",
+            _float(recipe.placement_clearance_m),
         ]
         if strategy.force_memory:
             command.append("--force-memory-harness")
@@ -113,6 +142,7 @@ def main() -> int:
             "attempt_index": attempt_index,
             "context": context,
             "strategy": strategy.to_dict(),
+            "recovery_plan": recovery_plan.to_dict(),
             "command": command,
             "summary_available": False,
             "success": False,
@@ -158,11 +188,13 @@ def main() -> int:
                     },
                     "suction": summary.get("suction"),
                     "cradle": summary.get("cradle"),
+                    "dataset": summary.get("dataset"),
+                    "recovery_parameters": summary.get("recovery_parameters"),
                 }
             )
-            memory.record(
+            memory.record_plan(
                 context=context,
-                strategy=strategy,
+                plan=recovery_plan,
                 success=bool(summary.get("success")),
                 force_abort=previous_failure == "force_safety_abort",
             )
@@ -178,6 +210,7 @@ def main() -> int:
             "runtime_backend": args.backend,
             "maximum_attempts": args.max_attempts,
             "strategy_memory": str(memory_path),
+            "checkpoint_selection": checkpoint_selection,
             "physical_parameters": {
                 "profile": args.parcel_profile,
                 "size_m": list(args.parcel_size_m),

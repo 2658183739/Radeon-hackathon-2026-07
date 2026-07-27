@@ -52,6 +52,14 @@ runs may use `pash_dual_arm` because its differential residual is locked to
 zero, both targets pass one multi-link IK, and learned authority fades before
 placement; they still exclude the independent left-arm `pash_arm` mode.
 
+Version 2 pairs policy authority with a bounded physical recovery recipe. A
+suction failure may search only within +/-6 mm of the nominal cup center. A
+lift failure uses 0.75 approach/vertical speed, 0.5 mm additional penetration,
+and 15 mm additional lift height. A placement failure reduces release
+clearance from 15 to 10 mm. A force abort permits only an expert recovery with
+0.5 approach speed and 1 mm less penetration. The evaluator validates these
+bounds independently; no recipe can bypass the three-attempt or 35 N limits.
+
 ## Task and global memory
 
 The memory stores both `profile:mass_band:failed_primitive` and
@@ -62,8 +70,10 @@ task context contributes 75% and global transfer contributes 25%.
 The first failed gate in `scene stability -> suction latch -> lift -> transport
 -> placement -> release` is the primitive gap. A later successful recovery is
 written to `primitive-acquisition-manifest.json` with its source failure,
-recovery strategy, summary paths, and primitive task text. It remains only a
-candidate until RGB-D frames and actions pass dataset audit.
+recovery strategy, summary paths, an actual LeRobot dataset root, and primitive
+task text. A summary without a saved trajectory is marked
+`blocked_missing_trajectory`; only recorded RGB-D/state/action data that pass
+dataset audit may enter retraining.
 
 ## Radeon development result
 
@@ -78,11 +88,25 @@ was 200.54/209.89 ms.
 This is integration evidence, not evidence that retries improve success. See
 `evidence/mobile_bimanual/adaptive_retry_v1/` for compact metrics and hashes.
 
+## Version 2 recovery of a registered failure
+
+Version 2 reused `primitive-v2-dry-run-holdout-005`, an existing failure from
+the frozen 100-trial evaluation, rather than opening a new evaluation
+population. `pash_arm@nominal` reproduced the `lift_success` failure. The next
+decision selected `pash_base@gentle_lift` and succeeded at 1.44 cm placement
+error, 4.84 N peak contact force, zero suction breaks, and zero force aborts.
+The successful attempt recorded 673 RGB-D/state/action frames; dataset audit
+passed and created one primitive-segmentation candidate. Compact evidence and
+hashes are in `evidence/mobile_bimanual/adaptive_retry_v2/`.
+
+This paired case proves execution and trainable-data writeback, not a retry
+recovery rate or a statistical self-improvement claim.
+
 ```bash
 PYTHONPATH=src:. python scripts/run_mobile_adaptive_retry_rocm.py \
   --output outputs/pash-adaptive-retry \
   --strategy-memory outputs/pash-strategy-memory.json \
-  --smolvla-checkpoint <checkpoint> \
+  --smolvla-checkpoint configs/active_mobile_smolvla.json \
   --backend rocm --max-attempts 3 --policy-hz 3 \
   --parcel-profile small_carton \
   --parcel-size-m 0.20 0.12 0.20 \

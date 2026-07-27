@@ -462,3 +462,30 @@ In the existing deterministic closed-loop case, both the 10-step reference and
 cm and calls from 79 to 69. These are paired descriptive observations only.
 The production checkpoint remains unchanged until the existing frozen
 promotion gate is run.
+
+## Completed primitive promotion and atomic activation
+
+**Observation.** The preceding implementation note was intentionally written
+before the frozen promotion campaign. The campaign is now complete, so leaving
+that note as the latest state would incorrectly describe the active model.
+
+**Decision.** Pair baseline and candidate by their complete ordered physical
+parameter signatures before applying the existing statistical gate. A passing
+gate must carry the candidate model SHA-256. Only then may an atomic registry
+write activate the checkpoint; a rejected gate or mismatched hash must leave the
+previous registry unchanged.
+
+**Evidence.** The 2,800-step primitive-progress checkpoint scored 94/100 against
+the 96/100 baseline, with zero force violations, VLA actuation and single-Radeon
+ROCm provenance in 100/100 runs. It passed the registered 80% and paired Wilson
+non-inferiority checks. The active model hash is
+`b83d5299123e1cfeac3463679e021816f0999799492f6fafea828bf823761482`.
+Targeted Radeon verification passed four registry tests, seven cycle tests, and
+twelve adaptive-retry tests. A primitive-cycle dry run also rendered the full
+collection, audit, training, evaluation, promotion, and activation contract
+without starting another training campaign.
+
+**Boundary.** This proves an auditable near-line self-improvement mechanism and
+one promoted candidate. It does not prove weight updates during an active
+rollout, unseen geometry, real-robot transfer, or a population-level recovery
+improvement from the single known-failure retry.

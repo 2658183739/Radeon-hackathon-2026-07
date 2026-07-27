@@ -28,12 +28,14 @@ SmolVLA、接触力短时记忆、Harness-Lite、三吸盘/V 型托架和失败�
 对应的[论文蓝图](docs/PASH_VLA_PAPER_BLUEPRINT_CN.md)固定了研究问题、公式、消融表、图表规划、
 证据边界和投稿诚信检查，英文版见 [Paper Blueprint](docs/PASH_VLA_PAPER_BLUEPRINT.md)。
 新的[PASH 自适应重试与技能获取](docs/PASH_ADAPTIVE_RETRY_CN.md)加入 primitive 缺口诊断、
-任务/全局双层策略记忆、最多三次独立审计尝试和隔离的技能写回清单。首个单 Radeon 开发案例
-第一次尝试即成功；这验证了集成路径，但尚不构成重试恢复率。
+任务/全局双层策略记忆、最多三次独立审计尝试和隔离的技能写回。v2 在一个冻结 100 回合中
+已知的抬升失败参数上，首试失败后自动选择 `pash_base@gentle_lift`，第二次成功并保存 673 帧
+通过审计的 RGB-D/状态/动作数据；这是配对机理证据，不是总体恢复率。
 新的[PASH Primitive 学习扩展](docs/PASH_PRIMITIVE_LEARNING_CN.md)把审计示范转换为六种 primitive
 指令和一个进度通道。4,557 帧数据审计、2,800 步 Radeon 训练、42 样本离线 Harness 消融和
-一个匹配闭环机理对照均通过；候选放置误差为 0.90 cm，但单次配对不证明泛化，因此冻结 v2
-仍保持激活，候选必须通过原有晋级门。
+冻结 100 回合评估均已完成。候选为 94/100、零力越界，并通过与 96/100 基线配对的不劣性门；
+`configs/active_mobile_smolvla.json` 现在以模型和晋升证据双哈希激活该 checkpoint。后续改进周期会
+精确比较基线/候选的有序物理参数，并原子更新该指针；被拒绝的候选无法覆盖已部署 checkpoint。
 
 英文 [README.md](README.md) 是评审复现的主入口；中文正式报告见
 [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)。优化顺序见
@@ -121,11 +123,14 @@ HIP/ROCm 设备，不代表使用了 NVIDIA CUDA。预检脚本会检查 `torch.
 | 大纸箱几何规划困难集 | 基线 5/20，候选 15/20；实验能力，未通过发布门禁 |
 | 移动 SmolVLA v2 冻结集 | 96/100，0 次 35 N 力越界 |
 | 自我改进 SmolVLA v3 | 91/100，Wilson 非劣性失败，未晋级 |
+| Primitive-progress SmolVLA | 94/100，0 次力越界，通过配对不劣性门并激活 |
+| 已知失败自适应恢复 | 首试抬升失败，第二次成功；673 帧恢复数据审计通过 |
 | 超长箱双臂协同开发案例 | 抬升 8.53 cm、运输 30 cm、误差 2.16 cm、0 断吸 |
 | 移动主线定向测试 | Radeon 上 48 项通过 |
 
-移动 SmolVLA v2 的 96/100 是当前学习策略主指标；正式专家 120 回合和 ACT 作为历史受控
-基线保留。超长箱结果只证明双臂协同机理可运行，不是统计泛化。ACT 已证明数据、训练、保存、
+移动 SmolVLA v2 的 96/100 是保留基线，primitive-progress 模型以 94/100 通过预注册不劣性门并
+成为活动 checkpoint；正式专家 120 回合和 ACT 作为历史受控基线保留。超长箱结果只证明双臂协同
+机理可运行，不是统计泛化。ACT 已证明数据、训练、保存、
 重载、ROCm 推理和 Genesis 闭环全部跑通，但成功率明显低于专家。相同 episode 10-19 上，
 第 4,000 步优于第 5,000 步，也说明模型选择不能只看离线 loss。
 
