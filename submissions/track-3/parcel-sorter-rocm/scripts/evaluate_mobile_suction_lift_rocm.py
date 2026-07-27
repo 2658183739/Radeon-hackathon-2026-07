@@ -24,6 +24,7 @@ from parcel_sorter.mobile_bimanual import (
     BASE_JOINT_NAMES,
     END_EFFECTOR_LINK_NAMES,
     FINGER_JOINT_NAMES,
+    MOBILE_TRI_SUCTION_TIP_OFFSET_M,
     build_mobile_bimanual_mjcf,
     joint_dof_indices,
 )
@@ -32,7 +33,7 @@ from parcel_sorter.mobile_task import (
     clamp_position_residual_to_anchor,
     placement_within_release_gate,
 )
-from parcel_sorter.mobile_vla_controller import MobileSmolVLAHarnessController
+from parcel_sorter.mobile_vla_controller import MobileVLAHarnessController
 from parcel_sorter.provenance import runtime_report
 from parcel_sorter.suction import rotate_vector
 
@@ -99,6 +100,16 @@ def main() -> int:
         type=Path,
         help="save the final overhead RGB frame as a PNG",
     )
+    parser.add_argument(
+        "--record-contact-video",
+        type=Path,
+        help="save a fixed close-up of suction contact as an MP4",
+    )
+    parser.add_argument(
+        "--contact-snapshot",
+        type=Path,
+        help="save the first frame after a physical suction latch as a PNG",
+    )
     parser.add_argument("--image-size", type=int, default=224)
     parser.add_argument("--media-width", type=int, default=640)
     parser.add_argument("--media-height", type=int, default=480)
@@ -125,11 +136,17 @@ def main() -> int:
         help="synchronize the right V cradle for wide-parcel lift, transport, and place",
     )
     parser.add_argument("--task-text")
-    parser.add_argument("--smolvla-checkpoint", type=Path)
+    parser.add_argument(
+        "--vla-checkpoint",
+        "--smolvla-checkpoint",
+        dest="vla_checkpoint",
+        type=Path,
+        help="fine-tuned SmolVLA or PI0.5 checkpoint (old SmolVLA flag remains an alias)",
+    )
     parser.add_argument(
         "--force-memory-harness",
         action="store_true",
-        help="cap SmolVLA residual scale using short contact-force history",
+        help="cap VLA residual scale using short contact-force history",
     )
     parser.add_argument(
         "--policy-mode",
@@ -180,10 +197,10 @@ def main() -> int:
         parser.error("recovery placement clearance must be in [0.008, 0.020] m")
     if args.policy_hz <= 0 or 30 % args.policy_hz != 0:
         parser.error("policy-hz must be a positive divisor of 30")
-    if args.policy_mode != "shadow" and args.smolvla_checkpoint is None:
-        parser.error("residual policy modes require --smolvla-checkpoint")
-    if args.require_vla_goal_verdict and args.smolvla_checkpoint is None:
-        parser.error("VLA goal verdict requires --smolvla-checkpoint")
+    if args.policy_mode != "shadow" and args.vla_checkpoint is None:
+        parser.error("residual policy modes require --vla-checkpoint")
+    if args.require_vla_goal_verdict and args.vla_checkpoint is None:
+        parser.error("VLA goal verdict requires --vla-checkpoint")
     if args.cooperative_cradle and args.parcel_size_m[0] < 0.28:
         parser.error("cooperative cradle requires parcel X dimension >= 0.28 m")
     if args.cooperative_cradle and args.policy_mode == "base_arm_residual":
@@ -269,7 +286,7 @@ def main() -> int:
     )
     robot = scene.add_entity(gs.morphs.MJCF(file=str(asset)))
     camera = None
-    if args.record_dataset is not None or args.smolvla_checkpoint is not None:
+    if args.record_dataset is not None or args.vla_checkpoint is not None:
         camera = scene.add_camera(
             res=(args.image_size, args.image_size),
             pos=(0.0, -2.4, 3.1),
@@ -281,9 +298,18 @@ def main() -> int:
     if args.record_video is not None or args.snapshot is not None:
         media_camera = scene.add_camera(
             res=(args.media_width, args.media_height),
-            pos=(-1.35, -1.15, 2.25),
-            lookat=(-0.38, 0.62, 1.28),
-            fov=46,
+            pos=(-1.65, -1.65, 2.55),
+            lookat=(-0.48, 0.75, 1.28),
+            fov=52,
+            GUI=False,
+        )
+    contact_camera = None
+    if args.record_contact_video is not None or args.contact_snapshot is not None:
+        contact_camera = scene.add_camera(
+            res=(args.media_width, args.media_height),
+            pos=(-1.42, 0.18, 1.76),
+            lookat=(-0.67, 0.66, 1.46),
+            fov=38,
             GUI=False,
         )
     scene.build()
@@ -292,6 +318,11 @@ def main() -> int:
             raise RuntimeError("video recording requires a camera")
         args.record_video.parent.mkdir(parents=True, exist_ok=True)
         media_camera.start_recording()
+    if args.record_contact_video is not None:
+        if contact_camera is None:
+            raise RuntimeError("contact video recording requires a camera")
+        args.record_contact_video.parent.mkdir(parents=True, exist_ok=True)
+        contact_camera.start_recording()
     parcel.set_mass(args.parcel_mass_kg)
 
     base_dofs = np.asarray(joint_dof_indices(robot, BASE_JOINT_NAMES))
@@ -334,7 +365,7 @@ def main() -> int:
     hand_quaternion = tuple(_flat(hand.get_quat()))
     tool_axis = _normalized(rotate_vector(hand_quaternion, (0.0, 0.0, 1.0)), np)
     parcel_half_extent_on_axis = _box_ray_extent(tool_axis, parcel_size)
-    cup_tip_offset_m = 0.112
+    cup_tip_offset_m = MOBILE_TRI_SUCTION_TIP_OFFSET_M
     cradle_tip_offset_m = 0.270
     cooperative_contact_penetration_m = (
         0.006 + args.recovery_contact_penetration_delta_m
@@ -515,13 +546,13 @@ def main() -> int:
     )
     transport_capacity_ratio = 0.60 if args.cooperative_cradle else 0.75
     policy_controller = (
-        MobileSmolVLAHarnessController(
-            args.smolvla_checkpoint,
+        MobileVLAHarnessController(
+            args.vla_checkpoint,
             harness_config=harness_config,
             force_memory_enabled=args.force_memory_harness,
             depth_sidecar_enabled=args.depth_risk_sidecar,
         )
-        if args.smolvla_checkpoint is not None
+        if args.vla_checkpoint is not None
         else None
     )
     policy_stride_frames = 30 // args.policy_hz
@@ -543,6 +574,7 @@ def main() -> int:
     arm_policy_applied_physics_steps = 0
     latest_policy_goal_verified = False
     transport_target_base = None
+    contact_snapshot_saved = False
 
     def record_control_frame(
         *,
@@ -565,7 +597,14 @@ def main() -> int:
         nonlocal arm_policy_update_attempts, arm_policy_update_accepts
         nonlocal arm_policy_update_rejections
         nonlocal latest_policy_goal_verified
-        if writer is None and policy_controller is None and args.record_video is None:
+        nonlocal contact_snapshot_saved
+        if (
+            writer is None
+            and policy_controller is None
+            and args.record_video is None
+            and args.record_contact_video is None
+            and args.contact_snapshot is None
+        ):
             return
         recorded_physics_steps += 1
         if recorded_physics_steps % 8 != 0:
@@ -573,6 +612,27 @@ def main() -> int:
         if args.record_video is not None:
             assert media_camera is not None
             media_camera.render(rgb=True, depth=False)
+        contact_rgb = None
+        if args.record_contact_video is not None or (
+            args.contact_snapshot is not None and not contact_snapshot_saved
+        ):
+            assert contact_camera is not None
+            contact_rgb, _, _, _ = contact_camera.render(rgb=True, depth=False)
+        if (
+            args.contact_snapshot is not None
+            and not contact_snapshot_saved
+            and suction_controller is not None
+            and getattr(suction_controller, "attachment", None) is not None
+        ):
+            from imageio.v3 import imwrite
+
+            assert contact_rgb is not None
+            args.contact_snapshot.parent.mkdir(parents=True, exist_ok=True)
+            imwrite(
+                args.contact_snapshot,
+                np.asarray(contact_rgb)[..., :3].astype(np.uint8),
+            )
+            contact_snapshot_saved = args.contact_snapshot.is_file()
         if writer is None and policy_controller is None:
             return
         if camera is None:
@@ -1062,7 +1122,7 @@ def main() -> int:
             and cradle_monitor.max_contact_force_n < 35.0
         )
     lift_trace = []
-    lift_target_delta_m = 0.10 + min(
+    lift_target_delta_m = 0.12 + min(
         0.02, max(0.0, args.parcel_mass_kg - 0.40) * 0.08
     ) + (0.02 if args.cooperative_cradle else 0.0) + args.recovery_lift_height_delta_m
     if latched:
@@ -1554,6 +1614,16 @@ def main() -> int:
         "snapshot_requested": args.snapshot is not None,
         "snapshot_path": str(args.snapshot.resolve()) if args.snapshot else None,
         "snapshot_saved": False,
+        "contact_video_requested": args.record_contact_video is not None,
+        "contact_video_path": (
+            str(args.record_contact_video.resolve()) if args.record_contact_video else None
+        ),
+        "contact_video_saved": False,
+        "contact_snapshot_requested": args.contact_snapshot is not None,
+        "contact_snapshot_path": (
+            str(args.contact_snapshot.resolve()) if args.contact_snapshot else None
+        ),
+        "contact_snapshot_saved": contact_snapshot_saved,
     }
     if args.snapshot is not None:
         if media_camera is None:
@@ -1568,6 +1638,12 @@ def main() -> int:
         assert media_camera is not None
         media_camera.stop_recording(save_to_filename=str(args.record_video), fps=30)
         media["video_saved"] = args.record_video.is_file()
+    if args.record_contact_video is not None:
+        assert contact_camera is not None
+        contact_camera.stop_recording(
+            save_to_filename=str(args.record_contact_video), fps=30
+        )
+        media["contact_video_saved"] = args.record_contact_video.is_file()
     policy_latencies = [float(item["latency_ms"]) for item in policy_trace]
     warm_policy_latencies = policy_latencies[1:]
     policy_stages = sorted({str(item["stage"]) for item in policy_trace})
@@ -1587,10 +1663,11 @@ def main() -> int:
         "enabled": policy_controller is not None,
         "mode": args.policy_mode if policy_controller is not None else "expert_only",
         "checkpoint": (
-            str(args.smolvla_checkpoint.resolve())
-            if args.smolvla_checkpoint is not None
+            str(args.vla_checkpoint.resolve())
+            if args.vla_checkpoint is not None
             else None
         ),
+        "policy_type": policy_controller.policy_type if policy_controller else None,
         "requested_hz": args.policy_hz if policy_controller is not None else 0,
         "minimum_expert_progress_ratio": harness_config.min_progress_ratio,
         "force_memory_enabled": args.force_memory_harness,

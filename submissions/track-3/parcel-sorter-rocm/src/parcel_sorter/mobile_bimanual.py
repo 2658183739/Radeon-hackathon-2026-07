@@ -31,6 +31,8 @@ END_EFFECTOR_LINK_NAMES = {
 }
 UPSTREAM_MODEL = "Genesis franka_sim/bi-franka_panda.xml"
 UPSTREAM_LICENSE = "Apache-2.0"
+MOBILE_TRI_SUCTION_TIP_OFFSET_M = 0.190
+MOBILE_TRI_SUCTION_CUP_LENGTH_M = 0.010
 
 
 @dataclass(frozen=True)
@@ -377,23 +379,63 @@ def _disable_stock_gripper_collisions(gripper: ET.Element) -> None:
 
 
 def _append_tri_suction_geometries(gripper: ET.Element) -> None:
-    radius = 0.012
-    length = 0.012
-    center_z = 0.106
-    size = f"{radius:.9f} {length / 2.0:.9f}"
-    for index, (x, y, _) in enumerate(tri_cup_offsets(0.025)):
-        position = f"{x:.9f} {y:.9f} {center_z:.9f}"
+    cup_radius = 0.012
+    cup_center_z = MOBILE_TRI_SUCTION_TIP_OFFSET_M - MOBILE_TRI_SUCTION_CUP_LENGTH_M / 2.0
+    cup_size = f"{cup_radius:.9f} {MOBILE_TRI_SUCTION_CUP_LENGTH_M / 2.0:.9f}"
+    visual_only = {"group": "2", "contype": "0", "conaffinity": "0"}
+
+    ET.SubElement(
+        gripper,
+        "geom",
+        {
+            "name": "mobile_left_suction_manifold_visual",
+            "type": "cylinder",
+            "size": "0.048000000 0.009000000",
+            "pos": "0 0 0.105000000",
+            "rgba": "0.04 0.34 0.14 1",
+            **visual_only,
+        },
+    )
+    for index, (x, y, _) in enumerate(tri_cup_offsets(0.035)):
+        stem_start_z = 0.114
+        stem_end_z = cup_center_z - MOBILE_TRI_SUCTION_CUP_LENGTH_M / 2.0
+        stem_length = stem_end_z - stem_start_z
+        ET.SubElement(
+            gripper,
+            "geom",
+            {
+                "name": f"mobile_left_suction_stem_{index}_visual",
+                "type": "cylinder",
+                "size": f"0.004500000 {stem_length / 2.0:.9f}",
+                "pos": f"{x:.9f} {y:.9f} {stem_start_z + stem_length / 2.0:.9f}",
+                "rgba": "0.08 0.58 0.26 1",
+                **visual_only,
+            },
+        )
+        ET.SubElement(
+            gripper,
+            "geom",
+            {
+                "name": f"mobile_left_suction_bell_{index}_visual",
+                "type": "cylinder",
+                "size": "0.015000000 0.004000000",
+                "pos": f"{x:.9f} {y:.9f} {stem_end_z - 0.004:.9f}",
+                "rgba": "0.06 0.50 0.21 1",
+                **visual_only,
+            },
+        )
+        position = f"{x:.9f} {y:.9f} {cup_center_z:.9f}"
         ET.SubElement(
             gripper,
             "geom",
             {
                 "name": f"mobile_left_suction_cup_{index}_collision",
                 "type": "cylinder",
-                "size": size,
+                "size": cup_size,
                 "pos": position,
                 "density": "1100",
                 "group": "3",
-                "rgba": "0.04 0.42 0.16 1",
+                "rgba": "0.10 0.82 0.38 1",
             },
         )
         ET.SubElement(
@@ -402,12 +444,10 @@ def _append_tri_suction_geometries(gripper: ET.Element) -> None:
             {
                 "name": f"mobile_left_suction_cup_{index}_visual",
                 "type": "cylinder",
-                "size": size,
-                "pos": position,
-                "group": "2",
-                "contype": "0",
-                "conaffinity": "0",
-                "rgba": "0.08 0.70 0.34 1",
+                "size": "0.012500000 0.004500000",
+                "pos": f"{x:.9f} {y:.9f} {cup_center_z - 0.0005:.9f}",
+                "rgba": "0.12 0.90 0.42 1",
+                **visual_only,
             },
         )
 

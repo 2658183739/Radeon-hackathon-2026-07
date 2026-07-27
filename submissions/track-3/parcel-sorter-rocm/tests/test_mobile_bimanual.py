@@ -8,6 +8,7 @@ from parcel_sorter.mobile_bimanual import (
     BASE_JOINT_NAMES,
     END_EFFECTOR_LINK_NAMES,
     FINGER_JOINT_NAMES,
+    MOBILE_TRI_SUCTION_TIP_OFFSET_M,
     PlanarObstacle,
     assign_bimanual_roles,
     build_mobile_bimanual_mjcf,
@@ -157,6 +158,35 @@ class MobileBimanualTests(unittest.TestCase):
             right_geoms = ET.parse(right_include.attrib["file"]).getroot().findall(".//geom")
             self.assertEqual(
                 len([geom for geom in left_geoms if "suction_cup" in geom.attrib.get("name", "") and "collision" in geom.attrib.get("name", "")]),
+                3,
+            )
+            cup_collision_geoms = [
+                geom
+                for geom in left_geoms
+                if "suction_cup" in geom.attrib.get("name", "")
+                and "collision" in geom.attrib.get("name", "")
+            ]
+            cup_tips = [
+                float(geom.attrib["pos"].split()[2])
+                + float(geom.attrib["size"].split()[1])
+                for geom in cup_collision_geoms
+            ]
+            self.assertTrue(
+                all(
+                    abs(tip - MOBILE_TRI_SUCTION_TIP_OFFSET_M) < 1e-9
+                    for tip in cup_tips
+                )
+            )
+            self.assertEqual(
+                len(
+                    [
+                        geom
+                        for geom in left_geoms
+                        if "suction_stem" in geom.attrib.get("name", "")
+                        and geom.attrib.get("contype") == "0"
+                        and geom.attrib.get("conaffinity") == "0"
+                    ]
+                ),
                 3,
             )
             self.assertEqual(

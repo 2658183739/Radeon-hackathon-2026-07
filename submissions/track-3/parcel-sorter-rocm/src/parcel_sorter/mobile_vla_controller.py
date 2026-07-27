@@ -1,4 +1,4 @@
-"""Online SmolVLA plus Harness-Lite controller for the mobile parcel robot."""
+"""Online LeRobot VLA plus Harness-Lite controller for the mobile parcel robot."""
 
 from __future__ import annotations
 
@@ -107,8 +107,8 @@ def evaluate_vla_goal_judgement(
     )
 
 
-class MobileSmolVLAHarnessController:
-    """Run low-rate VLA inference while a deterministic controller stays in charge."""
+class MobileVLAHarnessController:
+    """Run low-rate SmolVLA or PI0.5 inference behind the same safety harness."""
 
     def __init__(
         self,
@@ -127,12 +127,16 @@ class MobileSmolVLAHarnessController:
 
         checkpoint = Path(checkpoint)
         config = PreTrainedConfig.from_pretrained(checkpoint, local_files_only=True)
+        if config.type not in {"smolvla", "pi05"}:
+            raise RuntimeError(
+                f"mobile VLA checkpoint must be SmolVLA or PI0.5, got {config.type!r}"
+            )
         if config.input_features["observation.state"].shape != (43,):
-            raise RuntimeError("SmolVLA checkpoint must consume the 43-D mobile state")
+            raise RuntimeError("VLA checkpoint must consume the 43-D mobile state")
         output_shape = config.output_features["action"].shape
         if output_shape not in {(19,), (20,)}:
             raise RuntimeError(
-                "SmolVLA checkpoint must emit 19-D mobile actions or 19-D actions "
+                "VLA checkpoint must emit 19-D mobile actions or 19-D actions "
                 "plus one primitive-progress channel"
             )
         visual_keys = {
@@ -141,17 +145,38 @@ class MobileSmolVLAHarnessController:
         supported_visual_keys = {MOBILE_RGB_KEY, MOBILE_DEPTH_RGB_KEY}
         if MOBILE_RGB_KEY not in visual_keys or not visual_keys <= supported_visual_keys:
             raise RuntimeError(
-                f"unsupported mobile SmolVLA visual contract: {sorted(visual_keys)}"
+                f"unsupported mobile VLA visual contract: {sorted(visual_keys)}"
             )
         config.device = "cuda"
         config.n_action_steps = 1
         self._torch = torch
         self._config = config
-        self._policy = get_policy_class(config.type).from_pretrained(
-            checkpoint, config=config, local_files_only=True
-        ).eval()
+        self.policy_type = str(config.type)
+        policy_class = get_policy_class(config.type)
+        if config.use_peft:
+            from peft import PeftConfig, PeftModel
+
+            peft_config = PeftConfig.from_pretrained(checkpoint)
+            base_checkpoint = peft_config.base_model_name_or_path
+            if not base_checkpoint:
+                raise RuntimeError("PEFT VLA checkpoint does not identify its base model")
+            base_policy = policy_class.from_pretrained(
+                base_checkpoint,
+                config=config,
+                local_files_only=True,
+            )
+            self._policy = PeftModel.from_pretrained(
+                base_policy,
+                checkpoint,
+                config=peft_config,
+                is_trainable=False,
+            ).eval()
+        else:
+            self._policy = policy_class.from_pretrained(
+                checkpoint, config=config, local_files_only=True
+            ).eval()
         self._preprocessor, self._postprocessor = make_pre_post_processors(
-            self._policy.config, pretrained_path=str(checkpoint)
+            config, pretrained_path=str(checkpoint)
         )
         self._harness_config = harness_config
         self._force_memory_enabled = bool(force_memory_enabled)
@@ -198,7 +223,7 @@ class MobileSmolVLAHarnessController:
         }
         if self._uses_depth_rgb:
             if depth is None:
-                raise ValueError("RGB-D SmolVLA checkpoint requires metric depth")
+                raise ValueError("RGB-D VLA checkpoint requires metric depth")
             depth_rgb = metric_depth_to_visual_rgb(depth, np)
             depth_tensor = (
                 torch.from_numpy(depth_rgb.copy()).permute(2, 0, 1).float().div_(255.0)
@@ -269,6 +294,7 @@ class MobileSmolVLAHarnessController:
         )
         self._calls += 1
         telemetry = {
+            "policy_type": self.policy_type,
             "call_index": self._calls - 1,
             "seed": call_seed,
             "stage": stage,
@@ -302,7 +328,6 @@ class MobileSmolVLAHarnessController:
             "combined_scale_cap_reason": maximum_vla_scale_reason,
         }
         return decision.selected.action, telemetry
-
     def warmup(
         self,
         *,
@@ -328,3 +353,7 @@ class MobileSmolVLAHarnessController:
             reset = getattr(component, "reset", None)
             if callable(reset):
                 reset()
+
+
+# Compatibility for existing experiment scripts and stored ablation commands.
+MobileSmolVLAHarnessController = MobileVLAHarnessController
