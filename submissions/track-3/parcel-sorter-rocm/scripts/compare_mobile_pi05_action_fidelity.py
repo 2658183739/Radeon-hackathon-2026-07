@@ -23,6 +23,14 @@ STAGE_WEIGHTED_PROTOCOL = "pi05-paired-stage-weighted-action-fidelity-ablation-v
 STAGE_WEIGHTED_CANDIDATE = "B3-SW"
 STAGE_WEIGHTING_FACTOR = "task_stage_flow_loss_weight"
 STAGE_WEIGHTING_SCOPE = "flow_loss_only_before_auxiliary_losses_v1"
+MODE_FLOW_WEIGHTED_PROTOCOL = (
+    "pi05-paired-stage-mode-weighted-action-fidelity-ablation-v1"
+)
+MODE_FLOW_WEIGHTED_CANDIDATE = "B3-SWM"
+MODE_FLOW_WEIGHTING_FACTOR = "target_grasp_mode_flow_loss_weight"
+MODE_FLOW_WEIGHTING_SCOPE = (
+    "target_grasp_mode_flow_loss_only_before_auxiliary_losses_v1"
+)
 POSITION_SCALE_M = 0.06
 ORIENTATION_SCALE_RAD = 0.60
 BOOTSTRAP_ALPHA = 0.05
@@ -65,6 +73,36 @@ def _comparison_design(config: dict[str, Any] | None) -> dict[str, Any]:
             "control_contract": CONTROL_CONTRACT,
             "candidate_contract": CONTROL_CONTRACT,
             "protocol": STAGE_WEIGHTED_PROTOCOL,
+            "require_sign_test": False,
+            "enforce_earliest_passing": True,
+        }
+    if config.get("candidate") == MODE_FLOW_WEIGHTED_CANDIDATE:
+        factor = config.get("isolated_factor") or {}
+        weights = factor.get("treatment")
+        normalizer = factor.get("joint_population_normalizer")
+        if factor.get("name") != MODE_FLOW_WEIGHTING_FACTOR:
+            raise ValueError("B3-SWM preregistration has the wrong isolated factor")
+        if factor.get("scope") != MODE_FLOW_WEIGHTING_SCOPE:
+            raise ValueError("B3-SWM preregistration has the wrong weighting scope")
+        if (
+            not isinstance(weights, list)
+            or len(weights) != 3
+            or any(
+                not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or float(value) <= 0.0
+                for value in weights
+            )
+            or not isinstance(normalizer, (int, float))
+            or not math.isfinite(float(normalizer))
+            or float(normalizer) <= 0.0
+        ):
+            raise ValueError("B3-SWM preregistration has invalid mode flow weights")
+        return {
+            "candidate": MODE_FLOW_WEIGHTED_CANDIDATE,
+            "control_contract": CONTROL_CONTRACT,
+            "candidate_contract": CONTROL_CONTRACT,
+            "protocol": MODE_FLOW_WEIGHTED_PROTOCOL,
             "require_sign_test": False,
             "enforce_earliest_passing": True,
         }
@@ -281,28 +319,47 @@ def compare_action_fidelity(
                 raise ValueError("preregistered orientation scale does not match")
         else:
             if config.get("frozen_before_candidate_training") is not True:
-                raise ValueError("B3-SW preregistration was not frozen before training")
-            if control_config.get("name") != "B2":
-                raise ValueError("B3-SW preregistration has the wrong control")
+                raise ValueError(
+                    f"{design['candidate']} preregistration was not frozen before training"
+                )
+            expected_control = (
+                "B2"
+                if design["candidate"] == STAGE_WEIGHTED_CANDIDATE
+                else STAGE_WEIGHTED_CANDIDATE
+            )
+            if control_config.get("name") != expected_control:
+                raise ValueError(
+                    f"{design['candidate']} preregistration has the wrong control"
+                )
             selection = config.get("selection") or {}
             if selection.get("rule") != (
                 "earliest checkpoint passing the complete six-observation route "
                 "and action-fidelity development gate"
             ):
-                raise ValueError("B3-SW preregistration has the wrong selection rule")
+                raise ValueError(
+                    f"{design['candidate']} preregistration has the wrong selection rule"
+                )
             promotion = config.get("promotion_gate") or {}
             if int(promotion.get("paired_action_fidelity_units", -1)) != expected_count:
-                raise ValueError("B3-SW paired-unit count does not match")
+                raise ValueError(
+                    f"{design['candidate']} paired-unit count does not match"
+                )
             if promotion.get("zero_paired_pose_error_regressions") is not True:
-                raise ValueError("B3-SW zero-regression gate is not frozen")
+                raise ValueError(
+                    f"{design['candidate']} zero-regression gate is not frozen"
+                )
             if promotion.get("mean_normalized_pose_error_improvement_strictly_positive") is not True:
-                raise ValueError("B3-SW positive-mean gate is not frozen")
+                raise ValueError(
+                    f"{design['candidate']} positive-mean gate is not frozen"
+                )
             if float(
                 promotion.get(
                     "one_sided_95pct_bootstrap_lower_bound_minimum", math.nan
                 )
             ) != 0.0:
-                raise ValueError("B3-SW bootstrap threshold does not match")
+                raise ValueError(
+                    f"{design['candidate']} bootstrap threshold does not match"
+                )
 
     comparisons = []
     for candidate_path in resolved_candidates:

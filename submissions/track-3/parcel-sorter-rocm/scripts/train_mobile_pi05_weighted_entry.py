@@ -7,6 +7,7 @@ import json
 import os
 
 from parcel_sorter.pi05_weighted_loss import (
+    PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE,
     PI05_STAGE_LOSS_WEIGHTING_SCOPE,
     install_pi05_action_loss_weights,
     pi05_absolute_action_weights,
@@ -68,6 +69,17 @@ def main() -> int:
         if stage_loss_weights_raw
         else None
     )
+    mode_flow_loss_weights_raw = os.environ.get(
+        "MOBILE_PI05_MODE_FLOW_LOSS_WEIGHTS", ""
+    ).strip()
+    mode_flow_loss_weights = (
+        tuple(float(value) for value in mode_flow_loss_weights_raw.split(","))
+        if mode_flow_loss_weights_raw
+        else None
+    )
+    mode_flow_loss_population_normalizer = float(
+        os.environ.get("MOBILE_PI05_MODE_FLOW_LOSS_NORMALIZER", "1")
+    )
     if full_action_projections:
         install_pi05_full_action_projection_adapter()
     if state_token_enabled:
@@ -97,6 +109,10 @@ def main() -> int:
         mode_head_class_weights=mode_head_class_weights,
         mode_channel_start=mode_channel_start,
         stage_loss_weights=stage_loss_weights,
+        mode_flow_loss_weights=mode_flow_loss_weights,
+        mode_flow_loss_population_normalizer=(
+            mode_flow_loss_population_normalizer
+        ),
     )
     print(
         json.dumps(
@@ -131,6 +147,17 @@ def main() -> int:
                 "stage_loss_weighting_scope": (
                     PI05_STAGE_LOSS_WEIGHTING_SCOPE
                     if stage_loss_weights is not None
+                    else None
+                ),
+                "mode_flow_loss_weights": mode_flow_loss_weights,
+                "mode_flow_loss_population_normalizer": (
+                    mode_flow_loss_population_normalizer
+                    if mode_flow_loss_weights is not None
+                    else None
+                ),
+                "mode_flow_loss_weighting_scope": (
+                    PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE
+                    if mode_flow_loss_weights is not None
                     else None
                 ),
             }

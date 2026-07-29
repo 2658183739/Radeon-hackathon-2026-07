@@ -95,6 +95,40 @@ def _stage_weighted_config(
     return path
 
 
+def _mode_flow_weighted_config(
+    path: Path, control: Path, checkpoint_steps: list[int]
+) -> Path:
+    payload = {
+        "frozen_before_candidate_training": True,
+        "candidate": MODULE.MODE_FLOW_WEIGHTED_CANDIDATE,
+        "isolated_factor": {
+            "name": MODULE.MODE_FLOW_WEIGHTING_FACTOR,
+            "treatment": [0.75, 1.0, 1.5],
+            "joint_population_normalizer": 1.01,
+            "scope": MODULE.MODE_FLOW_WEIGHTING_SCOPE,
+        },
+        "control": {
+            "name": MODULE.STAGE_WEIGHTED_CANDIDATE,
+            "screen_sha256": MODULE._sha256(control),
+        },
+        "selection": {
+            "checkpoint_steps": checkpoint_steps,
+            "rule": (
+                "earliest checkpoint passing the complete six-observation route "
+                "and action-fidelity development gate"
+            ),
+        },
+        "promotion_gate": {
+            "paired_action_fidelity_units": 6,
+            "zero_paired_pose_error_regressions": True,
+            "mean_normalized_pose_error_improvement_strictly_positive": True,
+            "one_sided_95pct_bootstrap_lower_bound_minimum": 0.0,
+        },
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
 class CompareMobilePI05ActionFidelityTests(unittest.TestCase):
     def test_promotes_six_paired_improvements(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -310,6 +344,36 @@ class CompareMobilePI05ActionFidelityTests(unittest.TestCase):
         self.assertIsNone(summary["selected_candidate_screen"])
         self.assertIsNone(summary["selected_candidate_step"])
         self.assertFalse(summary["selected_candidate_promotion_passed"])
+
+    def test_mode_flow_weighted_candidate_uses_b3_sw_as_paired_control(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            control = _screen(
+                root / "control.json",
+                MODULE.CONTROL_CONTRACT,
+                [(0.06, 0.6)] * 6,
+                step=12000,
+            )
+            candidate = _screen(
+                root / "step-3000.json",
+                MODULE.CONTROL_CONTRACT,
+                [(0.03, 0.3)] * 6,
+                step=3000,
+            )
+            config = _mode_flow_weighted_config(
+                root / "config.json", control, [3000]
+            )
+
+            summary = MODULE.compare_action_fidelity(
+                control,
+                [candidate],
+                preregistered_config_path=config,
+            )
+
+        self.assertEqual(summary["protocol"], MODULE.MODE_FLOW_WEIGHTED_PROTOCOL)
+        self.assertEqual(summary["candidate"], MODULE.MODE_FLOW_WEIGHTED_CANDIDATE)
+        self.assertEqual(summary["status"], "promoted")
+        self.assertEqual(summary["selected_candidate_step"], 3000)
 
 
 if __name__ == "__main__":

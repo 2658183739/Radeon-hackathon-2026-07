@@ -10,6 +10,9 @@ from typing import Any
 PI05_MODE_SLICE = slice(9, 12)
 PI05_STAGE_SLICE = slice(56, 62)
 PI05_STAGE_LOSS_WEIGHTING_SCOPE = "flow_loss_only_before_auxiliary_losses_v1"
+PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE = (
+    "target_grasp_mode_flow_loss_only_before_auxiliary_losses_v1"
+)
 
 
 def reduce_weighted_pi05_losses(
@@ -84,6 +87,53 @@ def apply_pi05_stage_loss_weights(
         "stage_selected_weight_mean": selected.mean().item(),
         "stage_unweighted_loss": per_sample.mean().item(),
         "stage_weighted_loss": weighted.mean().item(),
+    }
+
+
+def apply_pi05_mode_flow_loss_weights(
+    per_sample: Any,
+    target_actions: Any,
+    weights: Sequence[float],
+    *,
+    population_normalizer: float,
+    mode_slice: slice = PI05_MODE_SLICE,
+) -> tuple[Any, dict[str, Any]]:
+    """Weight continuous flow loss by target grasp mode at population scale."""
+
+    import torch
+
+    if per_sample.ndim != 1:
+        raise ValueError("PI0.5 per-sample losses must have shape [batch]")
+    if target_actions.ndim != 3 or target_actions.shape[0] != per_sample.shape[0]:
+        raise ValueError("PI0.5 mode flow weighting requires BxTxD target actions")
+    _validate_mode_slice(mode_slice)
+    if target_actions.shape[-1] < mode_slice.stop:
+        raise ValueError("PI0.5 target actions do not contain three mode channels")
+    values = tuple(float(value) for value in weights)
+    if len(values) != 3 or any(
+        not math.isfinite(value) or value <= 0.0 for value in values
+    ):
+        raise ValueError("mode flow loss weights must contain three positive values")
+    normalizer = float(population_normalizer)
+    if not math.isfinite(normalizer) or normalizer <= 0.0:
+        raise ValueError("mode flow loss population normalizer must be positive")
+    token_targets = target_actions[:, :, mode_slice].argmax(dim=-1)
+    targets = token_targets[:, 0]
+    if not (token_targets == targets.unsqueeze(1)).all():
+        raise ValueError("grasp mode must remain constant within an action chunk")
+    weight_tensor = torch.as_tensor(
+        values, device=per_sample.device, dtype=per_sample.dtype
+    )
+    selected = weight_tensor[targets] / normalizer
+    weighted = per_sample * selected
+    counts = torch.bincount(targets, minlength=3).detach().cpu().tolist()
+    return weighted, {
+        "mode_flow_loss_weights": list(values),
+        "mode_flow_loss_population_normalizer": normalizer,
+        "mode_flow_batch_counts": counts,
+        "mode_flow_selected_weight_mean": selected.mean().item(),
+        "mode_flow_input_loss": per_sample.mean().item(),
+        "mode_flow_weighted_loss": weighted.mean().item(),
     }
 
 
@@ -281,6 +331,8 @@ def install_pi05_action_loss_weights(
     mode_channel_start: int = PI05_MODE_SLICE.start,
     stage_loss_weights: Sequence[float] | None = None,
     stage_channel_start: int = PI05_STAGE_SLICE.start,
+    mode_flow_loss_weights: Sequence[float] | None = None,
+    mode_flow_loss_population_normalizer: float = 1.0,
 ) -> None:
     """Patch PI0.5 with weighted flow loss and an optional discrete-mode loss."""
 
@@ -317,6 +369,14 @@ def install_pi05_action_loss_weights(
         if stage_loss_weights is None
         else tuple(float(value) for value in stage_loss_weights)
     )
+    configured_mode_flow_loss_weights = (
+        None
+        if mode_flow_loss_weights is None
+        else tuple(float(value) for value in mode_flow_loss_weights)
+    )
+    configured_mode_flow_loss_population_normalizer = float(
+        mode_flow_loss_population_normalizer
+    )
     stage_slice = slice(int(stage_channel_start), int(stage_channel_start) + 6)
     _validate_stage_slice(stage_slice)
     if configured_stage_loss_weights is not None and (
@@ -327,6 +387,18 @@ def install_pi05_action_loss_weights(
         )
     ):
         raise ValueError("stage loss weights must contain six positive values")
+    if configured_mode_flow_loss_weights is not None and (
+        len(configured_mode_flow_loss_weights) != 3
+        or any(
+            not math.isfinite(value) or value <= 0.0
+            for value in configured_mode_flow_loss_weights
+        )
+        or not math.isfinite(configured_mode_flow_loss_population_normalizer)
+        or configured_mode_flow_loss_population_normalizer <= 0.0
+    ):
+        raise ValueError(
+            "mode flow loss weights require three positive values and a positive normalizer"
+        )
 
     def weighted_forward(self: Any, batch: dict[str, Any], reduction: str = "mean"):
         images, image_masks = self._preprocess_images(batch)
@@ -373,6 +445,17 @@ def install_pi05_action_loss_weights(
                 stage_slice=stage_slice,
             )
             payload.update(stage_payload)
+        if configured_mode_flow_loss_weights is not None:
+            flow_per_sample, mode_flow_payload = apply_pi05_mode_flow_loss_weights(
+                flow_per_sample,
+                actions,
+                configured_mode_flow_loss_weights,
+                population_normalizer=(
+                    configured_mode_flow_loss_population_normalizer
+                ),
+                mode_slice=mode_slice,
+            )
+            payload.update(mode_flow_payload)
         if mode_ce_weight > 0.0:
             if mode_ce_time is None:
                 mode_x_t = x_t
@@ -429,6 +512,11 @@ def install_pi05_action_loss_weights(
         payload["stage_loss_weighting_scope"] = (
             PI05_STAGE_LOSS_WEIGHTING_SCOPE
             if configured_stage_loss_weights is not None
+            else None
+        )
+        payload["mode_flow_loss_weighting_scope"] = (
+            PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE
+            if configured_mode_flow_loss_weights is not None
             else None
         )
         payload["loss"] = total_per_sample.mean().item()

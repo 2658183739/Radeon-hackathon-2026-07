@@ -21,6 +21,8 @@ export TOKENIZERS_PARALLELISM=false
 REQUIRE_ACTION_FIDELITY="${MOBILE_PI05_REQUIRE_ACTION_FIDELITY:-0}"
 REQUIRE_FULL_ACTION_PROJECTIONS="${MOBILE_PI05_REQUIRE_FULL_ACTION_PROJECTIONS:-0}"
 EXPECTED_STAGE_LOSS_WEIGHTS="${MOBILE_PI05_EXPECTED_STAGE_LOSS_WEIGHTS:-}"
+EXPECTED_MODE_FLOW_LOSS_WEIGHTS="${MOBILE_PI05_EXPECTED_MODE_FLOW_LOSS_WEIGHTS:-}"
+EXPECTED_MODE_FLOW_LOSS_NORMALIZER="${MOBILE_PI05_EXPECTED_MODE_FLOW_LOSS_NORMALIZER:-}"
 if [[ "${REQUIRE_ACTION_FIDELITY}" != "0" && "${REQUIRE_ACTION_FIDELITY}" != "1" ]]; then
   echo "ERROR: MOBILE_PI05_REQUIRE_ACTION_FIDELITY must be 0 or 1" >&2
   exit 2
@@ -55,6 +57,12 @@ for step in "${STEPS[@]}"; do
   fi
   if [[ -n "${EXPECTED_STAGE_LOSS_WEIGHTS}" ]]; then
     audit_args+=(--expected-stage-loss-weights "${EXPECTED_STAGE_LOSS_WEIGHTS}")
+  fi
+  if [[ -n "${EXPECTED_MODE_FLOW_LOSS_WEIGHTS}" ]]; then
+    audit_args+=(
+      --expected-mode-flow-loss-weights "${EXPECTED_MODE_FLOW_LOSS_WEIGHTS}"
+      --expected-mode-flow-loss-population-normalizer "${EXPECTED_MODE_FLOW_LOSS_NORMALIZER}"
+    )
   fi
   if ! python scripts/audit_mobile_pi05_checkpoint.py \
     "${checkpoint}" \

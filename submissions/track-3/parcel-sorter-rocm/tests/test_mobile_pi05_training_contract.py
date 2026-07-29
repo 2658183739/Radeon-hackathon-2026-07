@@ -19,7 +19,10 @@ from parcel_sorter.mobile_pi05_training_contract import (
     validate_pi05_training_contract,
     with_pi05_architecture_protocols,
 )
-from parcel_sorter.pi05_weighted_loss import PI05_STAGE_LOSS_WEIGHTING_SCOPE
+from parcel_sorter.pi05_weighted_loss import (
+    PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE,
+    PI05_STAGE_LOSS_WEIGHTING_SCOPE,
+)
 
 
 ROOT = Path(__file__).parents[1]
@@ -209,6 +212,8 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
                 mode_head_protocol="contextualized-head-v2",
                 mode_head_class_weights=[0.75, 1.0, 1.5],
                 stage_loss_weights=[2.0, 2.0, 1.25, 0.5, 0.75, 0.5],
+                mode_flow_loss_weights=[0.75, 1.0, 1.5],
+                mode_flow_loss_population_normalizer=1.01,
                 action_projection_protocol="full-action-io-v1",
             )
 
@@ -221,6 +226,8 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
             required_mode_head_protocol="contextualized-head-v2",
             required_action_projection_protocol="full-action-io-v1",
             required_stage_loss_weights=[2.0, 2.0, 1.25, 0.5, 0.75, 0.5],
+            required_mode_flow_loss_weights=[0.75, 1.0, 1.5],
+            required_mode_flow_loss_population_normalizer=1.01,
         )
         self.assertEqual(contract["mode_head_class_weights"], [0.75, 1.0, 1.5])
         self.assertEqual(
@@ -230,6 +237,12 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
         self.assertEqual(
             contract["stage_loss_weighting_scope"],
             PI05_STAGE_LOSS_WEIGHTING_SCOPE,
+        )
+        self.assertEqual(contract["mode_flow_loss_weights"], [0.75, 1.0, 1.5])
+        self.assertEqual(contract["mode_flow_loss_population_normalizer"], 1.01)
+        self.assertEqual(
+            contract["mode_flow_loss_weighting_scope"],
+            PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE,
         )
         with self.assertRaisesRegex(ValueError, "mode_head_protocol"):
             validate_pi05_training_contract(
@@ -247,6 +260,14 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
                 action_dim=14,
                 chunk_size=30,
                 required_stage_loss_weights=[1.0] * 6,
+            )
+        with self.assertRaisesRegex(ValueError, "mode_flow_loss_weights"):
+            validate_pi05_training_contract(
+                contract,
+                state_dim=80,
+                action_dim=14,
+                chunk_size=30,
+                required_mode_flow_loss_weights=[1.0] * 3,
             )
 
     def test_contract_cli_records_stage_loss_weights(self) -> None:
@@ -277,6 +298,10 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
                     "1",
                     "--stage-loss-weights",
                     "2,2,1.25,0.5,0.75,0.5",
+                    "--mode-flow-loss-weights",
+                    "0.75,1,1.5",
+                    "--mode-flow-loss-population-normalizer",
+                    "1.01",
                 ],
                 check=True,
                 cwd=ROOT,
@@ -292,6 +317,8 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
         self.assertEqual(
             contract["stage_loss_weighting_scope"], PI05_STAGE_LOSS_WEIGHTING_SCOPE
         )
+        self.assertEqual(contract["mode_flow_loss_weights"], [0.75, 1.0, 1.5])
+        self.assertEqual(contract["mode_flow_loss_population_normalizer"], 1.01)
 
     def test_visual_contract_rejects_checkpoint_dataset_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -39,6 +39,8 @@ def main() -> int:
     )
     parser.add_argument("--mode-head-class-weights")
     parser.add_argument("--stage-loss-weights")
+    parser.add_argument("--mode-flow-loss-weights")
+    parser.add_argument("--mode-flow-loss-population-normalizer", type=float)
     args = parser.parse_args()
     mode_head_pooling = normalize_pi05_mode_head_pooling(args.mode_head_pooling)
     if not args.mode_head and mode_head_pooling != PI05_MODE_HEAD_POOLING_MASKED_MEAN:
@@ -71,6 +73,29 @@ def main() -> int:
         )
     ):
         raise ValueError("stage loss weights must contain six positive values")
+    mode_flow_loss_weights = (
+        [float(value) for value in args.mode_flow_loss_weights.split(",")]
+        if args.mode_flow_loss_weights
+        else None
+    )
+    if mode_flow_loss_weights is not None and (
+        len(mode_flow_loss_weights) != 3
+        or any(
+            not math.isfinite(value) or value <= 0.0
+            for value in mode_flow_loss_weights
+        )
+        or args.mode_flow_loss_population_normalizer is None
+        or not math.isfinite(args.mode_flow_loss_population_normalizer)
+        or args.mode_flow_loss_population_normalizer <= 0.0
+    ):
+        raise ValueError(
+            "mode flow loss weights require three positive values and a positive normalizer"
+        )
+    if (
+        mode_flow_loss_weights is None
+        and args.mode_flow_loss_population_normalizer is not None
+    ):
+        raise ValueError("mode flow loss normalizer requires mode flow loss weights")
     payload = build_pi05_training_contract(
         args.dataset_root,
         base_model=args.base_model,
@@ -83,6 +108,10 @@ def main() -> int:
         ),
         mode_head_class_weights=mode_head_class_weights,
         stage_loss_weights=stage_loss_weights,
+        mode_flow_loss_weights=mode_flow_loss_weights,
+        mode_flow_loss_population_normalizer=(
+            args.mode_flow_loss_population_normalizer
+        ),
         action_projection_protocol=(
             PI05_FULL_ACTION_PROJECTION_PROTOCOL
             if args.full_action_projections

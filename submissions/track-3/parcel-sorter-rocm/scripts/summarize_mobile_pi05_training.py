@@ -30,6 +30,10 @@ AUXILIARY_METRICS = (
     "stage_selected_weight_mean",
     "stage_unweighted_loss",
     "stage_weighted_loss",
+    "mode_flow_loss_population_normalizer",
+    "mode_flow_selected_weight_mean",
+    "mode_flow_input_loss",
+    "mode_flow_weighted_loss",
     "flow_loss_unweighted",
     "flow_loss",
 )

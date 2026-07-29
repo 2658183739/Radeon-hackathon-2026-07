@@ -3,7 +3,9 @@ import unittest
 import torch
 
 from parcel_sorter.pi05_weighted_loss import (
+    PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE,
     PI05_STAGE_LOSS_WEIGHTING_SCOPE,
+    apply_pi05_mode_flow_loss_weights,
     apply_pi05_stage_loss_weights,
     pi05_absolute_action_weights,
     pi05_incremental_action_weights,
@@ -133,6 +135,40 @@ class PI05WeightedLossTests(unittest.TestCase):
                 torch.ones(1), state, (1.0, 1.0, 1.0, 1.0, 0.0, 1.0)
             )
 
+    def test_mode_flow_weighting_uses_target_mode_without_batch_renormalization(self) -> None:
+        per_sample = torch.tensor([2.0, 2.0, 2.0])
+        targets = torch.zeros(3, 2, 14)
+        targets[0, :, 9:12] = torch.tensor([1.0, -1.0, -1.0])
+        targets[1, :, 9:12] = torch.tensor([-1.0, 1.0, -1.0])
+        targets[2, :, 9:12] = torch.tensor([-1.0, -1.0, 1.0])
+
+        weighted, payload = apply_pi05_mode_flow_loss_weights(
+            per_sample,
+            targets,
+            (0.75, 1.0, 1.5),
+            population_normalizer=1.0,
+        )
+
+        self.assertEqual(weighted.tolist(), [1.5, 2.0, 3.0])
+        self.assertEqual(payload["mode_flow_batch_counts"], [1, 1, 1])
+        self.assertAlmostEqual(payload["mode_flow_input_loss"], 2.0)
+        self.assertAlmostEqual(
+            payload["mode_flow_weighted_loss"], 13.0 / 6.0, places=6
+        )
+
+    def test_mode_flow_weighting_rejects_mode_changes_inside_a_chunk(self) -> None:
+        targets = torch.zeros(1, 2, 14)
+        targets[0, 0, 9:12] = torch.tensor([1.0, -1.0, -1.0])
+        targets[0, 1, 9:12] = torch.tensor([-1.0, 1.0, -1.0])
+
+        with self.assertRaisesRegex(ValueError, "constant"):
+            apply_pi05_mode_flow_loss_weights(
+                torch.ones(1),
+                targets,
+                (0.75, 1.0, 1.5),
+                population_normalizer=1.0,
+            )
+
     def test_b3_sw_stage_weights_preserve_dataset_expected_loss_scale(self) -> None:
         counts = (780, 809, 900, 2296, 786, 300)
         weights = (
@@ -152,6 +188,10 @@ class PI05WeightedLossTests(unittest.TestCase):
         self.assertEqual(
             PI05_STAGE_LOSS_WEIGHTING_SCOPE,
             "flow_loss_only_before_auxiliary_losses_v1",
+        )
+        self.assertEqual(
+            PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE,
+            "target_grasp_mode_flow_loss_only_before_auxiliary_losses_v1",
         )
 
 

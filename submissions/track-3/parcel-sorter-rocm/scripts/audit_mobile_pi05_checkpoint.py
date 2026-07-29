@@ -42,6 +42,8 @@ def audit_checkpoint(
     expected_lora_rank: int | None = None,
     expected_lora_alpha: int | None = None,
     expected_stage_loss_weights: tuple[float, ...] | None = None,
+    expected_mode_flow_loss_weights: tuple[float, ...] | None = None,
+    expected_mode_flow_loss_population_normalizer: float | None = None,
 ) -> dict[str, Any]:
     checkpoint = checkpoint.resolve()
     errors: list[str] = []
@@ -176,6 +178,10 @@ def audit_checkpoint(
                     else None
                 ),
                 required_stage_loss_weights=expected_stage_loss_weights,
+                required_mode_flow_loss_weights=expected_mode_flow_loss_weights,
+                required_mode_flow_loss_population_normalizer=(
+                    expected_mode_flow_loss_population_normalizer
+                ),
                 required_visual_keys=visual_keys,
             )
         except (TypeError, ValueError) as exc:
@@ -227,6 +233,21 @@ def audit_checkpoint(
         ),
         "stage_loss_weighting_scope": (
             contract_payload.get("stage_loss_weighting_scope")
+            if contract_payload is not None
+            else None
+        ),
+        "mode_flow_loss_weights": (
+            contract_payload.get("mode_flow_loss_weights")
+            if contract_payload is not None
+            else None
+        ),
+        "mode_flow_loss_population_normalizer": (
+            contract_payload.get("mode_flow_loss_population_normalizer")
+            if contract_payload is not None
+            else None
+        ),
+        "mode_flow_loss_weighting_scope": (
+            contract_payload.get("mode_flow_loss_weighting_scope")
             if contract_payload is not None
             else None
         ),
@@ -320,10 +341,20 @@ def main() -> int:
         "--expected-stage-loss-weights",
         help="Comma-separated pregrasp, approach, lift, transport, place, release weights.",
     )
+    parser.add_argument(
+        "--expected-mode-flow-loss-weights",
+        help="Comma-separated top, side, and cooperative-cradle flow weights.",
+    )
+    parser.add_argument("--expected-mode-flow-loss-population-normalizer", type=float)
     args = parser.parse_args()
     expected_stage_loss_weights = (
         tuple(float(value) for value in args.expected_stage_loss_weights.split(","))
         if args.expected_stage_loss_weights
+        else None
+    )
+    expected_mode_flow_loss_weights = (
+        tuple(float(value) for value in args.expected_mode_flow_loss_weights.split(","))
+        if args.expected_mode_flow_loss_weights
         else None
     )
     payload = audit_checkpoint(
@@ -335,6 +366,10 @@ def main() -> int:
         expected_lora_rank=args.expected_lora_rank,
         expected_lora_alpha=args.expected_lora_alpha,
         expected_stage_loss_weights=expected_stage_loss_weights,
+        expected_mode_flow_loss_weights=expected_mode_flow_loss_weights,
+        expected_mode_flow_loss_population_normalizer=(
+            args.expected_mode_flow_loss_population_normalizer
+        ),
     )
     rendered = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     if args.output is not None:

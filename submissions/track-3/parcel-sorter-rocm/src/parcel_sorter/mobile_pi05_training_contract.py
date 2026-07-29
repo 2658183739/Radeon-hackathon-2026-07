@@ -16,7 +16,10 @@ from .mobile_pi05_contract import (
     MOBILE_PI05_RESIDUAL_ACTION_NAMES,
     MOBILE_PI05_STATE_NAMES,
 )
-from .pi05_weighted_loss import PI05_STAGE_LOSS_WEIGHTING_SCOPE
+from .pi05_weighted_loss import (
+    PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE,
+    PI05_STAGE_LOSS_WEIGHTING_SCOPE,
+)
 
 
 PI05_TRAINING_CONTRACT_FILENAME = "PI05_TRAINING_CONTRACT.json"
@@ -39,6 +42,8 @@ def build_pi05_training_contract(
     mode_head_protocol: str | None = None,
     mode_head_class_weights: list[float] | None = None,
     stage_loss_weights: list[float] | None = None,
+    mode_flow_loss_weights: list[float] | None = None,
+    mode_flow_loss_population_normalizer: float | None = None,
     action_projection_protocol: str | None = None,
 ) -> dict[str, Any]:
     """Build a canonical contract tying a checkpoint to data semantics."""
@@ -134,6 +139,17 @@ def build_pi05_training_contract(
             if stage_loss_weights is not None
             else None
         ),
+        "mode_flow_loss_weights": mode_flow_loss_weights,
+        "mode_flow_loss_population_normalizer": (
+            mode_flow_loss_population_normalizer
+            if mode_flow_loss_weights is not None
+            else None
+        ),
+        "mode_flow_loss_weighting_scope": (
+            PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE
+            if mode_flow_loss_weights is not None
+            else None
+        ),
         "action_projection_protocol": action_projection_protocol,
         "absolute_delta_policy": (
             {
@@ -197,6 +213,8 @@ def validate_pi05_training_contract(
     required_mode_head_protocol: str | None = None,
     required_action_projection_protocol: str | None = None,
     required_stage_loss_weights: list[float] | tuple[float, ...] | None = None,
+    required_mode_flow_loss_weights: list[float] | tuple[float, ...] | None = None,
+    required_mode_flow_loss_population_normalizer: float | None = None,
     required_visual_keys: list[str] | tuple[str, ...] | set[str] | None = None,
 ) -> str:
     """Reject a checkpoint whose stored training semantics are inconsistent."""
@@ -285,6 +303,53 @@ def validate_pi05_training_contract(
         required_weights = [float(value) for value in required_stage_loss_weights]
         if stage_loss_weights != required_weights:
             raise ValueError("PI0.5 training contract mismatch: stage_loss_weights")
+    mode_flow_loss_weights = payload.get("mode_flow_loss_weights")
+    mode_flow_loss_population_normalizer = payload.get(
+        "mode_flow_loss_population_normalizer"
+    )
+    if mode_flow_loss_weights is not None and (
+        not isinstance(mode_flow_loss_weights, list)
+        or len(mode_flow_loss_weights) != 3
+        or any(
+            not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or float(value) <= 0.0
+            for value in mode_flow_loss_weights
+        )
+        or not isinstance(mode_flow_loss_population_normalizer, (int, float))
+        or not math.isfinite(float(mode_flow_loss_population_normalizer))
+        or float(mode_flow_loss_population_normalizer) <= 0.0
+    ):
+        raise ValueError("PI0.5 training contract mismatch: mode_flow_loss_weights")
+    if mode_flow_loss_weights is not None and payload.get(
+        "mode_flow_loss_weighting_scope"
+    ) != PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE:
+        raise ValueError(
+            "PI0.5 training contract mismatch: mode_flow_loss_weighting_scope"
+        )
+    if mode_flow_loss_weights is None and any(
+        value is not None
+        for value in (
+            mode_flow_loss_population_normalizer,
+            payload.get("mode_flow_loss_weighting_scope"),
+        )
+    ):
+        raise ValueError("PI0.5 training contract mismatch: mode_flow_loss_weights")
+    if required_mode_flow_loss_weights is not None:
+        required_mode_weights = [
+            float(value) for value in required_mode_flow_loss_weights
+        ]
+        if mode_flow_loss_weights != required_mode_weights:
+            raise ValueError(
+                "PI0.5 training contract mismatch: mode_flow_loss_weights"
+            )
+    if required_mode_flow_loss_population_normalizer is not None and (
+        mode_flow_loss_population_normalizer
+        != float(required_mode_flow_loss_population_normalizer)
+    ):
+        raise ValueError(
+            "PI0.5 training contract mismatch: mode_flow_loss_population_normalizer"
+        )
     return claimed
 
 

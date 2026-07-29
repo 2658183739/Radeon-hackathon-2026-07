@@ -29,6 +29,8 @@ MODE_HEAD_POOLING="${MOBILE_PI05_MODE_HEAD_POOLING:-masked_mean}"
 MODE_HEAD_CE_WEIGHT="${MOBILE_PI05_MODE_HEAD_CE_WEIGHT:-0}"
 MODE_HEAD_CLASS_WEIGHTS="${MOBILE_PI05_MODE_HEAD_CLASS_WEIGHTS:-}"
 STAGE_LOSS_WEIGHTS="${MOBILE_PI05_STAGE_LOSS_WEIGHTS:-}"
+MODE_FLOW_LOSS_WEIGHTS="${MOBILE_PI05_MODE_FLOW_LOSS_WEIGHTS:-}"
+MODE_FLOW_LOSS_NORMALIZER="${MOBILE_PI05_MODE_FLOW_LOSS_NORMALIZER:-}"
 WRIST_RGBD="${MOBILE_PI05_WRIST_RGBD:-0}"
 ACTION_CONTRACT="${MOBILE_PI05_ACTION_CONTRACT:-residual_v1}"
 FULL_ACTION_PROJECTIONS="${MOBILE_PI05_FULL_ACTION_PROJECTIONS:-0}"
@@ -268,6 +270,7 @@ if [[ "${MODE_LOSS_WEIGHT}" != "1" && "${MODE_LOSS_WEIGHT}" != "1.0" ]] || \
   [[ "${MODE_HEAD_CE_WEIGHT}" != "0" && "${MODE_HEAD_CE_WEIGHT}" != "0.0" ]] || \
   [[ -n "${MODE_HEAD_CLASS_WEIGHTS}" ]] || \
   [[ -n "${STAGE_LOSS_WEIGHTS}" ]] || \
+  [[ -n "${MODE_FLOW_LOSS_WEIGHTS}" ]] || \
   [[ "${ACTION_CONTRACT}" == "absolute_v1" ]] || \
   [[ "${FULL_ACTION_PROJECTIONS}" == "1" ]]; then
   TRAIN_ENTRY=(python "${ROOT_DIR}/scripts/train_mobile_pi05_weighted_entry.py")
@@ -287,6 +290,12 @@ write_training_contract() {
   fi
   if [[ -n "${STAGE_LOSS_WEIGHTS}" ]]; then
     architecture_args+=(--stage-loss-weights "${STAGE_LOSS_WEIGHTS}")
+  fi
+  if [[ -n "${MODE_FLOW_LOSS_WEIGHTS}" ]]; then
+    architecture_args+=(
+      --mode-flow-loss-weights "${MODE_FLOW_LOSS_WEIGHTS}"
+      --mode-flow-loss-population-normalizer "${MODE_FLOW_LOSS_NORMALIZER}"
+    )
   fi
   if [[ "${FULL_ACTION_PROJECTIONS}" == "1" ]]; then
     architecture_args+=(--full-action-projections)

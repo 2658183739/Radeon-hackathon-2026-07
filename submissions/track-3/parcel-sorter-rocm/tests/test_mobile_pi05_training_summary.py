@@ -83,12 +83,16 @@ class MobilePI05TrainingSummaryTests(unittest.TestCase):
                 "mode_accuracy:0.4 mode_margin:-0.2 "
                 "mode_cross_entropy_weight:2.0 mode_cross_entropy_time:1.0 "
                 "stage_selected_weight_mean:2.0 stage_unweighted_loss:0.3 "
-                "stage_weighted_loss:0.6 flow_loss_unweighted:0.3 flow_loss:0.6\n"
+                "stage_weighted_loss:0.6 mode_flow_loss_population_normalizer:1.01 "
+                "mode_flow_selected_weight_mean:1.5 mode_flow_input_loss:0.6 "
+                "mode_flow_weighted_loss:0.9 flow_loss_unweighted:0.3 flow_loss:0.9\n"
                 "loss:1.0 grdn:1.0 lr:2e-5 mode_cross_entropy:0.2 "
                 "mode_accuracy:1.0 mode_margin:1.5 "
                 "mode_cross_entropy_weight:2.0 mode_cross_entropy_time:1.0 "
                 "stage_selected_weight_mean:0.4 stage_unweighted_loss:1.5 "
-                "stage_weighted_loss:0.6 flow_loss_unweighted:1.5 flow_loss:0.6\n"
+                "stage_weighted_loss:0.6 mode_flow_loss_population_normalizer:1.01 "
+                "mode_flow_selected_weight_mean:0.75 mode_flow_input_loss:0.6 "
+                "mode_flow_weighted_loss:0.45 flow_loss_unweighted:1.5 flow_loss:0.45\n"
                 "End of training\n",
                 encoding="utf-8",
             )
@@ -99,11 +103,15 @@ class MobilePI05TrainingSummaryTests(unittest.TestCase):
             self.assertEqual(auxiliary["mode_accuracy"]["records"], 2)
             self.assertAlmostEqual(auxiliary["mode_accuracy"]["mean"], 0.7)
             self.assertEqual(auxiliary["mode_margin"]["last"], 1.5)
-            self.assertEqual(summary["records"][0]["flow_loss"], 0.6)
+            self.assertEqual(summary["records"][0]["flow_loss"], 0.9)
             self.assertAlmostEqual(
                 auxiliary["stage_selected_weight_mean"]["mean"], 1.2
             )
             self.assertEqual(auxiliary["flow_loss_unweighted"]["last"], 1.5)
+            self.assertAlmostEqual(
+                auxiliary["mode_flow_selected_weight_mean"]["mean"], 1.125
+            )
+            self.assertEqual(auxiliary["mode_flow_weighted_loss"]["last"], 0.45)
             self.assertAlmostEqual(
                 summary["metrics"]["blocks"][0]["stage_unweighted_loss_mean"],
                 0.9,
