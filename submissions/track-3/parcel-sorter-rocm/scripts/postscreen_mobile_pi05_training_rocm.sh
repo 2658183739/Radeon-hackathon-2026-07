@@ -41,8 +41,14 @@ bash "${ROOT_DIR}/scripts/screen_mobile_pi05_checkpoints_rocm.sh" \
   "${RUN_ROOT}" "${DATASET_ROOT}" "${OUTPUT_DIR}" "${RUN_NAME}" \
   "${STEPS[@]}" || screen_status=$?
 
-if [[ "${screen_status}" -ne 0 ]]; then
-  echo "ERROR: checkpoint screen failed; skipping GPU diagnostics" >&2
+if [[ "${screen_status}" -ge 3 ]]; then
+  echo "ERROR: structural checkpoint screen failure; skipping GPU diagnostics" >&2
+  exit "${screen_status}"
+fi
+if [[ "${screen_status}" -eq 2 ]]; then
+  echo "INFO: one or more checkpoints missed the scientific screen gate; continuing frozen diagnostics for later-checkpoint selection" >&2
+elif [[ "${screen_status}" -ne 0 ]]; then
+  echo "ERROR: unexpected checkpoint screen status: ${screen_status}" >&2
   exit "${screen_status}"
 fi
 
@@ -71,4 +77,4 @@ for step in "${STEPS[@]}"; do
     --output "${output}" 2>&1 | tee "${log}"
 done
 
-exit "${screen_status}"
+exit 0

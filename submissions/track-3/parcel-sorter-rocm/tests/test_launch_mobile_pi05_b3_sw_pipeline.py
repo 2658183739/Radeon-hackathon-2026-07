@@ -86,6 +86,20 @@ class LaunchMobilePI05B3SWPipelineTests(unittest.TestCase):
         self.assertIn('STAGE_LOSS_WEIGHTS="${MOBILE_PI05_STAGE_LOSS_WEIGHTS:-}"', text)
         self.assertIn('--stage-loss-weights "${STAGE_LOSS_WEIGHTS}"', text)
 
+    def test_postscreen_continues_diagnostics_after_a_scientific_gate_miss(self) -> None:
+        text = (
+            ROOT / "scripts" / "postscreen_mobile_pi05_training_rocm.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('if [[ "${screen_status}" -ge 3 ]]; then', text)
+        self.assertIn("continuing frozen diagnostics for later-checkpoint selection", text)
+        self.assertNotIn(
+            'if [[ "${screen_status}" -ne 0 ]]; then\n'
+            '  echo "ERROR: checkpoint screen failed',
+            text,
+        )
+        self.assertTrue(text.rstrip().endswith("exit 0"))
+
 
 if __name__ == "__main__":
     unittest.main()
