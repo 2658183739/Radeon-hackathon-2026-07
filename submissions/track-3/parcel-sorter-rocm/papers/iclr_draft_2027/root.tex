@@ -48,7 +48,8 @@ and a fail-closed promotion ladder. Deterministic code may transform frames,
 interpolate commands, enforce force and workspace limits, or reject unsafe
 actions, but it may not query an expert pose, select a grasp family, or complete a
 failed action. Each architectural and runtime change is evaluated as a single
-factor under paired initial states.
+factor under paired initial states. Figure~\ref{fig:system-overview} summarizes
+the learned-policy boundary, evidence ladder, and deployment measurements.
 
 The paper is organized around three questions. First, can a protocol-matched
 candidate improve over the locally reproduced $\pi_{0.5}$ LIBERO control
@@ -58,6 +59,19 @@ pick--transport--place--release behavior across a heterogeneous parcel set?
 Third, which Radeon runtime choices improve latency or energy without regressing
 closed-loop success? The current draft reports completed baseline and negative
 results and leaves all unfinished claim cells as \texttt{TBD}.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/system_overview.pdf}
+  \caption{Contract-gated $\pi_{0.5}$ adaptation and Radeon deployment. The
+  learned policy owns the declared task actions, while deterministic execution
+  code performs coordinate transforms, interpolation, hard-limit enforcement,
+  and rejection without expert completion. Candidates advance from action
+  fidelity through paired development to one-shot confirmation; latency, memory,
+  energy, and thermal evidence are reported separately for the persistent Radeon
+  runtime.}
+  \label{fig:system-overview}
+\end{figure*}
 
 \section{Related Work}
 
@@ -138,7 +152,7 @@ unless the learned system generates and verifies its own corrections.
 
 Inference uses a persistent policy process and separates checkpoint load, model
 inference, queued action dispatch, and observation-to-actuation latency. Runtime
-experiments record warm P50/P95/P99 latency, peak memory, package energy,
+experiments record warm-latency P50, P95, and P99, peak memory, package energy,
 junction temperature, sampling errors, and complete task outcomes. Compilation
 or a changed action-execution cadence is accepted only when paired success does
 not regress and the pre-registered latency and energy gates both pass.
