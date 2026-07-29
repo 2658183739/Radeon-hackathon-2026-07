@@ -76,10 +76,11 @@ reactive runtime is not an architectural improvement unless success is preserved
 Interactive learning methods address compounding policy errors by collecting
 states induced by the learned policy~\citep{dagger,ript}. RECAP applies
 advantage-conditioned learning to demonstrations, corrections, and autonomous
-experience in the $\pi_{0.6}^{*}$ system~\citep{recap}. No public $\pi_{0.6}$
-checkpoint and matched LIBERO adapter are available in the executable stack used
-here, so $\pi_{0.6}$ motivates verified recovery experiments but is not treated
-as a numerical baseline.
+experience in the $\pi_{0.6}^{*}$ system~\citep{recap}. In the frozen software
+stack used for our experiments, we did not identify public $\pi_{0.6}$ weights
+with a compatible LIBERO processor and action adapter. We therefore use
+$\pi_{0.6}^{*}$ to motivate verified recovery experiments rather than as a
+numerical baseline.
 
 \section{Method}
 
@@ -95,11 +96,13 @@ is reported as assisted control and receives no pure-VLA credit.
 
 The parcel observation contract contains synchronized overhead and wrist RGB-D,
 robot state, tool seals, force history, parcel geometry estimates, task phase,
-and retry index. Missing sensors are masked explicitly. The action contract
-contains base motion, bounded world-frame SE(3) increments for both arms, tool
-commands, a learned grasp mode, and task progress. Rotations use shortest-path
-rotation vectors with a fixed composition order, and executable round-trip tests
-cover normalization, denormalization, decoding, bounds, and phase transitions.
+and retry index. Missing sensors are masked explicitly. The 23-dimensional
+training target contains a three-dimensional base-velocity command, absolute
+world-frame positions and unit quaternions for both end effectors, binary tool
+commands, three learned grasp-mode logits, and primitive progress. The executable
+decoder normalizes each quaternion, clips base velocity to predeclared limits,
+and rejects nonfinite fields; round-trip tests cover normalization,
+denormalization, decoding, bounds, and phase transitions.
 
 \subsection{Stage-Aware Flow Adaptation}
 
@@ -294,11 +297,12 @@ The study currently has three important limitations. First, the public result is
 a single-model LIBERO reproduction, whereas the parcel claim requires a separate
 task-specific confirmation population. Second, the parcel dataset contains few
 independent demonstrations relative to its frame count, so training changes must
-be interpreted as adaptation under limited behavioral coverage. Third, no public
-$\pi_{0.6}$ weights and matched evaluation adapter are available in the current
-stack; claims of numerical superiority to $\pi_{0.6}$ would therefore be
-unverifiable. The final paper will compare directly with executable $\pi_{0.5}$
-baselines and discuss $\pi_{0.6}^{*}$ only as methodological motivation.
+be interpreted as adaptation under limited behavioral coverage. Third, we did not
+identify public $\pi_{0.6}$ weights with a processor and evaluation adapter
+matching the frozen stack; a numerical superiority claim would therefore be
+unverifiable under this protocol. The final paper will compare directly with
+executable $\pi_{0.5}$ baselines and discuss $\pi_{0.6}^{*}$ only as
+methodological motivation.
 
 \section{Conclusion}
 
