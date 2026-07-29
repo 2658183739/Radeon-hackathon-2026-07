@@ -145,9 +145,21 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
     def test_pilot_yield_gate_waits_for_every_mode_and_fails_closed(self) -> None:
         pending = COLLECTOR._pilot_yield_gate(
             {
-                "top_suction": {"attempts": 10, "success_rate": 0.9},
-                "side_suction": {"attempts": 10, "success_rate": 0.8},
-                "cooperative_cradle": {"attempts": 9, "success_rate": 1.0},
+                "top_suction": {
+                    "attempts": 10,
+                    "successes": 9,
+                    "success_rate": 0.9,
+                },
+                "side_suction": {
+                    "attempts": 10,
+                    "successes": 8,
+                    "success_rate": 0.8,
+                },
+                "cooperative_cradle": {
+                    "attempts": 9,
+                    "successes": 9,
+                    "success_rate": 1.0,
+                },
             },
             10,
             0.7,
@@ -156,9 +168,21 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
 
         failed = COLLECTOR._pilot_yield_gate(
             {
-                "top_suction": {"attempts": 10, "success_rate": 0.9},
-                "side_suction": {"attempts": 10, "success_rate": 0.8},
-                "cooperative_cradle": {"attempts": 10, "success_rate": 0.6},
+                "top_suction": {
+                    "attempts": 10,
+                    "successes": 9,
+                    "success_rate": 0.9,
+                },
+                "side_suction": {
+                    "attempts": 10,
+                    "successes": 8,
+                    "success_rate": 0.8,
+                },
+                "cooperative_cradle": {
+                    "attempts": 10,
+                    "successes": 6,
+                    "success_rate": 0.6,
+                },
             },
             10,
             0.7,
@@ -168,14 +192,51 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
 
         passed = COLLECTOR._pilot_yield_gate(
             {
-                "top_suction": {"attempts": 10, "success_rate": 0.7},
-                "side_suction": {"attempts": 10, "success_rate": 0.8},
-                "cooperative_cradle": {"attempts": 10, "success_rate": 0.9},
+                "top_suction": {
+                    "attempts": 10,
+                    "successes": 7,
+                    "success_rate": 0.7,
+                },
+                "side_suction": {
+                    "attempts": 10,
+                    "successes": 8,
+                    "success_rate": 0.8,
+                },
+                "cooperative_cradle": {
+                    "attempts": 10,
+                    "successes": 9,
+                    "success_rate": 0.9,
+                },
             },
             10,
             0.7,
         )
         self.assertEqual(passed["status"], "passed")
+
+        futile = COLLECTOR._pilot_yield_gate(
+            {
+                "top_suction": {
+                    "attempts": 5,
+                    "successes": 1,
+                    "success_rate": 0.2,
+                },
+                "side_suction": {
+                    "attempts": 5,
+                    "successes": 5,
+                    "success_rate": 1.0,
+                },
+                "cooperative_cradle": {
+                    "attempts": 4,
+                    "successes": 1,
+                    "success_rate": 0.25,
+                },
+            },
+            10,
+            0.7,
+        )
+        self.assertEqual(futile["status"], "failed")
+        self.assertEqual(futile["required_successes_per_mode"], 7)
+        self.assertEqual(futile["futile_modes"], ["top_suction"])
 
     def test_collection_success_requires_a_saved_nonempty_dataset(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

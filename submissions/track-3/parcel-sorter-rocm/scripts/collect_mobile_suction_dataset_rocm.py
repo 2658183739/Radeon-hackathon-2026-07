@@ -172,11 +172,30 @@ def _pilot_yield_gate(
     enabled = (
         minimum_attempts_per_mode > 0 and minimum_success_rate_per_mode > 0.0
     )
+    required_successes = (
+        math.ceil(
+            minimum_attempts_per_mode * minimum_success_rate_per_mode - 1e-12
+        )
+        if enabled
+        else 0
+    )
+    futile_modes = (
+        [
+            mode
+            for mode, item in mode_statistics.items()
+            if int(item["attempts"]) < minimum_attempts_per_mode
+            and int(item["successes"])
+            + (minimum_attempts_per_mode - int(item["attempts"]))
+            < required_successes
+        ]
+        if enabled
+        else []
+    )
     mature = enabled and all(
         int(item["attempts"]) >= minimum_attempts_per_mode
         for item in mode_statistics.values()
     )
-    failed_modes = (
+    rate_failed_modes = (
         [
             mode
             for mode, item in mode_statistics.items()
@@ -185,11 +204,14 @@ def _pilot_yield_gate(
         if mature
         else []
     )
+    failed_modes = sorted(set(futile_modes + rate_failed_modes))
     return {
         "enabled": enabled,
         "minimum_attempts_per_mode": minimum_attempts_per_mode,
         "minimum_success_rate_per_mode": minimum_success_rate_per_mode,
+        "required_successes_per_mode": required_successes,
         "mature": mature,
+        "futile_modes": futile_modes,
         "failed_modes": failed_modes,
         "status": (
             "failed"
@@ -488,9 +510,21 @@ def main() -> int:
             checkpoint_selection = {"source": "promoted_registry", **selected.to_dict()}
     args.output.mkdir(parents=True, exist_ok=True)
     existing_results: dict[str, dict[str, Any]] = {}
+    resumed_runtime_contracts: list[dict[str, Any]] = []
     existing_summary_path = args.output / "collection-summary.json"
     if args.resume and existing_summary_path.is_file():
         existing = json.loads(existing_summary_path.read_text(encoding="utf-8"))
+        previous_contracts = [
+            contract
+            for contract in (
+                *existing.get("resumed_runtime_contracts", ()),
+                existing.get("runtime_contract"),
+            )
+            if isinstance(contract, dict) and contract != runtime_contract
+        ]
+        for contract in previous_contracts:
+            if contract not in resumed_runtime_contracts:
+                resumed_runtime_contracts.append(contract)
         existing_results = {
             str(item["episode_id"]): item for item in existing.get("results", ())
         }
@@ -743,6 +777,7 @@ def main() -> int:
                 "schema_version": 1,
                 "collection_id": config.get("collection_id"),
                 "runtime_contract": runtime_contract,
+                "resumed_runtime_contracts": resumed_runtime_contracts,
                 "requested_episodes": len(episodes),
                 "completed_episodes": len(results),
                 "unattempted_episodes": len(episodes) - len(results),
@@ -884,6 +919,7 @@ def main() -> int:
         "collection_id": config.get("collection_id"),
         "config": str(args.config.resolve()),
         "runtime_contract": runtime_contract,
+        "resumed_runtime_contracts": resumed_runtime_contracts,
         "requested_episodes": len(episodes),
         "completed_episodes": len(results),
         "unattempted_episodes": len(episodes) - len(results),
