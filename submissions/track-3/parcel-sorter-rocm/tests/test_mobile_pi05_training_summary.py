@@ -82,11 +82,13 @@ class MobilePI05TrainingSummaryTests(unittest.TestCase):
                 "loss:3.0 grdn:2.0 lr:1e-5 mode_cross_entropy:1.2 "
                 "mode_accuracy:0.4 mode_margin:-0.2 "
                 "mode_cross_entropy_weight:2.0 mode_cross_entropy_time:1.0 "
-                "flow_loss:0.6\n"
+                "stage_selected_weight_mean:2.0 stage_unweighted_loss:0.3 "
+                "stage_weighted_loss:0.6 flow_loss_unweighted:0.3 flow_loss:0.6\n"
                 "loss:1.0 grdn:1.0 lr:2e-5 mode_cross_entropy:0.2 "
                 "mode_accuracy:1.0 mode_margin:1.5 "
                 "mode_cross_entropy_weight:2.0 mode_cross_entropy_time:1.0 "
-                "flow_loss:0.6\n"
+                "stage_selected_weight_mean:0.4 stage_unweighted_loss:1.5 "
+                "stage_weighted_loss:0.6 flow_loss_unweighted:1.5 flow_loss:0.6\n"
                 "End of training\n",
                 encoding="utf-8",
             )
@@ -98,6 +100,18 @@ class MobilePI05TrainingSummaryTests(unittest.TestCase):
             self.assertAlmostEqual(auxiliary["mode_accuracy"]["mean"], 0.7)
             self.assertEqual(auxiliary["mode_margin"]["last"], 1.5)
             self.assertEqual(summary["records"][0]["flow_loss"], 0.6)
+            self.assertAlmostEqual(
+                auxiliary["stage_selected_weight_mean"]["mean"], 1.2
+            )
+            self.assertEqual(auxiliary["flow_loss_unweighted"]["last"], 1.5)
+            self.assertAlmostEqual(
+                summary["metrics"]["blocks"][0]["stage_unweighted_loss_mean"],
+                0.9,
+            )
+            self.assertEqual(
+                summary["metrics"]["blocks"][0]["stage_weighted_loss_mean"],
+                0.6,
+            )
             self.assertAlmostEqual(
                 summary["metrics"]["blocks"][0]["mode_cross_entropy_mean"],
                 0.7,

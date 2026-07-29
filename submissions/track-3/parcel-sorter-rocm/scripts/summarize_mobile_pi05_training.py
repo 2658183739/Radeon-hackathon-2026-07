@@ -27,6 +27,10 @@ AUXILIARY_METRICS = (
     "mode_head_accuracy",
     "mode_head_margin",
     "mode_head_cross_entropy_weight",
+    "stage_selected_weight_mean",
+    "stage_unweighted_loss",
+    "stage_weighted_loss",
+    "flow_loss_unweighted",
     "flow_loss",
 )
 
