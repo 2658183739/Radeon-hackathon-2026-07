@@ -46,6 +46,10 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
         )
         for name in required:
             self.assertIn(f'export {name}="', script)
+        self.assertIn(
+            'MOBILE_PI05_MODE_FLOW_LOSS_NORMALIZER:-1',
+            script,
+        )
 
     def _dataset(self, root: Path) -> None:
         (root / "meta").mkdir(parents=True)
