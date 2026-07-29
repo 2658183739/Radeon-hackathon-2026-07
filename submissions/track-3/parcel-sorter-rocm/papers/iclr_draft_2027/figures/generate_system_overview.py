@@ -187,7 +187,11 @@ def build_figure() -> Drawing:
 def main() -> None:
     output_dir = Path(__file__).resolve().parent
     drawing = build_figure()
-    renderPDF.drawToFile(drawing, str(output_dir / "system_overview.pdf"))
+    renderPDF.drawToFile(
+        drawing,
+        str(output_dir / "system_overview.pdf"),
+        invariant=1,
+    )
     try:
         renderPM.drawToFile(
             drawing,
