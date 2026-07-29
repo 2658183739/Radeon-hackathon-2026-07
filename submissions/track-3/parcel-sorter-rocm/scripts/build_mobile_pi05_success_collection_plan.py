@@ -15,56 +15,48 @@ DESIGN_CELLS_PER_MODE = 8
 TARGET_SUCCESSES_PER_MODE = 500
 DEFAULT_PILOT_ATTEMPTS_PER_MODE = 10
 DEFAULT_BULK_ATTEMPTS_PER_MODE = 960
-COLLECTION_REVISION = 4
+COLLECTION_REVISION = 6
+
+TOP_SUCTION_SIZE_RELATIVE = 0.002
+TOP_SUCTION_MASS_RELATIVE = 0.005
+TOP_SUCTION_FRICTION_RELATIVE = 0.005
+TOP_SUCTION_OFFSET_DELTA_M = 0.00025
+TOP_SUCTION_YAW_DELTA_RAD = 0.0025
 
 
 TOP_SUCTION_ANCHORS: dict[str, tuple[dict[str, Any], ...]] = {
     "micro_box": (
-        {"size_m": (0.064, 0.0375, 0.0285), "mass_kg": 0.08, "friction": 0.355, "offset_m": (0.0, 0.0), "yaw_rad": 0.0},
-        {"size_m": (0.072, 0.0425, 0.0355), "mass_kg": 0.14, "friction": 0.465, "offset_m": (0.01, 0.0), "yaw_rad": -0.12},
-        {"size_m": (0.080, 0.0475, 0.0425), "mass_kg": 0.20, "friction": 0.575, "offset_m": (-0.01, 0.0), "yaw_rad": 0.12},
-        {"size_m": (0.088, 0.0525, 0.0495), "mass_kg": 0.26, "friction": 0.685, "offset_m": (0.0, 0.01), "yaw_rad": -0.25},
-        {"size_m": (0.096, 0.0575, 0.0565), "mass_kg": 0.32, "friction": 0.795, "offset_m": (0.0, -0.01), "yaw_rad": 0.25},
-    ),
-    "flat_mailer": (
-        {"size_m": (0.132, 0.043, 0.017), "mass_kg": 0.10, "friction": 0.355, "offset_m": (0.0, 0.0), "yaw_rad": 0.0},
-        {"size_m": (0.156, 0.049, 0.021), "mass_kg": 0.20, "friction": 0.465, "offset_m": (0.01, 0.0), "yaw_rad": -0.12},
-        {"size_m": (0.180, 0.055, 0.025), "mass_kg": 0.30, "friction": 0.575, "offset_m": (-0.01, 0.0), "yaw_rad": 0.12},
-        {"size_m": (0.204, 0.061, 0.029), "mass_kg": 0.40, "friction": 0.685, "offset_m": (0.0, 0.01), "yaw_rad": -0.25},
-        {"size_m": (0.228, 0.067, 0.033), "mass_kg": 0.50, "friction": 0.795, "offset_m": (0.0, -0.01), "yaw_rad": 0.25},
-    ),
-    "small_carton": (
-        {"size_m": (0.108, 0.048, 0.047), "mass_kg": 0.18, "friction": 0.415, "offset_m": (0.0, 0.0), "yaw_rad": 0.0},
-        {"size_m": (0.124, 0.054, 0.061), "mass_kg": 0.34, "friction": 0.545, "offset_m": (0.01, 0.0), "yaw_rad": -0.12},
-        {"size_m": (0.140, 0.060, 0.075), "mass_kg": 0.50, "friction": 0.675, "offset_m": (-0.01, 0.0), "yaw_rad": 0.12},
-        {"size_m": (0.156, 0.066, 0.089), "mass_kg": 0.66, "friction": 0.805, "offset_m": (0.0, 0.01), "yaw_rad": -0.25},
-        {"size_m": (0.172, 0.072, 0.103), "mass_kg": 0.82, "friction": 0.935, "offset_m": (0.0, -0.01), "yaw_rad": 0.25},
+        {
+            "size_m": (0.0637339768, 0.0375, 0.0285),
+            "mass_kg": 0.08,
+            "friction": 0.355,
+            "offset_m": (0.0, 0.0),
+            "yaw_rad": 0.0,
+        },
     ),
 }
 
 
 CRADLE_ANCHORS: tuple[dict[str, Any], ...] = (
     {
-        "size_m": (1.44, 0.12, 0.18), "mass_kg": 0.40, "friction": 0.90,
-        "offset_m": (0.0, 0.0), "yaw_rad": 0.0,
-        "recovery_contact_offset_m": (0.0, 0.003),
-        "recovery_left_lift_offset_m": (0.0, 0.0, 0.001),
-        "recovery_right_lift_offset_m": (0.0, 0.002, -0.002),
+        "size_m": (1.4383370049, 0.1199796566, 0.1798908722),
+        "mass_kg": 0.398549662,
+        "friction": 0.8998173977,
+        "offset_m": (-0.0000365638, 0.000009501),
+        "yaw_rad": 0.0001093866,
+        "recovery_contact_offset_m": (0.0, 0.0030281706),
+        "recovery_left_lift_offset_m": (0.0, 0.0, 0.0018923421),
+        "recovery_right_lift_offset_m": (0.000024502, 0.0019897214, -0.0020125477),
     },
     {
-        "size_m": (1.4321296472, 0.1199037221, 0.1794835375),
-        "mass_kg": 0.3931360763, "friction": 0.8991358094,
-        "offset_m": (-0.0001730431, 0.0000449646), "yaw_rad": 0.0005176872,
-        "recovery_contact_offset_m": (0.0, 0.0031333214),
-        "recovery_left_lift_offset_m": (0.0, 0.0, 0.0014904944),
-        "recovery_right_lift_offset_m": (0.000115959, 0.001951355, -0.0020593837),
-    },
-    {
-        "size_m": (1.44, 0.12, 0.18), "mass_kg": 0.40, "friction": 0.90,
-        "offset_m": (0.0, 0.0), "yaw_rad": 0.0,
-        "recovery_contact_offset_m": (0.0, 0.003),
-        "recovery_left_lift_offset_m": (0.0, 0.0, 0.002),
-        "recovery_right_lift_offset_m": (0.0, 0.002, -0.002),
+        "size_m": (1.4395150683, 0.1199940678, 0.1799681782),
+        "mass_kg": 0.3995770794,
+        "friction": 0.8999467529,
+        "offset_m": (-0.000010662, 0.0000027705),
+        "yaw_rad": 0.0000318973,
+        "recovery_contact_offset_m": (0.0, 0.0030082146),
+        "recovery_left_lift_offset_m": (0.0, 0.0, 0.0019686068),
+        "recovery_right_lift_offset_m": (0.0000071448, 0.0019970027, -0.0020036589),
     },
 )
 
@@ -185,11 +177,11 @@ def _top_suction(
         anchor,
         design_cell,
         fractions[0][index],
-        size_relative=0.005,
-        mass_relative=0.01,
-        friction_relative=0.01,
-        offset_delta_m=0.0005,
-        yaw_delta_rad=0.005,
+        size_relative=TOP_SUCTION_SIZE_RELATIVE,
+        mass_relative=TOP_SUCTION_MASS_RELATIVE,
+        friction_relative=TOP_SUCTION_FRICTION_RELATIVE,
+        offset_delta_m=TOP_SUCTION_OFFSET_DELTA_M,
+        yaw_delta_rad=TOP_SUCTION_YAW_DELTA_RAD,
     )
     return {
         "profile": profile,
@@ -207,7 +199,7 @@ def _top_suction(
         # The 5/5 successful top-suction evidence used the nominal controller.
         # Recovery offsets are corrective trajectories, not generic demonstrations.
         "retry_index": 0,
-        "parameter_envelope_revision": "top-success-anchor-one-factor-v4",
+        "parameter_envelope_revision": "top-current-success-one-factor-v6",
         "anchor_provenance": {
             "seed_index": seed_index,
             "profile_anchor_index": profile_anchor_index,
@@ -288,7 +280,7 @@ def _cooperative_cradle(
         "recovery_right_lift_offset_m": physical["recovery_right_lift_offset_m"],
         "recovery_vertical_speed_scale": 1.0,
         "retry_index": 2,
-        "parameter_envelope_revision": "cradle-success-anchor-path-v3",
+        "parameter_envelope_revision": "cradle-current-success-anchor-path-v6",
         "anchor_provenance": anchor_provenance,
         "task_text": (
             "Pick up the large rectangular carton with cooperative cradle control "
@@ -365,7 +357,7 @@ def build_plan(attempts_per_mode: int, seed: int, phase: str) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "collection_id": f"parcel-success-{phase}-v{COLLECTION_REVISION}",
-        "protocol": "pi05-success-anchor-one-factor-collection-v4",
+        "protocol": "pi05-success-current-contract-anchor-place-gated-v6",
         "seed": seed,
         "phase": phase,
         "attempts_per_mode": attempts_per_mode,

@@ -58,6 +58,7 @@ from parcel_sorter.mobile_grasp_routing import (
 from parcel_sorter.mobile_task import (
     clamp_position_residual_to_anchor,
     placement_within_release_gate,
+    update_release_gate_stability,
 )
 from parcel_sorter.mobile_vla_controller import MobileVLAHarnessController
 from parcel_sorter.mobile_vla_service import MobileVLAServiceClient
@@ -3157,6 +3158,7 @@ def main() -> int:
     released = False
     consecutive_place_target_steps = 0
     place_completed_early = False
+    place_force_safety_abort = False
     if transport_success:
         place_start_hand = np.asarray(_flat(hand.get_pos()))
         place_start_right_hand = np.asarray(_flat(right_hand.get_pos()))
@@ -3285,18 +3287,22 @@ def main() -> int:
                 cradle_place_steps += 1
                 cradle_contacts, _ = cradle_monitor.snapshot()
                 cradle_place_contact_steps += int(cradle_contacts > 0)
-            if (
-                args.cooperative_cradle
-                and suction.attachment is not None
-                and placement_within_release_gate(
-                    _flat(parcel.get_pos()), expected_placed_position
+            place_force_safety_abort = bool(
+                suction.max_force_n >= 35.0
+                or suction.max_contact_force_n >= 35.0
+                or (
+                    cradle_monitor is not None
+                    and cradle_monitor.max_contact_force_n >= 35.0
                 )
-            ):
-                consecutive_place_target_steps += 1
-            else:
-                consecutive_place_target_steps = 0
-            place_completed_early = bool(
-                args.cooperative_cradle and consecutive_place_target_steps >= 24
+            )
+            consecutive_place_target_steps, place_completed_early = (
+                update_release_gate_stability(
+                    attached=suction.attachment is not None,
+                    inside_release_gate=placement_within_release_gate(
+                        _flat(parcel.get_pos()), expected_placed_position
+                    ),
+                    consecutive_steps=consecutive_place_target_steps,
+                )
             )
             record_control_frame(
                 stage="place",
@@ -3315,6 +3321,7 @@ def main() -> int:
                 physics_step % 40 == 0
                 or suction.attachment is None
                 or place_completed_early
+                or place_force_safety_abort
             ):
                 place_trace.append(
                     {
@@ -3332,7 +3339,7 @@ def main() -> int:
                 )
             if suction.attachment is None:
                 break
-            if place_completed_early:
+            if place_completed_early or place_force_safety_abort:
                 break
         parcel_before_release = np.asarray(_flat(parcel.get_pos()))
         placed_before_release = bool(
@@ -4013,6 +4020,7 @@ def main() -> int:
         "place_release_gate_required_steps": 24,
         "place_release_gate_consecutive_steps": consecutive_place_target_steps,
         "place_completed_early": place_completed_early,
+        "place_force_safety_abort": place_force_safety_abort,
         "released": released,
         "placement_error_m": placement_error_m,
         "latched": latched,

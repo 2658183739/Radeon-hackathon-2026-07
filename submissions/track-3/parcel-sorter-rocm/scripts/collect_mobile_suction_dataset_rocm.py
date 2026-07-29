@@ -711,6 +711,11 @@ def main() -> int:
             "return_code": completed.returncode,
             "success": success,
             "failure_stage": classify_mobile_failure(summary),
+            "lift_success": summary.get("lift_success"),
+            "transport_success": summary.get("transport_success"),
+            "placed_before_release": summary.get("placed_before_release"),
+            "released": summary.get("released"),
+            "place_force_safety_abort": summary.get("place_force_safety_abort"),
             "placement_error_m": summary.get("placement_error_m"),
             "max_suction_force_n": summary.get("suction", {}).get(
                 "max_suction_force_n"
@@ -718,6 +723,9 @@ def main() -> int:
             "max_contact_force_n": summary.get("suction", {}).get(
                 "max_contact_force_n"
             ),
+            "max_cradle_contact_force_n": (
+                (summary.get("cradle") or {}).get("physical") or {}
+            ).get("max_contact_force_n"),
             "frames": summary.get("dataset", {}).get("frames", 0),
             "dataset_saved": bool(summary.get("dataset", {}).get("saved")),
             "recovery_label": {

@@ -31,8 +31,11 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
         episodes = plan["episodes"]
 
         self.assertEqual(len(episodes), 30)
-        self.assertEqual(plan["collection_id"], "parcel-success-pilot-v4")
-        self.assertEqual(plan["protocol"], "pi05-success-anchor-one-factor-collection-v4")
+        self.assertEqual(plan["collection_id"], "parcel-success-pilot-v6")
+        self.assertEqual(
+            plan["protocol"],
+            "pi05-success-current-contract-anchor-place-gated-v6",
+        )
         self.assertEqual(len({item["episode_id"] for item in episodes}), 30)
         self.assertEqual(len({item["source_identity"] for item in episodes}), 30)
         self.assertEqual(
@@ -57,11 +60,11 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
         )
         self.assertEqual(
             {item["profile"] for item in top},
-            {"micro_box", "flat_mailer", "small_carton"},
+            {"micro_box"},
         )
         self.assertEqual(
             {item["parameter_envelope_revision"] for item in top},
-            {"top-success-anchor-one-factor-v4"},
+            {"top-current-success-one-factor-v6"},
         )
         self.assertTrue(all("anchor_provenance" in item for item in top))
         cradle = [
@@ -69,9 +72,17 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
         ]
         self.assertEqual(
             {item["parameter_envelope_revision"] for item in cradle},
-            {"cradle-success-anchor-path-v3"},
+            {"cradle-current-success-anchor-path-v6"},
         )
         self.assertTrue(all("anchor_provenance" in item for item in cradle))
+        self.assertTrue(
+            all(
+                0.0018923421
+                <= item["recovery_left_lift_offset_m"][2]
+                <= 0.0019686068
+                for item in cradle
+            )
+        )
 
     def test_one_factor_design_changes_only_its_declared_field(self) -> None:
         anchor = PLANNER.TOP_SUCTION_ANCHORS["micro_box"][0]
@@ -94,11 +105,11 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
                 anchor,
                 design_cell,
                 1.0,
-                size_relative=0.005,
-                mass_relative=0.01,
-                friction_relative=0.01,
-                offset_delta_m=0.0005,
-                yaw_delta_rad=0.005,
+                size_relative=PLANNER.TOP_SUCTION_SIZE_RELATIVE,
+                mass_relative=PLANNER.TOP_SUCTION_MASS_RELATIVE,
+                friction_relative=PLANNER.TOP_SUCTION_FRICTION_RELATIVE,
+                offset_delta_m=PLANNER.TOP_SUCTION_OFFSET_DELTA_M,
+                yaw_delta_rad=PLANNER.TOP_SUCTION_YAW_DELTA_RAD,
             )
             changed = {key for key in baseline if physical[key] != baseline[key]}
             self.assertEqual(changed, {expected_key})
@@ -109,14 +120,15 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
         )
         self.assertEqual(
             cradle["recovery_contact_offset_m"],
-            list(PLANNER.CRADLE_ANCHORS[1]["recovery_contact_offset_m"]),
+            [0.0, 0.0030181926],
         )
         self.assertEqual(
             cradle["recovery_left_lift_offset_m"],
-            list(PLANNER.CRADLE_ANCHORS[1]["recovery_left_lift_offset_m"]),
+            [0.0, 0.0, 0.0019304745],
         )
-        self.assertEqual(provenance["anchor_lower_index"], 1)
-        self.assertEqual(provenance["anchor_alpha"], 0.0)
+        self.assertEqual(provenance["anchor_lower_index"], 0)
+        self.assertEqual(provenance["anchor_upper_index"], 1)
+        self.assertEqual(provenance["anchor_alpha"], 0.5)
 
     def test_plan_is_reproducible_and_seed_sensitive(self) -> None:
         first = PLANNER.build_plan(8, 11, "pilot")

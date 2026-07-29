@@ -9,6 +9,7 @@ from parcel_sorter.mobile_task import (
     decode_mobile_bimanual_action,
     limit_mobile_arm_step,
     placement_within_release_gate,
+    update_release_gate_stability,
 )
 
 
@@ -24,6 +25,34 @@ class MobileBimanualActionTests(unittest.TestCase):
         self.assertFalse(
             placement_within_release_gate((0.30, 0.75, 1.47), expected)
         )
+
+    def test_release_gate_stability_applies_to_every_grasp_mode(self) -> None:
+        consecutive = 0
+        completed = False
+        for _ in range(24):
+            consecutive, completed = update_release_gate_stability(
+                attached=True,
+                inside_release_gate=True,
+                consecutive_steps=consecutive,
+            )
+        self.assertEqual(consecutive, 24)
+        self.assertTrue(completed)
+
+        consecutive, completed = update_release_gate_stability(
+            attached=True,
+            inside_release_gate=False,
+            consecutive_steps=consecutive,
+        )
+        self.assertEqual(consecutive, 0)
+        self.assertFalse(completed)
+
+        with self.assertRaisesRegex(ValueError, "required_steps"):
+            update_release_gate_stability(
+                attached=True,
+                inside_release_gate=True,
+                consecutive_steps=0,
+                required_steps=0,
+            )
 
     def test_clamps_cumulative_arm_residual_about_frozen_anchor(self) -> None:
         anchor = (0.40, 0.10, 0.30)

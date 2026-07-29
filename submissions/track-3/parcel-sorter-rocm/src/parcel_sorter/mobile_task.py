@@ -234,6 +234,23 @@ def placement_within_release_gate(
     )
 
 
+def update_release_gate_stability(
+    *,
+    attached: bool,
+    inside_release_gate: bool,
+    consecutive_steps: int,
+    required_steps: int = 24,
+) -> tuple[int, bool]:
+    """Require a stable in-gate landing before any grasp mode releases."""
+
+    if consecutive_steps < 0:
+        raise ValueError("consecutive_steps cannot be negative")
+    if required_steps <= 0:
+        raise ValueError("required_steps must be positive")
+    updated = consecutive_steps + 1 if attached and inside_release_gate else 0
+    return updated, updated >= required_steps
+
+
 def _decode_arm(values: tuple[float, ...]) -> ArmCartesianCommand:
     quat = values[3:7]
     norm = math.sqrt(sum(value * value for value in quat))
