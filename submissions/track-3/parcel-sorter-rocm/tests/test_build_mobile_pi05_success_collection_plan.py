@@ -30,6 +30,8 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
         episodes = plan["episodes"]
 
         self.assertEqual(len(episodes), 30)
+        self.assertEqual(plan["collection_id"], "parcel-success-pilot-v3")
+        self.assertEqual(plan["protocol"], "pi05-success-anchor-mixture-collection-v3")
         self.assertEqual(len({item["episode_id"] for item in episodes}), 30)
         self.assertEqual(len({item["source_identity"] for item in episodes}), 30)
         self.assertEqual(
@@ -56,6 +58,36 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
             {item["profile"] for item in top},
             {"micro_box", "flat_mailer", "small_carton"},
         )
+        self.assertEqual(
+            {item["parameter_envelope_revision"] for item in top},
+            {"top-success-anchor-path-v3"},
+        )
+        self.assertTrue(all("anchor_provenance" in item for item in top))
+        cradle = [
+            item for item in episodes if item["grasp_mode"] == "cooperative_cradle"
+        ]
+        self.assertEqual(
+            {item["parameter_envelope_revision"] for item in cradle},
+            {"cradle-success-anchor-path-v3"},
+        )
+        self.assertTrue(all("anchor_provenance" in item for item in cradle))
+
+    def test_anchor_paths_preserve_joint_success_parameters(self) -> None:
+        for profile, anchors in PLANNER.TOP_SUCTION_ANCHORS.items():
+            first, first_source = PLANNER._interpolate_anchor_path(anchors, 0.0)
+            last, last_source = PLANNER._interpolate_anchor_path(anchors, 1.0)
+            self.assertEqual(first, {key: list(value) if isinstance(value, tuple) else value for key, value in anchors[0].items()})
+            self.assertEqual(last, {key: list(value) if isinstance(value, tuple) else value for key, value in anchors[-1].items()})
+            self.assertEqual(first_source["anchor_lower_index"], 0, profile)
+            self.assertEqual(last_source["anchor_upper_index"], len(anchors) - 1, profile)
+
+        midpoint, source = PLANNER._interpolate_anchor_path(
+            PLANNER.CRADLE_ANCHORS, 0.5
+        )
+        self.assertEqual(midpoint["size_m"], list(PLANNER.CRADLE_ANCHORS[1]["size_m"]))
+        self.assertEqual(midpoint["mass_kg"], PLANNER.CRADLE_ANCHORS[1]["mass_kg"])
+        self.assertEqual(source["anchor_lower_index"], 1)
+        self.assertEqual(source["anchor_alpha"], 0.0)
 
     def test_plan_is_reproducible_and_seed_sensitive(self) -> None:
         first = PLANNER.build_plan(8, 11, "pilot")

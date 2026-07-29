@@ -28,11 +28,11 @@
 
 先运行 30 次先导：三种模式交错，每种最多 10 次。只有每种模式都达到至少 7/10，才允许启动批量采集；如果某模式即使后续全成功也已不可能达到 7/10，立即按 `yield_gate_failed` 停止，不再消耗剩余候选。否则在每种模式达到 10 次后，任一模式低于 70% 时自动停止。
 
-参数范围来自已完成成功证据：
+参数范围来自已完成成功证据。v2 先导在数学上已不可能过门时提前结束，共完成 14 次、保存 7 条成功数据：side suction 为 5/5，top suction 为 1/5，cooperative cradle 为 1/4。失败分析表明 v2 虽然每个字段都落在历史边界内，却把尺寸、质量、摩擦、姿态和起点独立重组，破坏了历史成功样本中的联合相关性。v3 因此采用成功锚点路径混合：在相邻成功锚点之间对全部物理字段使用同一个插值系数，不做各字段独立笛卡尔重组。
 
-- top suction：`micro_box`、`flat_mailer`、`small_carton` 的 nominal 专家轨迹分别已有 5/5 成功。普通示范不得注入 recovery 接触偏移；v1 先导错误注入 2--7 mm 偏移后只有 2/10 成功且峰值接触力达到 33--50 N。
+- top suction：锚点分别取自 `micro_v4_physical_cups`、`flat_mailer_v4_quasistatic` 和 `small_carton_v2_load_aware` 的各 5/5 成功轨迹。v3 在每类包裹自己的 5 个联合锚点之间分段插值；普通示范不得注入 recovery 接触偏移。v1 先导错误注入 2--7 mm 偏移后只有 2/10 成功且峰值接触力达到 33--50 N。
 - side suction：以 `pi05-side-recovery-v2` 的 8/8 成功范围为中心，只保留已验证的 5.5--6.5 mm 接触偏移、0.25--0.75 mm 压入和 0.60 垂向速度比例。
-- cooperative cradle：以 `pi05-cradle-contact-memory-v6` 的成功点为中心，只做小幅局部扰动；若 10 条先导未达到 70%，先做单因素包络扩展，不直接批量采集。
+- cooperative cradle：锚点取自 `pi05-cradle-contact-memory-v6` 的两条成功轨迹，以及 v2 先导唯一成功的 `cooperative_cradle-0003`。三点间对箱体参数、起点、接触偏移和双臂抬升偏移做联合路径插值；不再分别扰动各字段。
 
 完整成功要求抓取、保持、搬运、正确投放、释放、35 N 力门和传感器完整性全部通过。失败尝试只进入 failure telemetry。
 

@@ -15,6 +15,58 @@ DESIGN_CELLS_PER_MODE = 8
 TARGET_SUCCESSES_PER_MODE = 500
 DEFAULT_PILOT_ATTEMPTS_PER_MODE = 10
 DEFAULT_BULK_ATTEMPTS_PER_MODE = 960
+COLLECTION_REVISION = 3
+
+
+TOP_SUCTION_ANCHORS: dict[str, tuple[dict[str, Any], ...]] = {
+    "micro_box": (
+        {"size_m": (0.064, 0.0375, 0.0285), "mass_kg": 0.08, "friction": 0.355, "offset_m": (0.0, 0.0), "yaw_rad": 0.0},
+        {"size_m": (0.072, 0.0425, 0.0355), "mass_kg": 0.14, "friction": 0.465, "offset_m": (0.01, 0.0), "yaw_rad": -0.12},
+        {"size_m": (0.080, 0.0475, 0.0425), "mass_kg": 0.20, "friction": 0.575, "offset_m": (-0.01, 0.0), "yaw_rad": 0.12},
+        {"size_m": (0.088, 0.0525, 0.0495), "mass_kg": 0.26, "friction": 0.685, "offset_m": (0.0, 0.01), "yaw_rad": -0.25},
+        {"size_m": (0.096, 0.0575, 0.0565), "mass_kg": 0.32, "friction": 0.795, "offset_m": (0.0, -0.01), "yaw_rad": 0.25},
+    ),
+    "flat_mailer": (
+        {"size_m": (0.132, 0.043, 0.017), "mass_kg": 0.10, "friction": 0.355, "offset_m": (0.0, 0.0), "yaw_rad": 0.0},
+        {"size_m": (0.156, 0.049, 0.021), "mass_kg": 0.20, "friction": 0.465, "offset_m": (0.01, 0.0), "yaw_rad": -0.12},
+        {"size_m": (0.180, 0.055, 0.025), "mass_kg": 0.30, "friction": 0.575, "offset_m": (-0.01, 0.0), "yaw_rad": 0.12},
+        {"size_m": (0.204, 0.061, 0.029), "mass_kg": 0.40, "friction": 0.685, "offset_m": (0.0, 0.01), "yaw_rad": -0.25},
+        {"size_m": (0.228, 0.067, 0.033), "mass_kg": 0.50, "friction": 0.795, "offset_m": (0.0, -0.01), "yaw_rad": 0.25},
+    ),
+    "small_carton": (
+        {"size_m": (0.108, 0.048, 0.047), "mass_kg": 0.18, "friction": 0.415, "offset_m": (0.0, 0.0), "yaw_rad": 0.0},
+        {"size_m": (0.124, 0.054, 0.061), "mass_kg": 0.34, "friction": 0.545, "offset_m": (0.01, 0.0), "yaw_rad": -0.12},
+        {"size_m": (0.140, 0.060, 0.075), "mass_kg": 0.50, "friction": 0.675, "offset_m": (-0.01, 0.0), "yaw_rad": 0.12},
+        {"size_m": (0.156, 0.066, 0.089), "mass_kg": 0.66, "friction": 0.805, "offset_m": (0.0, 0.01), "yaw_rad": -0.25},
+        {"size_m": (0.172, 0.072, 0.103), "mass_kg": 0.82, "friction": 0.935, "offset_m": (0.0, -0.01), "yaw_rad": 0.25},
+    ),
+}
+
+
+CRADLE_ANCHORS: tuple[dict[str, Any], ...] = (
+    {
+        "size_m": (1.44, 0.12, 0.18), "mass_kg": 0.40, "friction": 0.90,
+        "offset_m": (0.0, 0.0), "yaw_rad": 0.0,
+        "recovery_contact_offset_m": (0.0, 0.003),
+        "recovery_left_lift_offset_m": (0.0, 0.0, 0.001),
+        "recovery_right_lift_offset_m": (0.0, 0.002, -0.002),
+    },
+    {
+        "size_m": (1.4321296472, 0.1199037221, 0.1794835375),
+        "mass_kg": 0.3931360763, "friction": 0.8991358094,
+        "offset_m": (-0.0001730431, 0.0000449646), "yaw_rad": 0.0005176872,
+        "recovery_contact_offset_m": (0.0, 0.0031333214),
+        "recovery_left_lift_offset_m": (0.0, 0.0, 0.0014904944),
+        "recovery_right_lift_offset_m": (0.000115959, 0.001951355, -0.0020593837),
+    },
+    {
+        "size_m": (1.44, 0.12, 0.18), "mass_kg": 0.40, "friction": 0.90,
+        "offset_m": (0.0, 0.0), "yaw_rad": 0.0,
+        "recovery_contact_offset_m": (0.0, 0.003),
+        "recovery_left_lift_offset_m": (0.0, 0.0, 0.002),
+        "recovery_right_lift_offset_m": (0.0, 0.002, -0.002),
+    },
+)
 
 
 def _stratified(count: int, rng: random.Random) -> list[float]:
@@ -31,52 +83,59 @@ def _dimensions(count: int, rng: random.Random, dimensions: int) -> list[list[fl
     return [_stratified(count, rng) for _ in range(dimensions)]
 
 
+def _interpolate_anchor_path(
+    anchors: tuple[dict[str, Any], ...], fraction: float
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    position = min(max(float(fraction), 0.0), 1.0) * (len(anchors) - 1)
+    lower_index = min(int(position), len(anchors) - 1)
+    upper_index = min(lower_index + 1, len(anchors) - 1)
+    alpha = position - lower_index
+    lower = anchors[lower_index]
+    upper = anchors[upper_index]
+    interpolated: dict[str, Any] = {}
+    for key, lower_value in lower.items():
+        upper_value = upper[key]
+        if isinstance(lower_value, (tuple, list)):
+            interpolated[key] = [
+                _lerp(float(first), float(second), alpha)
+                for first, second in zip(lower_value, upper_value, strict=True)
+            ]
+        else:
+            interpolated[key] = _lerp(
+                float(lower_value), float(upper_value), alpha
+            )
+    return interpolated, {
+        "anchor_lower_index": lower_index,
+        "anchor_upper_index": upper_index,
+        "anchor_alpha": round(alpha, 10),
+    }
+
+
 def _top_suction(
     index: int, count: int, fractions: list[list[float]]
 ) -> dict[str, Any]:
-    profile, size_ranges, mass_range, friction_range = (
-        (
-            "micro_box",
-            ((0.064, 0.088), (0.0375, 0.0525), (0.0285, 0.0495)),
-            (0.08, 0.26),
-            (0.355, 0.685),
-        ),
-        (
-            "flat_mailer",
-            ((0.132, 0.204), (0.043, 0.061), (0.017, 0.029)),
-            (0.10, 0.40),
-            (0.355, 0.685),
-        ),
-        (
-            "small_carton",
-            ((0.108, 0.156), (0.048, 0.066), (0.047, 0.089)),
-            (0.18, 0.66),
-            (0.415, 0.805),
-        ),
-    )[index % 3]
+    profile = ("micro_box", "flat_mailer", "small_carton")[index % 3]
+    physical, anchor_provenance = _interpolate_anchor_path(
+        TOP_SUCTION_ANCHORS[profile], fractions[0][index]
+    )
     return {
         "profile": profile,
         "shape": "box",
         "orientation_mode": "yaw",
-        "yaw_rad": _lerp(-0.12, 0.12, fractions[0][index]),
+        "yaw_rad": physical["yaw_rad"],
         "handling_class": "parallel_jaw",
         "grasp_mode": "top_suction",
         "minimum_sealed_cups": 1,
         "cooperative_cradle": False,
-        "size_m": [
-            _lerp(low, high, fractions[offset + 1][index])
-            for offset, (low, high) in enumerate(size_ranges)
-        ],
-        "mass_kg": _lerp(*mass_range, fractions[4][index]),
-        "friction": _lerp(*friction_range, fractions[5][index]),
-        "offset_m": [
-            _lerp(-0.006, 0.006, fractions[6][index]),
-            _lerp(-0.006, 0.006, fractions[7][index]),
-        ],
+        "size_m": physical["size_m"],
+        "mass_kg": physical["mass_kg"],
+        "friction": physical["friction"],
+        "offset_m": physical["offset_m"],
         # The 5/5 successful top-suction evidence used the nominal controller.
         # Recovery offsets are corrective trajectories, not generic demonstrations.
         "retry_index": 0,
-        "parameter_envelope_revision": "top-nominal-grasp-routing-v2",
+        "parameter_envelope_revision": "top-success-anchor-path-v3",
+        "anchor_provenance": anchor_provenance,
         "task_text": (
             f"Pick up the {profile.replace('_', ' ')} with top suction and place it "
             "at the marked parcel destination."
@@ -128,46 +187,32 @@ def _side_suction(
 def _cooperative_cradle(
     index: int, count: int, fractions: list[list[float]]
 ) -> dict[str, Any]:
+    physical, anchor_provenance = _interpolate_anchor_path(
+        CRADLE_ANCHORS, fractions[0][index]
+    )
     return {
         "profile": "large_rectangular_carton_boundary",
         "shape": "box",
         "orientation_mode": "yaw",
-        "yaw_rad": _lerp(-0.01, 0.01, fractions[0][index]),
+        "yaw_rad": physical["yaw_rad"],
         "handling_class": "cradle_required",
         "grasp_mode": "cooperative_cradle",
         "minimum_sealed_cups": 1,
         "cooperative_cradle": True,
         "cradle_contact_memory": True,
-        "size_m": [
-            _lerp(1.43, 1.45, fractions[1][index]),
-            _lerp(0.118, 0.122, fractions[2][index]),
-            _lerp(0.178, 0.182, fractions[3][index]),
-        ],
-        "mass_kg": _lerp(0.38, 0.42, fractions[4][index]),
-        "friction": _lerp(0.88, 0.92, fractions[5][index]),
-        "offset_m": [
-            _lerp(-0.001, 0.001, fractions[6][index]),
-            _lerp(-0.001, 0.001, fractions[7][index]),
-        ],
-        "recovery_contact_offset_m": [
-            0.0,
-            _lerp(0.0028, 0.0032, fractions[9][index]),
-        ],
+        "size_m": physical["size_m"],
+        "mass_kg": physical["mass_kg"],
+        "friction": physical["friction"],
+        "offset_m": physical["offset_m"],
+        "recovery_contact_offset_m": physical["recovery_contact_offset_m"],
         "recovery_contact_penetration_delta_m": 0.0,
         "recovery_cradle_engagement_delta_m": 0.0,
-        "recovery_left_lift_offset_m": [
-            0.0,
-            0.0,
-            _lerp(0.001, 0.002, fractions[10][index]),
-        ],
-        "recovery_right_lift_offset_m": [
-            _lerp(-0.00025, 0.00025, fractions[11][index]),
-            _lerp(0.0018, 0.0022, fractions[12][index]),
-            _lerp(-0.0022, -0.0018, fractions[13][index]),
-        ],
+        "recovery_left_lift_offset_m": physical["recovery_left_lift_offset_m"],
+        "recovery_right_lift_offset_m": physical["recovery_right_lift_offset_m"],
         "recovery_vertical_speed_scale": 1.0,
         "retry_index": 2,
-        "parameter_envelope_revision": "cradle-contact-memory-v6-local",
+        "parameter_envelope_revision": "cradle-success-anchor-path-v3",
+        "anchor_provenance": anchor_provenance,
         "task_text": (
             "Pick up the large rectangular carton with cooperative cradle control "
             "and place it at the marked parcel destination."
@@ -210,14 +255,14 @@ def build_plan(attempts_per_mode: int, seed: int, phase: str) -> dict[str, Any]:
             item = builder(index, attempts_per_mode, fractions)
             item.update(
                 {
-                    "episode_id": f"parcel-success-{phase}-v2-{mode}-{index:04d}",
+                    "episode_id": f"parcel-success-{phase}-v{COLLECTION_REVISION}-{mode}-{index:04d}",
                     "design_cell": (
                         f"{mode}-cell-{index % DESIGN_CELLS_PER_MODE:02d}"
                     ),
                     "split": "collection_candidate",
                     "demonstration_provenance": "deterministic_expert_candidate",
                     "source_identity": (
-                        f"parcel-success-{phase}-v2/{mode}/{index:04d}"
+                        f"parcel-success-{phase}-v{COLLECTION_REVISION}/{mode}/{index:04d}"
                     ),
                 }
             )
@@ -242,8 +287,8 @@ def build_plan(attempts_per_mode: int, seed: int, phase: str) -> dict[str, Any]:
     }
     return {
         "schema_version": 1,
-        "collection_id": f"parcel-success-{phase}-v2",
-        "protocol": "pi05-diversity-balanced-success-collection-v2",
+        "collection_id": f"parcel-success-{phase}-v{COLLECTION_REVISION}",
+        "protocol": "pi05-success-anchor-mixture-collection-v3",
         "seed": seed,
         "phase": phase,
         "attempts_per_mode": attempts_per_mode,
