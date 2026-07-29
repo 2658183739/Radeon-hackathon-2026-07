@@ -33,6 +33,20 @@ ROOT = Path(__file__).parents[1]
 
 
 class MobilePI05TrainingContractTests(unittest.TestCase):
+    def test_weighted_entry_receives_frozen_shell_configuration(self) -> None:
+        script = (ROOT / "scripts/train_mobile_pi05_rocm.sh").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            "MOBILE_PI05_MODE_LOSS_WEIGHT",
+            "MOBILE_PI05_ACTION_CONTRACT",
+            "MOBILE_PI05_FULL_ACTION_PROJECTIONS",
+            "MOBILE_PI05_STAGE_LOSS_WEIGHTS",
+            "MOBILE_PI05_MODE_FLOW_LOSS_WEIGHTS",
+        )
+        for name in required:
+            self.assertIn(f'export {name}="', script)
+
     def _dataset(self, root: Path) -> None:
         (root / "meta").mkdir(parents=True)
         (root / "meta" / "info.json").write_text(

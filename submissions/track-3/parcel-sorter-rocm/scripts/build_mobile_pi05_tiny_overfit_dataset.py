@@ -28,6 +28,13 @@ GENERATED_FEATURES = {
     "task_index",
 }
 EXPECTED_ROWS = len(PI05_GRASP_MODES) * len(PI05_TASK_STAGES)
+QUANTILES = {
+    "q01": 0.01,
+    "q10": 0.10,
+    "q50": 0.50,
+    "q90": 0.90,
+    "q99": 0.99,
+}
 
 
 def validate_source_panel(panel: Mapping[str, Any], source_root: Path) -> list[dict[str, Any]]:
@@ -143,6 +150,28 @@ def _content_sha256(frame: Mapping[str, Any], feature_names: list[str]) -> str:
     return digest.hexdigest()
 
 
+def vector_stats(rows: list[Any]) -> dict[str, list[float | int]]:
+    """Compute true global vector statistics instead of aggregating one-row quantiles."""
+
+    import numpy as np
+
+    values = np.stack([_array(row).reshape(-1) for row in rows]).astype(np.float64)
+    result: dict[str, list[float | int]] = {
+        "min": values.min(axis=0).tolist(),
+        "max": values.max(axis=0).tolist(),
+        "mean": values.mean(axis=0).tolist(),
+        "std": values.std(axis=0).tolist(),
+        "count": [int(values.shape[0])],
+    }
+    result.update(
+        {
+            name: np.quantile(values, quantile, axis=0).tolist()
+            for name, quantile in QUANTILES.items()
+        }
+    )
+    return result
+
+
 def build_dataset(source_root: Path, panel_path: Path, output_root: Path) -> dict[str, Any]:
     try:
         from lerobot.datasets.lerobot_dataset import LeRobotDataset
@@ -190,6 +219,10 @@ def build_dataset(source_root: Path, panel_path: Path, output_root: Path) -> dic
     )
     remapped = remap_tiny_observations(observations)
     row_records = []
+    normalization_rows: dict[str, list[Any]] = {
+        "observation.state": [],
+        "action": [],
+    }
     for item in remapped:
         source_index = int(item["source_dataset_index"])
         if not 0 <= source_index < len(source):
@@ -205,6 +238,8 @@ def build_dataset(source_root: Path, panel_path: Path, output_root: Path) -> dic
             for name, definition in features.items()
         }
         payload["task"] = _task_text(frame["task"])
+        for feature_name in normalization_rows:
+            normalization_rows[feature_name].append(payload[feature_name])
         content_sha256 = _content_sha256(
             frame,
             [
@@ -226,6 +261,14 @@ def build_dataset(source_root: Path, panel_path: Path, output_root: Path) -> dic
                 "content_sha256": content_sha256,
             }
         )
+
+    stats_path = output_root / "meta/stats.json"
+    stats = json.loads(stats_path.read_text(encoding="utf-8"))
+    for feature_name, rows in normalization_rows.items():
+        stats[feature_name] = vector_stats(rows)
+    stats_path.write_text(
+        json.dumps(stats, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     output_info = json.loads((output_root / "meta/info.json").read_text(encoding="utf-8"))
     if int(output_info.get("total_frames", -1)) != EXPECTED_ROWS:
@@ -302,7 +345,7 @@ def build_dataset(source_root: Path, panel_path: Path, output_root: Path) -> dic
         "manifest_sha256": file_sha256(manifest_path),
         "panel": str(output_panel_path),
         "panel_sha256": output_panel["panel_sha256"],
-        "stats_sha256": file_sha256(output_root / "meta/stats.json"),
+        "stats_sha256": file_sha256(stats_path),
         "performance_data": False,
     }
     (output_root / "TINY_OVERFIT_BUILD_AUDIT.json").write_text(

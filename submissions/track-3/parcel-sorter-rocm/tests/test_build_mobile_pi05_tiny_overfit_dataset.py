@@ -4,6 +4,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
+import numpy as np
+
 from parcel_sorter.mobile_pi05_contract import PI05_GRASP_MODES
 from parcel_sorter.mobile_pi05_research_protocol import (
     PI05_TASK_STAGES,
@@ -61,6 +63,17 @@ def _panel(dataset_root: Path) -> dict:
 
 
 class BuildMobilePI05TinyOverfitDatasetTests(unittest.TestCase):
+    def test_recomputes_global_quantiles_across_single_frame_episodes(self) -> None:
+        stats = BUILDER.vector_stats(
+            [np.asarray([0.0, 2.0]), np.asarray([1.0, 2.0])]
+        )
+
+        self.assertEqual(stats["count"], [2])
+        self.assertEqual(stats["min"], [0.0, 2.0])
+        self.assertEqual(stats["max"], [1.0, 2.0])
+        self.assertGreater(stats["q99"][0] - stats["q01"][0], 0.0)
+        self.assertEqual(stats["q99"][1] - stats["q01"][1], 0.0)
+
     def test_remaps_exact_cells_to_one_frame_episodes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
