@@ -38,6 +38,7 @@ def main() -> int:
         "--mode-head-pooling", default=PI05_MODE_HEAD_POOLING_MASKED_MEAN
     )
     parser.add_argument("--mode-head-class-weights")
+    parser.add_argument("--stage-loss-weights")
     args = parser.parse_args()
     mode_head_pooling = normalize_pi05_mode_head_pooling(args.mode_head_pooling)
     if not args.mode_head and mode_head_pooling != PI05_MODE_HEAD_POOLING_MASKED_MEAN:
@@ -57,6 +58,19 @@ def main() -> int:
         raise ValueError("mode-head class weights must contain three positive values")
     if mode_head_class_weights is not None and not args.mode_head:
         raise ValueError("mode-head class weights require --mode-head")
+    stage_loss_weights = (
+        [float(value) for value in args.stage_loss_weights.split(",")]
+        if args.stage_loss_weights
+        else None
+    )
+    if stage_loss_weights is not None and (
+        len(stage_loss_weights) != 6
+        or any(
+            not math.isfinite(value) or value <= 0.0
+            for value in stage_loss_weights
+        )
+    ):
+        raise ValueError("stage loss weights must contain six positive values")
     payload = build_pi05_training_contract(
         args.dataset_root,
         base_model=args.base_model,
@@ -68,6 +82,7 @@ def main() -> int:
             pi05_mode_head_protocol(mode_head_pooling) if args.mode_head else None
         ),
         mode_head_class_weights=mode_head_class_weights,
+        stage_loss_weights=stage_loss_weights,
         action_projection_protocol=(
             PI05_FULL_ACTION_PROJECTION_PROTOCOL
             if args.full_action_projections

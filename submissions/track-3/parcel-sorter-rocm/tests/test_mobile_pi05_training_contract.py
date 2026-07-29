@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +20,9 @@ from parcel_sorter.mobile_pi05_training_contract import (
     with_pi05_architecture_protocols,
 )
 from parcel_sorter.pi05_weighted_loss import PI05_STAGE_LOSS_WEIGHTING_SCOPE
+
+
+ROOT = Path(__file__).parents[1]
 
 
 class MobilePI05TrainingContractTests(unittest.TestCase):
@@ -242,6 +248,50 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
                 chunk_size=30,
                 required_stage_loss_weights=[1.0] * 6,
             )
+
+    def test_contract_cli_records_stage_loss_weights(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            dataset = root / "dataset"
+            output = root / "output"
+            self._absolute_dataset(dataset)
+            env = os.environ.copy()
+            env["PYTHONPATH"] = os.pathsep.join(
+                filter(None, (str(ROOT / "src"), env.get("PYTHONPATH")))
+            )
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "write_mobile_pi05_training_contract.py"),
+                    "--dataset-root",
+                    str(dataset),
+                    "--output-dir",
+                    str(output),
+                    "--base-model",
+                    "pi05_base",
+                    "--base-revision",
+                    "abc",
+                    "--chunk-size",
+                    "30",
+                    "--n-action-steps",
+                    "1",
+                    "--stage-loss-weights",
+                    "2,2,1.25,0.5,0.75,0.5",
+                ],
+                check=True,
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            contract = json.loads(
+                (output / "PI05_TRAINING_CONTRACT.json").read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(contract["stage_loss_weights"], [2, 2, 1.25, 0.5, 0.75, 0.5])
+        self.assertEqual(
+            contract["stage_loss_weighting_scope"], PI05_STAGE_LOSS_WEIGHTING_SCOPE
+        )
 
     def test_visual_contract_rejects_checkpoint_dataset_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
