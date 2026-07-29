@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare B3 incremental-SE(3) action fidelity with the frozen B2 control."""
+"""Compare a PI0.5 action-fidelity candidate with the frozen B2 control."""
 
 from __future__ import annotations
 
@@ -19,11 +19,56 @@ PANEL_ROLE = "training_distribution_development"
 CONTROL_CONTRACT = "pi05_absolute_v1"
 CANDIDATE_CONTRACT = "pi05_incremental_se3_v1"
 PROTOCOL = "pi05-paired-action-fidelity-ablation-v1"
+STAGE_WEIGHTED_PROTOCOL = "pi05-paired-stage-weighted-action-fidelity-ablation-v1"
+STAGE_WEIGHTED_CANDIDATE = "B3-SW"
+STAGE_WEIGHTING_FACTOR = "task_stage_flow_loss_weight"
+STAGE_WEIGHTING_SCOPE = "flow_loss_only_before_auxiliary_losses_v1"
 POSITION_SCALE_M = 0.06
 ORIENTATION_SCALE_RAD = 0.60
 BOOTSTRAP_ALPHA = 0.05
 SIGN_TEST_ALPHA = 0.05
 TOLERANCE = 1e-12
+
+
+def _comparison_design(config: dict[str, Any] | None) -> dict[str, Any]:
+    """Resolve the immutable action contracts and promotion gates for one ablation."""
+
+    if config is None or config.get("candidate") == "B3":
+        return {
+            "candidate": "B3",
+            "control_contract": CONTROL_CONTRACT,
+            "candidate_contract": CANDIDATE_CONTRACT,
+            "protocol": PROTOCOL,
+            "require_sign_test": True,
+            "enforce_earliest_passing": False,
+        }
+    if config.get("candidate") == STAGE_WEIGHTED_CANDIDATE:
+        factor = config.get("isolated_factor") or {}
+        weights = factor.get("treatment")
+        if factor.get("name") != STAGE_WEIGHTING_FACTOR:
+            raise ValueError("B3-SW preregistration has the wrong isolated factor")
+        if factor.get("scope") != STAGE_WEIGHTING_SCOPE:
+            raise ValueError("B3-SW preregistration has the wrong weighting scope")
+        if (
+            not isinstance(weights, list)
+            or len(weights) != 6
+            or any(
+                not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or float(value) <= 0.0
+                for value in weights
+            )
+        ):
+            raise ValueError("B3-SW preregistration has invalid stage weights")
+        return {
+            "candidate": STAGE_WEIGHTED_CANDIDATE,
+            "control_contract": CONTROL_CONTRACT,
+            "candidate_contract": CONTROL_CONTRACT,
+            "protocol": STAGE_WEIGHTED_PROTOCOL,
+            "require_sign_test": False,
+            "enforce_earliest_passing": True,
+        }
+    raise ValueError("unsupported action-fidelity candidate preregistration")
 
 
 def _sha256(path: Path) -> str:
@@ -183,59 +228,85 @@ def compare_action_fidelity(
     resolved_candidates = [path.resolve() for path in candidate_paths]
     if len(set(resolved_candidates)) != len(resolved_candidates):
         raise ValueError("candidate screen paths must be unique")
-    if selected_candidate_path is None:
-        if len(resolved_candidates) != 1:
-            raise ValueError("selected_candidate_path is required for multiple candidates")
-        selected_candidate_path = resolved_candidates[0]
-    selected_candidate_path = selected_candidate_path.resolve()
-    if selected_candidate_path not in resolved_candidates:
-        raise ValueError("selected candidate is not in the candidate screen panel")
-
-    control = _read_screen(control_path, CONTROL_CONTRACT)
     config = None
     config_sha256 = None
     if preregistered_config_path is not None:
         preregistered_config_path = preregistered_config_path.resolve()
         config = _read_json(preregistered_config_path)
-        if config.get("candidate") != "B3":
-            raise ValueError("preregistered config is not the B3 ablation")
-        factor = config.get("isolated_factor") or {}
-        if factor.get("treatment") != "incremental_se3_v1":
-            raise ValueError("preregistered config does not bind incremental SE(3)")
         config_sha256 = _sha256(preregistered_config_path)
+    design = _comparison_design(config)
+    if selected_candidate_path is not None:
+        selected_candidate_path = selected_candidate_path.resolve()
+        if selected_candidate_path not in resolved_candidates:
+            raise ValueError("selected candidate is not in the candidate screen panel")
+    elif not design["enforce_earliest_passing"]:
+        if len(resolved_candidates) != 1:
+            raise ValueError("selected_candidate_path is required for multiple candidates")
+        selected_candidate_path = resolved_candidates[0]
+
+    control = _read_screen(control_path, design["control_contract"])
+    if config is not None:
+        factor = config.get("isolated_factor") or {}
+        if design["candidate"] == "B3" and factor.get("treatment") != "incremental_se3_v1":
+            raise ValueError("preregistered config does not bind incremental SE(3)")
         control_config = config.get("control") or {}
         if control_config.get("screen_sha256") != _sha256(control_path):
             raise ValueError("control screen does not match the preregistered hash")
-        if control_config.get("action_contract") != CONTROL_CONTRACT:
-            raise ValueError("preregistered control action contract is invalid")
-        paired_config = config.get("paired_units") or {}
-        if int(paired_config.get("count", -1)) != expected_count:
-            raise ValueError("preregistered paired-unit count does not match")
-        if tuple(int(seed) for seed in paired_config.get("sample_seeds", ())) != tuple(
-            int(seed) for seed in control["sample_seeds"]
-        ):
-            raise ValueError("control seeds do not match the preregistered panel")
-        control_rows_for_config = _rows_by_key(control, expected_count)
-        ordered_control_keys = sorted(
-            control_rows_for_config, key=lambda item: (item[1], item[0])
-        )
-        if [key[1] for key in ordered_control_keys] != [
-            int(index) for index in paired_config.get("dataset_indices", ())
-        ]:
-            raise ValueError("control indices do not match the preregistered panel")
-        if [key[0] for key in ordered_control_keys] != [
-            str(mode) for mode in paired_config.get("expected_modes", ())
-        ]:
-            raise ValueError("control modes do not match the preregistered panel")
-        endpoint_config = config.get("primary_endpoint") or {}
-        if float(endpoint_config.get("position_scale_m", math.nan)) != POSITION_SCALE_M:
-            raise ValueError("preregistered position scale does not match")
-        if float(endpoint_config.get("orientation_scale_rad", math.nan)) != ORIENTATION_SCALE_RAD:
-            raise ValueError("preregistered orientation scale does not match")
+        if design["candidate"] == "B3":
+            if control_config.get("action_contract") != CONTROL_CONTRACT:
+                raise ValueError("preregistered control action contract is invalid")
+            paired_config = config.get("paired_units") or {}
+            if int(paired_config.get("count", -1)) != expected_count:
+                raise ValueError("preregistered paired-unit count does not match")
+            if tuple(int(seed) for seed in paired_config.get("sample_seeds", ())) != tuple(
+                int(seed) for seed in control["sample_seeds"]
+            ):
+                raise ValueError("control seeds do not match the preregistered panel")
+            control_rows_for_config = _rows_by_key(control, expected_count)
+            ordered_control_keys = sorted(
+                control_rows_for_config, key=lambda item: (item[1], item[0])
+            )
+            if [key[1] for key in ordered_control_keys] != [
+                int(index) for index in paired_config.get("dataset_indices", ())
+            ]:
+                raise ValueError("control indices do not match the preregistered panel")
+            if [key[0] for key in ordered_control_keys] != [
+                str(mode) for mode in paired_config.get("expected_modes", ())
+            ]:
+                raise ValueError("control modes do not match the preregistered panel")
+            endpoint_config = config.get("primary_endpoint") or {}
+            if float(endpoint_config.get("position_scale_m", math.nan)) != POSITION_SCALE_M:
+                raise ValueError("preregistered position scale does not match")
+            if float(endpoint_config.get("orientation_scale_rad", math.nan)) != ORIENTATION_SCALE_RAD:
+                raise ValueError("preregistered orientation scale does not match")
+        else:
+            if config.get("frozen_before_candidate_training") is not True:
+                raise ValueError("B3-SW preregistration was not frozen before training")
+            if control_config.get("name") != "B2":
+                raise ValueError("B3-SW preregistration has the wrong control")
+            selection = config.get("selection") or {}
+            if selection.get("rule") != (
+                "earliest checkpoint passing the complete six-observation route "
+                "and action-fidelity development gate"
+            ):
+                raise ValueError("B3-SW preregistration has the wrong selection rule")
+            promotion = config.get("promotion_gate") or {}
+            if int(promotion.get("paired_action_fidelity_units", -1)) != expected_count:
+                raise ValueError("B3-SW paired-unit count does not match")
+            if promotion.get("zero_paired_pose_error_regressions") is not True:
+                raise ValueError("B3-SW zero-regression gate is not frozen")
+            if promotion.get("mean_normalized_pose_error_improvement_strictly_positive") is not True:
+                raise ValueError("B3-SW positive-mean gate is not frozen")
+            if float(
+                promotion.get(
+                    "one_sided_95pct_bootstrap_lower_bound_minimum", math.nan
+                )
+            ) != 0.0:
+                raise ValueError("B3-SW bootstrap threshold does not match")
 
     comparisons = []
     for candidate_path in resolved_candidates:
-        candidate = _read_screen(candidate_path, CANDIDATE_CONTRACT)
+        candidate = _read_screen(candidate_path, design["candidate_contract"])
         control_rows, candidate_rows = _validate_pairing(
             control, candidate, expected_count
         )
@@ -272,8 +343,15 @@ def compare_action_fidelity(
             "one_sided_95pct_bootstrap_lower_bound_nonnegative": (
                 lower_bound >= -TOLERANCE
             ),
-            "one_sided_exact_sign_test_p_le_0_05": sign_pvalue <= SIGN_TEST_ALPHA,
         }
+        if design["require_sign_test"]:
+            gates["one_sided_exact_sign_test_p_le_0_05"] = (
+                sign_pvalue <= SIGN_TEST_ALPHA
+            )
+        else:
+            gates["complete_route_and_action_fidelity_screen_passed"] = (
+                candidate.get("status") == "passed"
+            )
         comparisons.append(
             {
                 "candidate_screen": str(candidate_path),
@@ -281,7 +359,7 @@ def compare_action_fidelity(
                 "checkpoint": candidate.get("checkpoint"),
                 "step": _checkpoint_step(candidate),
                 "screen_status": candidate.get("status"),
-                "selected": candidate_path == selected_candidate_path,
+                "selected": False,
                 "paired_observations": expected_count,
                 "improved_observations": sum(value > TOLERANCE for value in improvements),
                 "tied_observations": sum(abs(value) <= TOLERANCE for value in improvements),
@@ -309,37 +387,70 @@ def compare_action_fidelity(
 
     comparisons.sort(key=lambda item: int(item["step"]))
     if config is not None:
-        candidate_config = config.get("candidate_panel") or {}
-        if candidate_config.get("action_contract") != CANDIDATE_CONTRACT:
-            raise ValueError("preregistered candidate action contract is invalid")
-        if [item["step"] for item in comparisons] != [
-            int(step) for step in candidate_config.get("checkpoint_steps", ())
-        ]:
+        if design["candidate"] == "B3":
+            candidate_config = config.get("candidate_panel") or {}
+            if candidate_config.get("action_contract") != CANDIDATE_CONTRACT:
+                raise ValueError("preregistered candidate action contract is invalid")
+            expected_steps = [
+                int(step) for step in candidate_config.get("checkpoint_steps", ())
+            ]
+            bootstrap_config = (config.get("confirmatory_analysis") or {}).get(
+                "bootstrap"
+            ) or {}
+            if int(bootstrap_config.get("resamples", -1)) != expected_count**expected_count:
+                raise ValueError("preregistered bootstrap count does not match")
+            promotion_config = config.get("promotion_gate") or {}
+            if float(
+                promotion_config.get(
+                    "one_sided_95pct_bootstrap_lower_bound_minimum", math.nan
+                )
+            ) != 0.0:
+                raise ValueError("preregistered bootstrap promotion threshold does not match")
+            if float(
+                promotion_config.get("one_sided_exact_sign_test_maximum_p", math.nan)
+            ) != SIGN_TEST_ALPHA:
+                raise ValueError("preregistered sign-test threshold does not match")
+        else:
+            expected_steps = [
+                int(step)
+                for step in (config.get("selection") or {}).get(
+                    "checkpoint_steps", ()
+                )
+            ]
+        if [item["step"] for item in comparisons] != expected_steps:
             raise ValueError("candidate steps do not match the preregistered panel")
-        bootstrap_config = (config.get("confirmatory_analysis") or {}).get(
-            "bootstrap"
-        ) or {}
-        if int(bootstrap_config.get("resamples", -1)) != expected_count**expected_count:
-            raise ValueError("preregistered bootstrap count does not match")
-        promotion_config = config.get("promotion_gate") or {}
-        if float(
-            promotion_config.get("one_sided_95pct_bootstrap_lower_bound_minimum", math.nan)
-        ) != 0.0:
-            raise ValueError("preregistered bootstrap promotion threshold does not match")
-        if float(
-            promotion_config.get("one_sided_exact_sign_test_maximum_p", math.nan)
-        ) != SIGN_TEST_ALPHA:
-            raise ValueError("preregistered sign-test threshold does not match")
-    selected = next(item for item in comparisons if item["selected"])
+
+    if design["enforce_earliest_passing"]:
+        eligible = [item for item in comparisons if item["promotion_passed"]]
+        expected_selected_path = (
+            Path(str(eligible[0]["candidate_screen"])) if eligible else None
+        )
+        if (
+            selected_candidate_path is not None
+            and selected_candidate_path != expected_selected_path
+        ):
+            raise ValueError(
+                "selected candidate is not the earliest checkpoint passing the frozen gates"
+            )
+        selected_candidate_path = expected_selected_path
+    assert selected_candidate_path is not None or design["enforce_earliest_passing"]
+    for item in comparisons:
+        item["selected"] = (
+            selected_candidate_path is not None
+            and Path(str(item["candidate_screen"])) == selected_candidate_path
+        )
+    selected = next((item for item in comparisons if item["selected"]), None)
+    promoted = selected is not None and selected["promotion_passed"]
     return {
         "schema_version": 1,
-        "protocol": PROTOCOL,
-        "status": "promoted" if selected["promotion_passed"] else "not_promoted",
+        "protocol": design["protocol"],
+        "candidate": design["candidate"],
+        "status": "promoted" if promoted else "not_promoted",
         "control_screen": str(control_path),
         "control_screen_sha256": _sha256(control_path),
         "control_checkpoint": control.get("checkpoint"),
-        "control_action_contract": CONTROL_CONTRACT,
-        "candidate_action_contract": CANDIDATE_CONTRACT,
+        "control_action_contract": design["control_contract"],
+        "candidate_action_contract": design["candidate_contract"],
         "observation_panel_role": PANEL_ROLE,
         "sample_seeds": [int(seed) for seed in control["sample_seeds"]],
         "endpoint": {
@@ -349,9 +460,11 @@ def compare_action_fidelity(
             "orientation_scale_rad": ORIENTATION_SCALE_RAD,
             "direction": "lower_is_better",
         },
-        "selected_candidate_screen": str(selected_candidate_path),
-        "selected_candidate_step": selected["step"],
-        "selected_candidate_promotion_passed": selected["promotion_passed"],
+        "selected_candidate_screen": (
+            str(selected_candidate_path) if selected_candidate_path is not None else None
+        ),
+        "selected_candidate_step": selected["step"] if selected is not None else None,
+        "selected_candidate_promotion_passed": bool(promoted),
         "comparisons": comparisons,
         "preregistered_config": (
             str(preregistered_config_path)

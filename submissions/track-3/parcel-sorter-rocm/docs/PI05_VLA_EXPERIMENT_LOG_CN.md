@@ -338,3 +338,9 @@ candidate 和 evaluator return code 均为 0，400 个 episode 完整，measurem
 # 2026-07-29 B3-SW 启动恢复
 
 B3-SW v1 在训练前因遥测包装器缺少仓库 `PYTHONPATH` 退出，v2 在该修复后继续暴露训练合同 CLI 未接受 `--stage-loss-weights`；两次均未加载模型、未产生 checkpoint，GPU 利用率为 0，失败目录与日志保持不可变。修复分别提交为 `cd1fd64` 和 `7b5d683`，部署前后源码及 SHA-256 保存在持久化 `artifacts/mobile-pi05-b3-sw-deployment-v2` 与 `mobile-pi05-b3-sw-deployment-v3`。远端对应回归、Python 编译和 shell 语法检查通过后，冻结配置以新路径 `v3` 启动。首轮复核时训练已到 `569/12000`，日志逐步记录 `stage_selected_weight_mean`、未加权/加权 flow loss 和模式头指标，训练显存约 `9.18 GiB`；这证明训练链和冻结权重生效，仍不计作 checkpoint 动作门或快递能力结果。
+
+# 2026-07-29 B3-SW 配对选择器补全
+
+在 B3-SW `v3` 训练约 6k、任何 candidate screen 结果产生之前，编排审计发现既有 `compare_mobile_pi05_action_fidelity.py` 仍写死旧 B3 的 `pi05_incremental_se3_v1` candidate 合同，不能比较动作合同同为 absolute v1 的 B2 与 B3-SW。该缺口不影响训练权重，但会阻断冻结 checkpoint 选择。
+
+比较器新增向后兼容的 B3-SW 设计分支：旧 B3 协议保持不变；B3-SW 强制 control/candidate 均为 `pi05_absolute_v1`，核对冻结 B2 screen SHA、阶段权重因素、筛选步、六个配对单元和三项预注册晋级门，并自动选择最早同时通过完整 screen 与配对门的 checkpoint。若人工指定更晚 checkpoint、screen 失败或所有 candidate 回退，分别 fail closed。实现没有改变已经冻结的权重、阈值、观察、seed 或选择规则，也没有读取尚未生成的 candidate screen 结果。新旧分支联合 9 项选择器回归，加上动作保真、训练合同和动作合同回归共 `39 passed`。

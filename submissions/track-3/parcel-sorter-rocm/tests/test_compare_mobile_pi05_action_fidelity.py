@@ -18,12 +18,22 @@ assert SPEC.loader is not None
 SPEC.loader.exec_module(MODULE)
 
 
-def _screen(path: Path, contract: str, errors: list[tuple[float, float]]) -> Path:
+def _screen(
+    path: Path,
+    contract: str,
+    errors: list[tuple[float, float]],
+    *,
+    step: int | None = None,
+    status: str = "passed",
+) -> Path:
     modes = ("top_suction", "side_suction", "cooperative_cradle")
+    checkpoint_step = step or (
+        3000 if contract == MODULE.CANDIDATE_CONTRACT else 12000
+    )
     payload = {
         "protocol": MODULE.SCREEN_PROTOCOL,
-        "status": "passed",
-        "checkpoint": f"/run/checkpoints/{3000 if contract == MODULE.CANDIDATE_CONTRACT else 12000:06d}/pretrained_model",
+        "status": status,
+        "checkpoint": f"/run/checkpoints/{checkpoint_step:06d}/pretrained_model",
         "action_contract": contract,
         "observation_panel_role": MODULE.PANEL_ROLE,
         "sample_seeds": [20260727, 20260728, 20260729],
@@ -48,6 +58,39 @@ def _screen(path: Path, contract: str, errors: list[tuple[float, float]]) -> Pat
                 },
             }
         )
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def _stage_weighted_config(
+    path: Path, control: Path, checkpoint_steps: list[int]
+) -> Path:
+    payload = {
+        "frozen_before_candidate_training": True,
+        "candidate": MODULE.STAGE_WEIGHTED_CANDIDATE,
+        "isolated_factor": {
+            "name": MODULE.STAGE_WEIGHTING_FACTOR,
+            "treatment": [2.0, 2.0, 1.2, 0.4, 0.6, 0.4],
+            "scope": MODULE.STAGE_WEIGHTING_SCOPE,
+        },
+        "control": {
+            "name": "B2",
+            "screen_sha256": MODULE._sha256(control),
+        },
+        "selection": {
+            "checkpoint_steps": checkpoint_steps,
+            "rule": (
+                "earliest checkpoint passing the complete six-observation route "
+                "and action-fidelity development gate"
+            ),
+        },
+        "promotion_gate": {
+            "paired_action_fidelity_units": 6,
+            "zero_paired_pose_error_regressions": True,
+            "mean_normalized_pose_error_improvement_strictly_positive": True,
+            "one_sided_95pct_bootstrap_lower_bound_minimum": 0.0,
+        },
+    }
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
 
@@ -144,6 +187,129 @@ class CompareMobilePI05ActionFidelityTests(unittest.TestCase):
                     [candidate],
                     preregistered_config_path=config,
                 )
+
+    def test_stage_weighted_selects_earliest_passing_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            control = _screen(
+                root / "control.json",
+                MODULE.CONTROL_CONTRACT,
+                [(0.06, 0.6)] * 6,
+                step=12000,
+            )
+            step_3000 = _screen(
+                root / "step-3000.json",
+                MODULE.CONTROL_CONTRACT,
+                [(0.03, 0.3)] * 6,
+                step=3000,
+            )
+            step_6000 = _screen(
+                root / "step-6000.json",
+                MODULE.CONTROL_CONTRACT,
+                [(0.02, 0.2)] * 6,
+                step=6000,
+            )
+            config = _stage_weighted_config(
+                root / "config.json", control, [3000, 6000]
+            )
+
+            summary = MODULE.compare_action_fidelity(
+                control,
+                [step_6000, step_3000],
+                preregistered_config_path=config,
+            )
+
+        self.assertEqual(summary["protocol"], MODULE.STAGE_WEIGHTED_PROTOCOL)
+        self.assertEqual(summary["status"], "promoted")
+        self.assertEqual(summary["selected_candidate_step"], 3000)
+        self.assertEqual(summary["candidate_action_contract"], MODULE.CONTROL_CONTRACT)
+
+    def test_stage_weighted_excludes_failed_screen(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            control = _screen(
+                root / "control.json", MODULE.CONTROL_CONTRACT, [(0.06, 0.6)] * 6
+            )
+            failed_3000 = _screen(
+                root / "step-3000.json",
+                MODULE.CONTROL_CONTRACT,
+                [(0.03, 0.3)] * 6,
+                step=3000,
+                status="failed",
+            )
+            passed_6000 = _screen(
+                root / "step-6000.json",
+                MODULE.CONTROL_CONTRACT,
+                [(0.03, 0.3)] * 6,
+                step=6000,
+            )
+            config = _stage_weighted_config(
+                root / "config.json", control, [3000, 6000]
+            )
+
+            summary = MODULE.compare_action_fidelity(
+                control,
+                [failed_3000, passed_6000],
+                preregistered_config_path=config,
+            )
+
+        self.assertEqual(summary["selected_candidate_step"], 6000)
+        self.assertFalse(summary["comparisons"][0]["promotion_passed"])
+
+    def test_stage_weighted_rejects_manual_later_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            control = _screen(
+                root / "control.json", MODULE.CONTROL_CONTRACT, [(0.06, 0.6)] * 6
+            )
+            step_3000 = _screen(
+                root / "step-3000.json",
+                MODULE.CONTROL_CONTRACT,
+                [(0.03, 0.3)] * 6,
+                step=3000,
+            )
+            step_6000 = _screen(
+                root / "step-6000.json",
+                MODULE.CONTROL_CONTRACT,
+                [(0.02, 0.2)] * 6,
+                step=6000,
+            )
+            config = _stage_weighted_config(
+                root / "config.json", control, [3000, 6000]
+            )
+
+            with self.assertRaisesRegex(ValueError, "not the earliest checkpoint"):
+                MODULE.compare_action_fidelity(
+                    control,
+                    [step_3000, step_6000],
+                    selected_candidate_path=step_6000,
+                    preregistered_config_path=config,
+                )
+
+    def test_stage_weighted_reports_no_selection_when_all_regress(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            control = _screen(
+                root / "control.json", MODULE.CONTROL_CONTRACT, [(0.06, 0.6)] * 6
+            )
+            candidate = _screen(
+                root / "step-3000.json",
+                MODULE.CONTROL_CONTRACT,
+                [(0.09, 0.9)] * 6,
+                step=3000,
+            )
+            config = _stage_weighted_config(root / "config.json", control, [3000])
+
+            summary = MODULE.compare_action_fidelity(
+                control,
+                [candidate],
+                preregistered_config_path=config,
+            )
+
+        self.assertEqual(summary["status"], "not_promoted")
+        self.assertIsNone(summary["selected_candidate_screen"])
+        self.assertIsNone(summary["selected_candidate_step"])
+        self.assertFalse(summary["selected_candidate_promotion_passed"])
 
 
 if __name__ == "__main__":
