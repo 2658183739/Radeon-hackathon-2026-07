@@ -344,3 +344,5 @@ B3-SW v1 在训练前因遥测包装器缺少仓库 `PYTHONPATH` 退出，v2 在
 在 B3-SW `v3` 训练约 6k、任何 candidate screen 结果产生之前，编排审计发现既有 `compare_mobile_pi05_action_fidelity.py` 仍写死旧 B3 的 `pi05_incremental_se3_v1` candidate 合同，不能比较动作合同同为 absolute v1 的 B2 与 B3-SW。该缺口不影响训练权重，但会阻断冻结 checkpoint 选择。
 
 比较器新增向后兼容的 B3-SW 设计分支：旧 B3 协议保持不变；B3-SW 强制 control/candidate 均为 `pi05_absolute_v1`，核对冻结 B2 screen SHA、阶段权重因素、筛选步、六个配对单元和三项预注册晋级门，并自动选择最早同时通过完整 screen 与配对门的 checkpoint。若人工指定更晚 checkpoint、screen 失败或所有 candidate 回退，分别 fail closed。实现没有改变已经冻结的权重、阈值、观察、seed 或选择规则，也没有读取尚未生成的 candidate screen 结果。新旧分支联合 9 项选择器回归，加上动作保真、训练合同和动作合同回归共 `39 passed`。
+
+新增 `advance_mobile_pi05_b3_sw_after_postscreen_rocm.sh`，只在 post-screen 进程结束、四份 six-observation screen 和四份 high-noise diagnostic 均存在时运行上述配对选择；只有唯一 checkpoint 晋级才执行严格纯 VLA `3/3` development。任何缺失工件、未晋级或人工晚选都会停止，且链路固定 `automatic_confirmation=false`，不会自动打开冻结 105 回合。未来 B3-SW pipeline 已接入该推进器；当前运行中的 `v3` 将使用同一脚本单独挂接，不改动已经启动的 trainer 或 post-screen。
