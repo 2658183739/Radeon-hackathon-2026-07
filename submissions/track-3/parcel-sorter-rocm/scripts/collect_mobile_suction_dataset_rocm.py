@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -113,6 +114,114 @@ def _cli_float(value: Any) -> str:
     return "0" if rendered in {"", "-0"} else rendered
 
 
+def _sha256_file(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _mode_statistics(
+    results: list[dict[str, Any]], modes: list[str]
+) -> dict[str, dict[str, Any]]:
+    statistics = {}
+    for mode in modes:
+        selected = [
+            item
+            for item in results
+            if str((item.get("parameters") or {}).get("grasp_mode")) == mode
+        ]
+        successes = sum(bool(item.get("success")) for item in selected)
+        attempts = len(selected)
+        statistics[mode] = {
+            "attempts": attempts,
+            "successes": successes,
+            "failures": attempts - successes,
+            "success_rate": successes / attempts if attempts else None,
+        }
+    return statistics
+
+
+def _quota_statistics(
+    results: list[dict[str, Any]], quotas: dict[str, int]
+) -> dict[str, Any]:
+    accepted_by_cell = {cell: 0 for cell in quotas}
+    for item in results:
+        if not bool(item.get("success")):
+            continue
+        cell = str((item.get("parameters") or {}).get("design_cell", ""))
+        if cell in accepted_by_cell:
+            accepted_by_cell[cell] += 1
+    remaining_by_cell = {
+        cell: max(0, target - accepted_by_cell[cell])
+        for cell, target in quotas.items()
+    }
+    return {
+        "enabled": bool(quotas),
+        "target_successes": sum(quotas.values()),
+        "accepted_successes": sum(accepted_by_cell.values()),
+        "accepted_by_design_cell": accepted_by_cell,
+        "remaining_by_design_cell": remaining_by_cell,
+        "complete": bool(quotas) and not any(remaining_by_cell.values()),
+    }
+
+
+def _pilot_yield_gate(
+    mode_statistics: dict[str, dict[str, Any]],
+    minimum_attempts_per_mode: int,
+    minimum_success_rate_per_mode: float,
+) -> dict[str, Any]:
+    enabled = (
+        minimum_attempts_per_mode > 0 and minimum_success_rate_per_mode > 0.0
+    )
+    mature = enabled and all(
+        int(item["attempts"]) >= minimum_attempts_per_mode
+        for item in mode_statistics.values()
+    )
+    failed_modes = (
+        [
+            mode
+            for mode, item in mode_statistics.items()
+            if float(item["success_rate"]) < minimum_success_rate_per_mode
+        ]
+        if mature
+        else []
+    )
+    return {
+        "enabled": enabled,
+        "minimum_attempts_per_mode": minimum_attempts_per_mode,
+        "minimum_success_rate_per_mode": minimum_success_rate_per_mode,
+        "mature": mature,
+        "failed_modes": failed_modes,
+        "status": (
+            "failed"
+            if failed_modes
+            else "passed"
+            if mature
+            else "pending"
+            if enabled
+            else "disabled"
+        ),
+    }
+
+
+def _verified_collection_success(
+    return_code: int,
+    summary: dict[str, Any],
+    *,
+    audit_only: bool,
+    dataset_root: Path,
+) -> bool:
+    task_success = return_code == 0 and bool(summary.get("success"))
+    if audit_only:
+        return task_success
+    dataset = summary.get("dataset") or {}
+    return bool(
+        task_success
+        and dataset.get("saved") is True
+        and int(dataset.get("frames", 0)) > 0
+        and dataset_root.is_dir()
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
@@ -196,6 +305,23 @@ def main() -> int:
         default=1,
         help="Concurrent isolated rollout processes; values above one require --audit-only",
     )
+    parser.add_argument(
+        "--pilot-min-attempts-per-mode",
+        type=int,
+        default=0,
+        help="evaluate the pilot yield gate after every mode reaches this count",
+    )
+    parser.add_argument(
+        "--pilot-min-success-rate",
+        type=float,
+        default=0.0,
+        help="stop collection when any mature mode falls below this success rate",
+    )
+    parser.add_argument(
+        "--enforce-config-success-quotas",
+        action="store_true",
+        help="stop each design cell at the successful-episode quota in the plan",
+    )
     args = parser.parse_args()
     if args.output.exists() and any(args.output.iterdir()) and not args.resume:
         parser.error(f"output directory must be new or empty: {args.output}")
@@ -205,6 +331,18 @@ def main() -> int:
         parser.error("workers must be positive")
     if args.workers > 1 and not args.audit_only:
         parser.error("parallel workers are supported only for audit-only campaigns")
+    gate_count_enabled = args.pilot_min_attempts_per_mode > 0
+    gate_rate_enabled = args.pilot_min_success_rate > 0.0
+    if args.pilot_min_attempts_per_mode < 0:
+        parser.error("pilot minimum attempts per mode must be non-negative")
+    if gate_count_enabled != gate_rate_enabled:
+        parser.error("pilot yield gate requires both count and success-rate thresholds")
+    if not 0.0 <= args.pilot_min_success_rate <= 1.0:
+        parser.error("pilot minimum success rate must be in [0, 1]")
+    if (gate_count_enabled or args.enforce_config_success_quotas) and args.workers != 1:
+        parser.error("yield gates and success quotas require one sequential worker")
+    if args.enforce_config_success_quotas and args.audit_only:
+        parser.error("success quotas require recorded training episodes")
     if args.record_pi05_absolute_replay and args.audit_only:
         parser.error("absolute replay recording is incompatible with audit-only")
     if args.policy_mode != "shadow" and args.smolvla_checkpoint is None:
@@ -295,6 +433,31 @@ def main() -> int:
         episodes = episodes[: args.max_episodes]
     if not episodes:
         parser.error("collection config contains no episodes")
+    requested_modes = sorted({str(item.get("grasp_mode")) for item in episodes})
+    success_quotas: dict[str, int] = {}
+    if args.enforce_config_success_quotas:
+        if args.profile or args.episode_id or args.max_episodes is not None:
+            parser.error("success quotas cannot be combined with episode filters")
+        raw_quotas = config.get("success_quotas_by_design_cell")
+        if not isinstance(raw_quotas, dict) or not raw_quotas:
+            parser.error("collection config has no success quotas")
+        if any(
+            not isinstance(cell, str)
+            or not isinstance(target, int)
+            or isinstance(target, bool)
+            or target < 1
+            for cell, target in raw_quotas.items()
+        ):
+            parser.error("success quotas must map design-cell names to positive integers")
+        available_cells = {str(item.get("design_cell", "")) for item in episodes}
+        missing_cells = set(raw_quotas) - available_cells
+        extra_cells = available_cells - set(raw_quotas)
+        if missing_cells or extra_cells:
+            parser.error(
+                "success quota cells must exactly match planned design cells: "
+                f"missing={sorted(missing_cells)}, extra={sorted(extra_cells)}"
+            )
+        success_quotas = dict(raw_quotas)
     seen: set[str] = set()
     for item in episodes:
         _validate_episode(item, seen)
@@ -303,6 +466,14 @@ def main() -> int:
     }
 
     root = Path(__file__).resolve().parent.parent
+    runtime_contract = {
+        "config_sha256": _sha256_file(args.config),
+        "collector_sha256": _sha256_file(Path(__file__).resolve()),
+        "failure_classifier_sha256": _sha256_file(
+            root / "src/parcel_sorter/mobile_adaptive_retry.py"
+        ),
+        "python_executable": str(Path(sys.executable).resolve()),
+    }
     checkpoint_selection: dict[str, Any] | None = None
     if args.smolvla_checkpoint is not None:
         checkpoint_selection = {
@@ -493,7 +664,12 @@ def main() -> int:
             if summary_path.is_file()
             else {}
         )
-        success = bool(completed.returncode == 0 and summary.get("success"))
+        success = _verified_collection_success(
+            completed.returncode,
+            summary,
+            audit_only=args.audit_only,
+            dataset_root=dataset_root,
+        )
         return {
             "episode_id": episode_id,
             "profile": item["profile"],
@@ -509,6 +685,7 @@ def main() -> int:
                 "max_contact_force_n"
             ),
             "frames": summary.get("dataset", {}).get("frames", 0),
+            "dataset_saved": bool(summary.get("dataset", {}).get("saved")),
             "recovery_label": {
                 "verified_success": success,
                 "contact_offset_m": summary.get("recovery_parameters", {}).get(
@@ -545,38 +722,92 @@ def main() -> int:
             "log": str(log_path.resolve()),
         }
 
+    yield_gate_failed = False
+    quota_target_reached = False
+    skipped_by_satisfied_quota = 0
+
+    def control_state() -> tuple[dict[str, Any], dict[str, Any]]:
+        mode_statistics = _mode_statistics(results, requested_modes)
+        yield_gate = _pilot_yield_gate(
+            mode_statistics,
+            args.pilot_min_attempts_per_mode,
+            args.pilot_min_success_rate,
+        )
+        return yield_gate, _quota_statistics(results, success_quotas)
+
+    def write_progress(status: str) -> None:
+        yield_gate, quota_statistics = control_state()
+        _write_json(
+            args.output / "collection-summary.json",
+            {
+                "schema_version": 1,
+                "collection_id": config.get("collection_id"),
+                "runtime_contract": runtime_contract,
+                "requested_episodes": len(episodes),
+                "completed_episodes": len(results),
+                "unattempted_episodes": len(episodes) - len(results),
+                "successful_episodes": sum(
+                    bool(result.get("success")) for result in results
+                ),
+                "mode_statistics": _mode_statistics(results, requested_modes),
+                "yield_gate": yield_gate,
+                "success_quota": quota_statistics,
+                "skipped_by_satisfied_quota": skipped_by_satisfied_quota,
+                "policy_visual_modality": (
+                    "rgbd_wrist" if args.wrist_rgbd else "rgbd"
+                ),
+                "results": results,
+                "status": status,
+            },
+        )
+
+    def retain_result(result: dict[str, Any]) -> None:
+        results.append(result)
+        if result["success"] and not args.audit_only:
+            successful_roots.append(
+                (
+                    args.output
+                    / "shards"
+                    / result["episode_id"]
+                    / "lerobot_dataset"
+                ).resolve()
+            )
+        results.sort(key=lambda item: seen_order[str(item["episode_id"])])
+
+    initial_gate, initial_quota = control_state()
+    yield_gate_failed = initial_gate["status"] == "failed"
+    quota_target_reached = bool(initial_quota["complete"])
     if args.workers == 1:
-        collected = map(collect_one, pending)
+        for item in pending:
+            if yield_gate_failed or quota_target_reached:
+                break
+            if success_quotas:
+                cell = str(item.get("design_cell", ""))
+                quota_state = _quota_statistics(results, success_quotas)
+                if (
+                    quota_state["accepted_by_design_cell"][cell]
+                    >= success_quotas[cell]
+                ):
+                    skipped_by_satisfied_quota += 1
+                    continue
+            retain_result(collect_one(item))
+            yield_gate, quota_state = control_state()
+            yield_gate_failed = yield_gate["status"] == "failed"
+            quota_target_reached = bool(quota_state["complete"])
+            write_progress(
+                "yield_gate_failed"
+                if yield_gate_failed
+                else "success_quota_reached"
+                if quota_target_reached
+                else "collecting"
+            )
     else:
         executor = ThreadPoolExecutor(max_workers=args.workers)
-        collected = executor.map(collect_one, pending)
-    try:
-        for result in collected:
-            results.append(result)
-            if result["success"] and not args.audit_only:
-                successful_roots.append(
-                    (args.output / "shards" / result["episode_id"] / "lerobot_dataset").resolve()
-                )
-            results.sort(key=lambda result: seen_order[str(result["episode_id"])])
-            _write_json(
-                args.output / "collection-summary.json",
-                {
-                    "schema_version": 1,
-                    "collection_id": config.get("collection_id"),
-                    "requested_episodes": len(episodes),
-                    "completed_episodes": len(results),
-                    "successful_episodes": sum(
-                        bool(result.get("success")) for result in results
-                    ),
-                    "policy_visual_modality": (
-                        "rgbd_wrist" if args.wrist_rgbd else "rgbd"
-                    ),
-                    "results": results,
-                    "status": "collecting",
-                },
-            )
-    finally:
-        if args.workers > 1:
+        try:
+            for result in executor.map(collect_one, pending):
+                retain_result(result)
+                write_progress("collecting")
+        finally:
             executor.shutdown(wait=True)
 
     merged_root = args.output / "lerobot_dataset"
@@ -633,9 +864,14 @@ def main() -> int:
             merge_error = f"dataset merge failed with exit code {merged.returncode}"
 
     successful_count = sum(bool(result.get("success")) for result in results)
+    final_yield_gate, final_quota = control_state()
     status = (
         "completed_audit_only"
         if args.audit_only and len(results) == len(episodes)
+        else "yield_gate_failed"
+        if yield_gate_failed
+        else "success_quota_not_reached"
+        if success_quotas and not quota_target_reached
         else
         "passed"
         if len(successful_roots) >= 2 and merge_error is None and merged_root.is_dir()
@@ -647,10 +883,16 @@ def main() -> int:
         "schema_version": 1,
         "collection_id": config.get("collection_id"),
         "config": str(args.config.resolve()),
+        "runtime_contract": runtime_contract,
         "requested_episodes": len(episodes),
         "completed_episodes": len(results),
+        "unattempted_episodes": len(episodes) - len(results),
         "successful_episodes": successful_count,
         "failed_episodes": len(results) - successful_count,
+        "mode_statistics": _mode_statistics(results, requested_modes),
+        "yield_gate": final_yield_gate,
+        "success_quota": final_quota,
+        "skipped_by_satisfied_quota": skipped_by_satisfied_quota,
         "policy_visual_modality": "rgbd_wrist" if args.wrist_rgbd else "rgbd",
         "merged_dataset_root": str(merged_root.resolve()) if merged_root.is_dir() else None,
         "checkpoint_selection": checkpoint_selection,

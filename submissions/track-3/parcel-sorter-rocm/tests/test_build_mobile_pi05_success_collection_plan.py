@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import tempfile
 import unittest
 
 
@@ -25,19 +26,36 @@ COLLECTOR_SPEC.loader.exec_module(COLLECTOR)
 
 class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
     def test_plan_is_balanced_unique_and_collector_valid(self) -> None:
-        plan = PLANNER.build_plan(30, 20260729, "pilot")
+        plan = PLANNER.build_plan(10, 20260729, "pilot")
         episodes = plan["episodes"]
 
-        self.assertEqual(len(episodes), 90)
-        self.assertEqual(len({item["episode_id"] for item in episodes}), 90)
-        self.assertEqual(len({item["source_identity"] for item in episodes}), 90)
+        self.assertEqual(len(episodes), 30)
+        self.assertEqual(len({item["episode_id"] for item in episodes}), 30)
+        self.assertEqual(len({item["source_identity"] for item in episodes}), 30)
+        self.assertEqual(
+            [item["grasp_mode"] for item in episodes[:3]], list(PLANNER.GRASP_MODES)
+        )
         seen: set[str] = set()
         for item in episodes:
             COLLECTOR._validate_episode(item, seen)
+            self.assertEqual(
+                item["demonstration_provenance"],
+                "deterministic_expert_candidate",
+            )
         for mode in PLANNER.GRASP_MODES:
             selected = [item for item in episodes if item["grasp_mode"] == mode]
-            self.assertEqual(len(selected), 30)
+            self.assertEqual(len(selected), 10)
             self.assertEqual(len({item["design_cell"] for item in selected}), 8)
+        top = [item for item in episodes if item["grasp_mode"] == "top_suction"]
+        self.assertEqual({item["retry_index"] for item in top}, {0})
+        self.assertFalse(
+            any("recovery_contact_offset_m" in item for item in top),
+            "nominal top-suction demonstrations must not contain recovery offsets",
+        )
+        self.assertEqual(
+            {item["profile"] for item in top},
+            {"micro_box", "flat_mailer", "small_carton"},
+        )
 
     def test_plan_is_reproducible_and_seed_sensitive(self) -> None:
         first = PLANNER.build_plan(8, 11, "pilot")
@@ -48,13 +66,147 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
         self.assertNotEqual(first["episodes"], changed["episodes"])
 
     def test_bulk_target_matches_fifty_examples_per_design_cell(self) -> None:
-        plan = PLANNER.build_plan(500, 20260729, "bulk")
+        plan = PLANNER.build_plan(960, 20260729, "bulk")
 
-        self.assertEqual(plan["planned_attempts"], 1500)
+        self.assertEqual(plan["planned_attempts"], 2880)
+        self.assertEqual(sum(plan["success_quotas_by_design_cell"].values()), 1500)
+        self.assertEqual(len(plan["success_quotas_by_design_cell"]), 24)
+        self.assertEqual(
+            set(plan["success_quotas_by_design_cell"].values()), {62, 63}
+        )
         self.assertEqual(plan["target_success_dataset"]["train"], 1200)
         self.assertEqual(
             plan["literature_alignment"]["target_domain_examples_per_cell"], 50
         )
+        self.assertEqual(
+            plan["training_mixture"]["bootstrap_behavior_cloning"][
+                "verified_target_successes"
+            ],
+            1.0,
+        )
+        attempts_by_cell: dict[str, int] = {}
+        for item in plan["episodes"]:
+            cell = item["design_cell"]
+            attempts_by_cell[cell] = attempts_by_cell.get(cell, 0) + 1
+        self.assertEqual(set(attempts_by_cell.values()), {120})
+        self.assertEqual(
+            set(
+                plan["target_success_dataset"][
+                    "candidate_attempts_by_design_cell"
+                ].values()
+            ),
+            {120},
+        )
+
+    def test_bulk_plan_rejects_an_impossible_candidate_budget(self) -> None:
+        with self.assertRaisesRegex(ValueError, "below its success quota"):
+            PLANNER.build_plan(499, 20260729, "bulk")
+
+    def test_yield_and_quota_statistics_use_successful_episodes_only(self) -> None:
+        results = [
+            {
+                "success": True,
+                "parameters": {
+                    "grasp_mode": "top_suction",
+                    "design_cell": "top_suction-cell-00",
+                },
+            },
+            {
+                "success": False,
+                "parameters": {
+                    "grasp_mode": "top_suction",
+                    "design_cell": "top_suction-cell-00",
+                },
+            },
+            {
+                "success": True,
+                "parameters": {
+                    "grasp_mode": "side_suction",
+                    "design_cell": "side_suction-cell-00",
+                },
+            },
+        ]
+        modes = COLLECTOR._mode_statistics(
+            results, ["top_suction", "side_suction", "cooperative_cradle"]
+        )
+        self.assertEqual(modes["top_suction"]["attempts"], 2)
+        self.assertEqual(modes["top_suction"]["success_rate"], 0.5)
+        self.assertIsNone(modes["cooperative_cradle"]["success_rate"])
+
+        quota = COLLECTOR._quota_statistics(
+            results,
+            {"top_suction-cell-00": 1, "side_suction-cell-00": 2},
+        )
+        self.assertEqual(quota["accepted_successes"], 2)
+        self.assertEqual(quota["remaining_by_design_cell"]["top_suction-cell-00"], 0)
+        self.assertEqual(quota["remaining_by_design_cell"]["side_suction-cell-00"], 1)
+        self.assertFalse(quota["complete"])
+
+    def test_pilot_yield_gate_waits_for_every_mode_and_fails_closed(self) -> None:
+        pending = COLLECTOR._pilot_yield_gate(
+            {
+                "top_suction": {"attempts": 10, "success_rate": 0.9},
+                "side_suction": {"attempts": 10, "success_rate": 0.8},
+                "cooperative_cradle": {"attempts": 9, "success_rate": 1.0},
+            },
+            10,
+            0.7,
+        )
+        self.assertEqual(pending["status"], "pending")
+
+        failed = COLLECTOR._pilot_yield_gate(
+            {
+                "top_suction": {"attempts": 10, "success_rate": 0.9},
+                "side_suction": {"attempts": 10, "success_rate": 0.8},
+                "cooperative_cradle": {"attempts": 10, "success_rate": 0.6},
+            },
+            10,
+            0.7,
+        )
+        self.assertEqual(failed["status"], "failed")
+        self.assertEqual(failed["failed_modes"], ["cooperative_cradle"])
+
+        passed = COLLECTOR._pilot_yield_gate(
+            {
+                "top_suction": {"attempts": 10, "success_rate": 0.7},
+                "side_suction": {"attempts": 10, "success_rate": 0.8},
+                "cooperative_cradle": {"attempts": 10, "success_rate": 0.9},
+            },
+            10,
+            0.7,
+        )
+        self.assertEqual(passed["status"], "passed")
+
+    def test_collection_success_requires_a_saved_nonempty_dataset(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "episode"
+            summary = {"success": True, "dataset": {"saved": True, "frames": 90}}
+
+            self.assertFalse(
+                COLLECTOR._verified_collection_success(
+                    0, summary, audit_only=False, dataset_root=root
+                )
+            )
+            root.mkdir()
+            self.assertTrue(
+                COLLECTOR._verified_collection_success(
+                    0, summary, audit_only=False, dataset_root=root
+                )
+            )
+            summary["dataset"]["frames"] = 0
+            self.assertFalse(
+                COLLECTOR._verified_collection_success(
+                    0, summary, audit_only=False, dataset_root=root
+                )
+            )
+            self.assertTrue(
+                COLLECTOR._verified_collection_success(
+                    0,
+                    {"success": True},
+                    audit_only=True,
+                    dataset_root=Path(temporary) / "missing",
+                )
+            )
 
 
 if __name__ == "__main__":
