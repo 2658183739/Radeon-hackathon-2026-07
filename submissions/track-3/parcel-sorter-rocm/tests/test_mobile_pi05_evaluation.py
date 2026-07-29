@@ -54,12 +54,29 @@ class MobilePI05EvaluationTests(unittest.TestCase):
         for run in candidate:
             run["policy_authority"] = "absolute_vla_action_candidate"
             run["expert_reference_used"] = False
+            run["system_control_class"] = "pure_vla"
+            run["policy"]["absolute_full_authority"] = True
+            run["policy"]["task_action_correction_count"] = 0
 
         result = compare_paired_pi05_runs(baseline, candidate)
 
         self.assertTrue(result["paper_claim"]["gate_passed"])
         self.assertTrue(result["pure_vla_paper_claim"]["gate_passed"])
         self.assertEqual(result["candidate_pure_absolute_vla_runs"], 105)
+
+    def test_external_stage_routing_blocks_pure_vla_claim(self) -> None:
+        baseline = [_run(index, index < 90) for index in range(105)]
+        candidate = [_run(index, index < 100) for index in range(105)]
+        for run in candidate:
+            run["policy_authority"] = "absolute_vla_action_candidate"
+            run["expert_reference_used"] = False
+            run["system_control_class"] = "shielded_vla"
+            run["policy"]["absolute_full_authority"] = False
+
+        result = compare_paired_pi05_runs(baseline, candidate)
+
+        self.assertFalse(result["pure_vla_paper_claim"]["gate_passed"])
+        self.assertEqual(result["candidate_pure_absolute_vla_runs"], 0)
 
     def test_fallback_blocks_promotion(self) -> None:
         baseline = [_run(index, True) for index in range(10)]

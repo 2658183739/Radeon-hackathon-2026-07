@@ -30,6 +30,7 @@ from .mobile_pi05_contract import (
 from .mobile_policy_attribution import (
     ABSOLUTE_VLA_AUTHORITY,
     HYBRID_VLA_AUTHORITY,
+    PURE_VLA_CONTROL_CLASS,
 )
 
 
@@ -185,6 +186,8 @@ class PI05AbsoluteRolloutQualification:
     goal_verdict_required: bool
     goal_arrival_verified: bool
     policy_authority: str
+    system_control_class: str
+    task_action_correction_count: int
     expert_reference_used: bool
     expert_reference_semantics: tuple[str, ...]
     expert_fallback_count: int
@@ -209,6 +212,14 @@ class PI05AbsoluteRolloutQualification:
             (
                 self.policy_authority == ABSOLUTE_VLA_AUTHORITY,
                 "policy_authority_is_not_absolute_vla",
+            ),
+            (
+                self.system_control_class == PURE_VLA_CONTROL_CLASS,
+                "system_control_is_not_pure_vla",
+            ),
+            (
+                self.task_action_correction_count == 0,
+                "task_action_correction_used",
             ),
             (not self.expert_reference_used, "absolute_vla_used_expert_reference"),
             (self.expert_fallback_count == 0, "expert_fallback_used"),

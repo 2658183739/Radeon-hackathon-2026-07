@@ -1309,6 +1309,7 @@ def main() -> int:
     contact_snapshot_saved = False
     left_force_history_n: deque[float] = deque(maxlen=6)
     right_force_history_n: deque[float] = deque(maxlen=6)
+    pending_policy_trace_index: int | None = None
 
     def record_control_frame(
         *,
@@ -1342,6 +1343,7 @@ def main() -> int:
         nonlocal latest_policy_goal_verified
         nonlocal vla_selected_grasp_mode, vla_grasp_mode_match
         nonlocal contact_snapshot_saved
+        nonlocal pending_policy_trace_index
         if (
             writer is None
             and pi05_writer is None
@@ -1425,6 +1427,25 @@ def main() -> int:
             float(encoded_goal_xy[1]),
             0.0,
         )
+        if pending_policy_trace_index is not None:
+            pending = policy_trace[pending_policy_trace_index]
+            pending["achieved_next_observation_frame"] = recorded_frames
+            pending["achieved_next_physics_step"] = recorded_physics_steps
+            pending["achieved_after_physics_steps"] = (
+                recorded_physics_steps - int(pending["physics_step"])
+            )
+            pending["achieved_next_state"] = [
+                float(value) for value in state_vector
+            ]
+            pending["achieved_next_ee_pose"] = {
+                "left_position_m_quaternion_wxyz": [
+                    float(value) for value in left_pose
+                ],
+                "right_position_m_quaternion_wxyz": [
+                    float(value) for value in right_pose
+                ],
+            }
+            pending_policy_trace_index = None
         expert_base_action = (
             base_action
             if policy_expert_base_action is None
@@ -2068,16 +2089,60 @@ def main() -> int:
                 latest_policy_left_arm_qpos = None
                 latest_policy_dual_arm_qpos = None
                 latest_policy_arm_stage = None
+            executor_rejected_command = bool(
+                args.policy_mode == "pi05_absolute"
+                and arm_residual_telemetry["stage_authorized"]
+                and not arm_residual_telemetry["ik_accepted"]
+            )
+            telemetry["executor_rejected_command"] = executor_rejected_command
+            if executor_rejected_command:
+                telemetry["absolute_motion_full_authority"] = False
+                telemetry["absolute_full_authority"] = False
+                telemetry["pure_vla_qualified_step"] = False
+            trace_index = len(policy_trace)
             policy_trace.append(
                 {
                     **telemetry,
+                    "trace_index": trace_index,
                     "arm_residual": arm_residual_telemetry,
                     "observation_frame": recorded_frames,
                     "physics_step": recorded_physics_steps,
                     "actuation_mode": args.policy_mode,
-                    "executed_base_action": _flat(base_action),
+                    "expert_command_at_observation": [
+                        float(value) for value in action_vector
+                    ],
+                    "executor_command": {
+                        "selected_cartesian_command": [
+                            float(value) for value in latest_policy_action
+                        ],
+                        "base_velocity_xy_yaw": [
+                            float(value) for value in latest_policy_action[:3]
+                        ],
+                        "arm_joint_position_target": (
+                            [
+                                float(value)
+                                for value in latest_policy_dual_arm_qpos
+                            ]
+                            if latest_policy_dual_arm_qpos is not None
+                            else [
+                                float(value)
+                                for value in latest_policy_left_arm_qpos
+                            ]
+                            if latest_policy_left_arm_qpos is not None
+                            else None
+                        ),
+                        "arm_projection_accepted": bool(
+                            arm_residual_telemetry["ik_accepted"]
+                        ),
+                        "tool_commands": [
+                            float(latest_policy_action[10]),
+                            float(latest_policy_action[18]),
+                        ],
+                        "applies_from_next_control_interval": True,
+                    },
                 }
             )
+            pending_policy_trace_index = trace_index
         if writer is not None:
             writer.add_frame(
                 MobileBimanualFrame(
@@ -3452,6 +3517,10 @@ def main() -> int:
             goal_verdict_required=args.require_vla_goal_verdict,
             goal_arrival_verified=latest_policy_goal_verified,
             policy_authority=rollout_attribution.policy_authority,
+            system_control_class=rollout_attribution.system_control_class,
+            task_action_correction_count=(
+                rollout_attribution.task_action_correction_count
+            ),
             expert_reference_used=rollout_attribution.expert_reference_used,
             expert_reference_semantics=(
                 rollout_attribution.expert_reference_semantics
@@ -3644,6 +3713,13 @@ def main() -> int:
         "transport_deadline_handoff_remaining_s": transport_deadline_handoff_remaining_s,
         "transport_deadline_handoff_physics_steps": transport_deadline_handoff_physics_steps,
         "policy_authority": rollout_attribution.policy_authority,
+        "system_control_class": rollout_attribution.system_control_class,
+        "task_routing_authorities": list(
+            rollout_attribution.task_routing_authorities
+        ),
+        "task_action_correction_count": (
+            rollout_attribution.task_action_correction_count
+        ),
         "expert_reference_used": rollout_attribution.expert_reference_used,
         "expert_reference_semantics": list(
             rollout_attribution.expert_reference_semantics
@@ -3651,7 +3727,11 @@ def main() -> int:
         "authority_internally_consistent": rollout_attribution.internally_consistent,
         "absolute_full_authority": absolute_full_authority,
         "pure_vla_complete_success": bool(success and absolute_full_authority),
-        "deterministic_release_permitted": True,
+        "deterministic_release_interlock_used": any(
+            "deterministic_release_interlock"
+            in tuple(item.get("task_action_corrections") or ())
+            for item in executed_policy_trace
+        ),
         "inference_calls": len(policy_trace),
         "mean_latency_ms": statistics.fmean(policy_latencies) if policy_latencies else None,
         "p95_latency_ms": (
@@ -3746,7 +3826,7 @@ def main() -> int:
                 else "expert_locked"
             ),
             "tool_control": (
-                "absolute_vla_except_deterministic_release_interlock"
+                "vla_command_with_recorded_task_interlocks"
                 if args.policy_mode == "pi05_absolute"
                 else "expert_locked"
             ),

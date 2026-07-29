@@ -41,6 +41,8 @@ class MobileCampaignSummaryTests(unittest.TestCase):
                     "policy_authority": "absolute_vla_action_candidate",
                     "expert_reference_used": False,
                     "expert_reference_semantics": "expert_action_is_harness_fallback_only",
+                    "task_routing_authority": "vla_policy",
+                    "task_action_corrections": [],
                 }
             ]
         }
@@ -50,6 +52,27 @@ class MobileCampaignSummaryTests(unittest.TestCase):
         )
         self.assertTrue(
             summarize_mobile_policy_attribution(policy["trace"]).internally_consistent
+        )
+
+    def test_labels_external_stage_machine_as_shielded_vla(self) -> None:
+        policy = {
+            "trace": [
+                {
+                    "policy_authority": "absolute_vla_action_candidate",
+                    "expert_reference_used": False,
+                    "task_routing_authority": "external_stage_machine",
+                    "task_action_corrections": [
+                        "deterministic_release_interlock"
+                    ],
+                }
+            ]
+        }
+        attribution = summarize_mobile_policy_attribution(policy["trace"])
+        self.assertEqual(attribution.system_control_class, "shielded_vla")
+        self.assertEqual(attribution.task_action_correction_count, 1)
+        self.assertEqual(
+            _vla_attribution_class(policy),
+            "shielded_vla_external_routing_or_task_interlock",
         )
 
     def test_requires_true_pi05_routing_for_vla_qualification(self) -> None:
@@ -129,6 +152,8 @@ class MobileCampaignSummaryTests(unittest.TestCase):
             "expert_fallback_count": 0,
             "emergency_stop_count": 0,
             "policy_authority": "absolute_vla_action_candidate",
+            "system_control_class": "pure_vla",
+            "task_action_correction_count": 0,
             "expert_reference_used": False,
             "absolute_full_authority": True,
             "transport_deadline_handoff": False,

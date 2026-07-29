@@ -114,6 +114,18 @@ def compare_paired_pi05_runs(
     )
     candidate_pure_absolute_vla_runs = sum(
         authority == "absolute_vla_action_candidate"
+        and (
+            run.get("system_control_class")
+            or (run.get("policy") or {}).get("system_control_class")
+        )
+        == "pure_vla"
+        and (run.get("policy") or {}).get("absolute_full_authority") is True
+        and int(
+            run.get("task_action_correction_count")
+            or (run.get("policy") or {}).get("task_action_correction_count")
+            or 0
+        )
+        == 0
         and not bool(
             run.get("expert_reference_used")
             or (run.get("policy") or {}).get("expert_reference_used")

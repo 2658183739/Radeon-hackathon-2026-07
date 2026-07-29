@@ -405,6 +405,7 @@ class MobileVLAHarnessController:
             else None
         )
         self._action_chunk_queue: deque[tuple[float, ...]] = deque()
+        self._raw_action_chunk_queue: deque[tuple[float, ...]] = deque()
         self._queued_chunk_stage: str | None = None
         self._queued_chunk_seed: int | None = None
         self._queued_mode_head_output: tuple[float, ...] | None = None
@@ -668,12 +669,18 @@ class MobileVLAHarnessController:
             self.clear_action_chunk()
 
         mode_head_output: tuple[float, ...] | None = None
+        raw_policy_output: tuple[float, ...] | None = None
         chunk_step_index = 0
         inference_performed = not use_queued_action
         if use_queued_action:
             call_seed = int(self._queued_chunk_seed)
             chunk_step_index = self._queued_chunk_total - len(self._action_chunk_queue)
             policy_output_values = list(self._action_chunk_queue.popleft())
+            raw_policy_output = (
+                self._raw_action_chunk_queue.popleft()
+                if self._raw_action_chunk_queue
+                else None
+            )
             mode_head_output = self._queued_mode_head_output
             latency_ms = 0.0
         else:
@@ -705,17 +712,28 @@ class MobileVLAHarnessController:
                                 "PI0.5 fused mode head did not produce three logits"
                             )
                     if self._chunk_execution_protocol == "first-action-hold-v1":
-                        action = self._postprocessor(
-                            self._policy.select_action(processed_batch)
+                        raw_action = self._policy.select_action(processed_batch)
+                        raw_policy_output = tuple(
+                            float(value)
+                            for value in raw_action.detach().cpu().reshape(-1)
                         )
+                        action = self._postprocessor(raw_action)
                         policy_output_values = [
                             float(value)
                             for value in action.detach().cpu().reshape(-1)
                         ]
                     else:
-                        action_chunk = self._postprocessor(
-                            self._policy.predict_action_chunk(processed_batch)
+                        raw_action_chunk = self._policy.predict_action_chunk(
+                            processed_batch
                         )
+                        raw_chunk_rows = [
+                            tuple(float(value) for value in row)
+                            for row in raw_action_chunk.detach()
+                            .cpu()
+                            .reshape(-1, self.action_dim)
+                            .tolist()
+                        ]
+                        action_chunk = self._postprocessor(raw_action_chunk)
                         chunk_rows = [
                             tuple(float(value) for value in row)
                             for row in action_chunk.detach()
@@ -725,6 +743,12 @@ class MobileVLAHarnessController:
                         ]
                         if self._chunk_execution_protocol == "pi05-window-aggregate-v1":
                             if self.uses_absolute_contract:
+                                raw_policy_output = aggregate_pi05_absolute_action_chunk(
+                                    raw_chunk_rows,
+                                    execution_steps=self._effective_chunk_execution_steps(
+                                        stage
+                                    ),
+                                )
                                 policy_output_values = list(
                                     aggregate_pi05_absolute_action_chunk(
                                         chunk_rows,
@@ -734,6 +758,12 @@ class MobileVLAHarnessController:
                                     )
                                 )
                             else:
+                                raw_policy_output = aggregate_pi05_residual_action_chunk(
+                                    raw_chunk_rows,
+                                    execution_steps=self._effective_chunk_execution_steps(
+                                        stage
+                                    ),
+                                )
                                 policy_output_values = list(
                                     aggregate_pi05_residual_action_chunk(
                                         chunk_rows,
@@ -744,6 +774,14 @@ class MobileVLAHarnessController:
                                 )
                         else:
                             if self.uses_absolute_contract:
+                                raw_execution_window = (
+                                    prepare_pi05_absolute_open_loop_action_chunk(
+                                        raw_chunk_rows,
+                                        execution_steps=self._effective_chunk_execution_steps(
+                                            stage
+                                        ),
+                                    )
+                                )
                                 execution_window = (
                                     prepare_pi05_absolute_open_loop_action_chunk(
                                         chunk_rows,
@@ -754,6 +792,12 @@ class MobileVLAHarnessController:
                                     )
                                 )
                             else:
+                                raw_execution_window = prepare_pi05_open_loop_action_chunk(
+                                    raw_chunk_rows,
+                                    execution_steps=self._effective_chunk_execution_steps(
+                                        stage
+                                    ),
+                                )
                                 execution_window = prepare_pi05_open_loop_action_chunk(
                                     chunk_rows,
                                     execution_steps=self._effective_chunk_execution_steps(
@@ -762,7 +806,11 @@ class MobileVLAHarnessController:
                                     mode_logits=mode_head_output,
                                 )
                             policy_output_values = list(execution_window[0])
+                            raw_policy_output = raw_execution_window[0]
                             self._action_chunk_queue.extend(execution_window[1:])
+                            self._raw_action_chunk_queue.extend(
+                                raw_execution_window[1:]
+                            )
                             self._queued_chunk_stage = stage
                             self._queued_chunk_seed = call_seed
                             self._queued_mode_head_output = mode_head_output
@@ -861,12 +909,30 @@ class MobileVLAHarnessController:
             absolute_vla_action=self.uses_absolute_contract,
         )
         self._calls += 1
-        absolute_full_authority = bool(
+        task_action_corrections = [
+            reason
+            for reason in decision.selected.reasons
+            if reason in {"deterministic_release_interlock", "stage_tool_interlock"}
+        ]
+        safety_action_corrections = [
+            reason
+            for reason in decision.selected.reasons
+            if reason in {"cartesian_step_clipped", "base_speed_clipped"}
+            or reason.endswith("_scale_gate")
+            or reason.startswith("force_gate_stop:")
+        ]
+        absolute_motion_full_authority = bool(
             self.uses_absolute_contract
             and decision.selected.scale == 1.0
             and not decision.fallback_to_expert
             and not decision.emergency_stop
             and not decision.rejected_vla
+            and not task_action_corrections
+        )
+        task_routing_authority = "external_stage_machine"
+        pure_vla_qualified_step = bool(
+            absolute_motion_full_authority
+            and task_routing_authority == "vla_policy"
         )
         telemetry = {
             "policy_type": self.policy_type,
@@ -935,6 +1001,15 @@ class MobileVLAHarnessController:
                 if self.uses_residual_contract or self.uses_absolute_contract
                 else None
             ),
+            "current_observable_state": list(legacy_state_values),
+            "current_ee_pose": {
+                "left_position_m_quaternion_wxyz": list(legacy_state_values[24:31]),
+                "right_position_m_quaternion_wxyz": list(legacy_state_values[31:38]),
+            },
+            "raw_policy_action": (
+                list(raw_policy_output) if raw_policy_output is not None else None
+            ),
+            "postprocessed_action": list(policy_output),
             "raw_residual_action": (
                 list(policy_output) if self.uses_residual_contract else None
             ),
@@ -950,15 +1025,32 @@ class MobileVLAHarnessController:
             "primitive_complete": primitive_complete,
             "goal_judgement": asdict(goal_judgement),
             "selected_scale": decision.selected.scale,
-            "absolute_full_authority": absolute_full_authority,
-            "pure_vla_qualified_step": absolute_full_authority,
+            "absolute_motion_full_authority": absolute_motion_full_authority,
+            "absolute_full_authority": pure_vla_qualified_step,
+            "pure_vla_qualified_step": pure_vla_qualified_step,
+            "system_control_class": (
+                "shielded_vla" if self.uses_absolute_contract else "hybrid_vla"
+            ),
+            "task_routing_authority": task_routing_authority,
             "fallback_to_expert": decision.fallback_to_expert,
             "emergency_stop": decision.emergency_stop,
             "rejected_vla": decision.rejected_vla,
             "tool_command_corrections": decision.selected.tool_command_corrections,
+            "task_action_corrections": task_action_corrections,
+            "safety_action_corrections": safety_action_corrections,
             "candidate_count": len(decision.candidates),
             "selected_reasons": list(decision.selected.reasons),
             "raw_base_action": list(predicted[:3]),
+            "decoded_vla_action": list(predicted),
+            "full_expert_action": list(expert_values),
+            "selected_command": list(decision.selected.action),
+            "command_contract": {
+                "frame": "world_cartesian_ee_and_robot_base_velocity",
+                "base_units": ["m/s", "m/s", "rad/s"],
+                "arm_position_units": "m",
+                "arm_orientation": "unit_quaternion_wxyz",
+                "tool_units": "binary_sign_command",
+            },
             "expert_base_action": list(expert_values[:3]),
             "selected_base_action": list(decision.selected.action[:3]),
             "force_memory_enabled": self._force_memory_enabled,
@@ -1038,6 +1130,9 @@ class MobileVLAHarnessController:
         """Discard stale open-loop actions after a stage or routing boundary."""
 
         self._action_chunk_queue.clear()
+        raw_queue = getattr(self, "_raw_action_chunk_queue", None)
+        if raw_queue is not None:
+            raw_queue.clear()
         self._queued_chunk_stage = None
         self._queued_chunk_seed = None
         self._queued_mode_head_output = None

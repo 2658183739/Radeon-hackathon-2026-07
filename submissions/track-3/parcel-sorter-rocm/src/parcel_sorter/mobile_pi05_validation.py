@@ -323,6 +323,18 @@ def _pure_absolute_vla(run: Mapping[str, Any]) -> bool:
     return bool(
         policy.get("mode") == "pi05_absolute"
         and authority == "absolute_vla_action_candidate"
+        and (
+            run.get("system_control_class")
+            or policy.get("system_control_class")
+        )
+        == "pure_vla"
+        and int(
+            run.get("task_action_correction_count")
+            or policy.get("task_action_correction_count")
+            or 0
+        )
+        == 0
+        and policy.get("absolute_full_authority") is True
         and not bool(run.get("expert_reference_used"))
         and policy.get("expert_reference_used") is False
         and int(policy.get("expert_fallback_count") or 0) == 0

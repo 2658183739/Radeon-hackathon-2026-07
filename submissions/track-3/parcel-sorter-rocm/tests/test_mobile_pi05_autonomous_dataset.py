@@ -17,6 +17,7 @@ from parcel_sorter.mobile_pi05_dataset import (
 from parcel_sorter.mobile_policy_attribution import (
     ABSOLUTE_VLA_AUTHORITY,
     HYBRID_VLA_AUTHORITY,
+    PURE_VLA_CONTROL_CLASS,
 )
 
 
@@ -322,6 +323,8 @@ class MobilePI05AutonomousDatasetTests(unittest.TestCase):
                 goal_verdict_required=True,
                 goal_arrival_verified=True,
                 policy_authority=ABSOLUTE_VLA_AUTHORITY,
+                system_control_class=PURE_VLA_CONTROL_CLASS,
+                task_action_correction_count=0,
                 expert_reference_used=False,
                 expert_reference_semantics=(),
                 expert_fallback_count=0,
@@ -363,6 +366,8 @@ class MobilePI05AutonomousDatasetTests(unittest.TestCase):
             goal_verdict_required=True,
             goal_arrival_verified=True,
             policy_authority=ABSOLUTE_VLA_AUTHORITY,
+            system_control_class=PURE_VLA_CONTROL_CLASS,
+            task_action_correction_count=0,
             expert_reference_used=False,
             expert_reference_semantics=(),
             expert_fallback_count=0,
@@ -377,6 +382,34 @@ class MobilePI05AutonomousDatasetTests(unittest.TestCase):
         self.assertIn(
             "absolute_vla_not_full_authority", qualification.rejection_reasons()
         )
+
+    def test_absolute_writer_rejects_external_stage_machine_as_pure_vla(self) -> None:
+        qualification = PI05AbsoluteRolloutQualification(
+            success=True,
+            policy_type="pi05",
+            policy_mode="pi05_absolute",
+            absolute_contract=True,
+            grasp_mode="top_suction",
+            vla_routes_grasp_mode=True,
+            goal_verdict_required=True,
+            goal_arrival_verified=True,
+            policy_authority=ABSOLUTE_VLA_AUTHORITY,
+            system_control_class="shielded_vla",
+            task_action_correction_count=1,
+            expert_reference_used=False,
+            expert_reference_semantics=(),
+            expert_fallback_count=0,
+            emergency_stop_count=0,
+            force_violation_count=0,
+            minimum_selected_scale=1.0,
+            transport_deadline_handoff=False,
+            recorded_frames=1,
+            material_action_frames=1,
+            nonzero_base_command_frames=1,
+        )
+        reasons = qualification.rejection_reasons()
+        self.assertIn("system_control_is_not_pure_vla", reasons)
+        self.assertIn("task_action_correction_used", reasons)
 
 
 if __name__ == "__main__":

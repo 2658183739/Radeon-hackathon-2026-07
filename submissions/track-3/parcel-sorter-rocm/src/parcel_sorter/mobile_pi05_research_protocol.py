@@ -464,6 +464,11 @@ def build_training_launch_audit(
         if stage_panel is None or action_thresholds is None:
             raise ValueError("tiny-overfit training requires a frozen panel and thresholds")
         validate_stage_panel(stage_panel, expected_role=PI05_TINY_OVERFIT_ROLE)
+        expected_rows = len(PI05_GRASP_MODES) * len(PI05_TASK_STAGES)
+        if len(tuple(stage_panel.get("observations") or ())) != expected_rows:
+            raise ValueError(
+                f"tiny-overfit training requires exactly {expected_rows} observations"
+            )
         validate_action_thresholds(
             action_thresholds, panel_role=PI05_TINY_OVERFIT_ROLE
         )

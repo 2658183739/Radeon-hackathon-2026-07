@@ -15,6 +15,7 @@ from parcel_sorter.metrics import wilson_interval
 from parcel_sorter.mobile_policy_attribution import (
     ABSOLUTE_VLA_AUTHORITY,
     HYBRID_VLA_AUTHORITY,
+    SHIELDED_VLA_CONTROL_CLASS,
     summarize_mobile_policy_attribution,
 )
 
@@ -131,6 +132,8 @@ def _vla_qualified(
         return bool(
             material_absolute_action
             and policy.get("policy_authority") == ABSOLUTE_VLA_AUTHORITY
+            and policy.get("system_control_class") == "pure_vla"
+            and int(policy.get("task_action_correction_count") or 0) == 0
             and policy.get("expert_reference_used") is False
             and policy.get("absolute_full_authority") is True
             and int(policy.get("emergency_stop_count") or 0) == 0
@@ -143,6 +146,8 @@ def _vla_attribution_class(policy: dict[str, Any]) -> str:
     """Separate VLA actuation from the nominal action source used underneath it."""
 
     attribution = summarize_mobile_policy_attribution(policy.get("trace") or ())
+    if attribution.system_control_class == SHIELDED_VLA_CONTROL_CLASS:
+        return "shielded_vla_external_routing_or_task_interlock"
     if attribution.policy_authority == HYBRID_VLA_AUTHORITY:
         return "hybrid_vla_residual_with_expert_reference"
     if attribution.policy_authority == ABSOLUTE_VLA_AUTHORITY:
@@ -194,6 +199,13 @@ def main() -> int:
                 "vla_qualified": vla_qualified,
                 "vla_attribution_class": attribution_class,
                 "policy_authority": attribution.policy_authority,
+                "system_control_class": attribution.system_control_class,
+                "task_routing_authorities": list(
+                    attribution.task_routing_authorities
+                ),
+                "task_action_correction_count": (
+                    attribution.task_action_correction_count
+                ),
                 "expert_reference_used": attribution.expert_reference_used,
                 "expert_reference_semantics": list(
                     attribution.expert_reference_semantics
