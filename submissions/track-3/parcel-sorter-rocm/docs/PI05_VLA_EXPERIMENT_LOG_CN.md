@@ -318,3 +318,11 @@ Radeon 新持久化根目录为 `/workspace/persistence/parcel-sorter-opt-v1`。
 screen 的合同、逐臂 JSON/JSONL 和 `SCREEN_SUMMARY.json` 已归档到 `/workspace/persistence/parcel-sorter-opt-v1/artifacts/pi05-libero-action-steps-screen-v2`，摘要 SHA-256 为 `cbbef5d23379f5729b0f22cf333908ddaa73bf7f2b3b86ee00c778596c2ead22`。冻结的 `400+400` development 协议与哈希清单位于 `artifacts/pi05-libero-action-steps-protocol-v1`；最终 one-shot confirmation 协议在完整 development 结果可见前冻结于 `artifacts/pi05-libero-action-steps-confirmation-protocol-v1`。完整 development 配对于持久化 `outputs/pi05-libero-action-steps-development-v1` 启动，主 PID 为 `1109846`，先运行 10-step control，再运行 8-step candidate；只有候选在全部 400 个配对 development 单元上严格胜出，才允许打开确认集。
 
 B3-SW 已从隔离 staging 部署到实际 Radeon 仓库。部署前后源码快照和哈希保存在 `/workspace/persistence/parcel-sorter-opt-v1/artifacts/mobile-pi05-b3-sw-deployment-v1`；实际仓库的 28 项相关回归和四个 shell 入口语法检查通过。B3-SW 训练尚未启动，必须等待 LIBERO development 配对释放 GPU；新 checkpoint 将写入持久化 `runs/`，预注册配置与关键源码哈希将在启动时写入持久化 `artifacts/`。
+
+# 2026-07-29 LIBERO action-step 完整开发配对与一次性确认启动
+
+冻结的 `400+400` development 配对已完整结束。10-step control 为 `384/400`（96.00%，Wilson 95% CI `93.60--97.52%`），8-step candidate 为 `385/400`（96.25%，Wilson 95% CI `93.91--97.71%`）。配对结果为 candidate wins `13`、losses `12`、ties `375`，差值 `+0.25` 个百分点，Newcombe 95% CI 为 `[-2.33, 2.85]`，单侧 exact McNemar `p=0.5`。因此 8-step 仅满足预注册的“开发集严格多一个成功”筛选规则，不构成统计优越性或确认成绩。
+
+两臂 return code 均为 0，动作调用计数验证通过，峰值 allocated 显存均为 `8.965 GiB`，ROCm 遥测采样错误均为 0。8-step 暖态模型 P95 为 `516.21 ms`，相对 10-step 的 `518.82 ms` 低约 `0.50%`；但能耗为 `194.91 Wh`，相对 `170.11 Wh` 高 `14.58%`，故不能写成 Radeon 能效提升。机器摘要 SHA-256 为 `7be890f17ace3d66635a9381de5f3886b2e5254e22a115727c42c3a7c9f6846f`，合同 SHA-256 为 `c0d2f8345500c8993f7b533a56c7221efbda20e8313c3b09c6053016a2c25dd2`。
+
+自动门已按冻结规则只打开一次 confirmation，命令固定 `init_state_offset=0`、`n_action_steps=8`、eager bf16、同一 checkpoint 和 seed `20260729`；冻结的 10-step baseline 为 `385/400`。confirmation 完成前不得回填候选最终分数，也不得声称超过本地 PI0.5、公开 OpenPI 数值或 PI0.6。
