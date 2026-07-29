@@ -15,7 +15,7 @@ DESIGN_CELLS_PER_MODE = 8
 TARGET_SUCCESSES_PER_MODE = 500
 DEFAULT_PILOT_ATTEMPTS_PER_MODE = 10
 DEFAULT_BULK_ATTEMPTS_PER_MODE = 960
-COLLECTION_REVISION = 3
+COLLECTION_REVISION = 4
 
 
 TOP_SUCTION_ANCHORS: dict[str, tuple[dict[str, Any], ...]] = {
@@ -68,6 +68,12 @@ CRADLE_ANCHORS: tuple[dict[str, Any], ...] = (
     },
 )
 
+TOP_SUCTION_SEEDS = tuple(
+    (profile, anchor_index, anchor)
+    for profile, anchors in TOP_SUCTION_ANCHORS.items()
+    for anchor_index, anchor in enumerate(anchors)
+)
+
 
 def _stratified(count: int, rng: random.Random) -> list[float]:
     values = [(index + rng.random()) / count for index in range(count)]
@@ -83,6 +89,66 @@ def _dimensions(count: int, rng: random.Random, dimensions: int) -> list[list[fl
     return [_stratified(count, rng) for _ in range(dimensions)]
 
 
+def _single_factor_perturbation(
+    anchor: dict[str, Any],
+    design_cell: int,
+    fraction: float,
+    *,
+    size_relative: float,
+    mass_relative: float,
+    friction_relative: float,
+    offset_delta_m: float,
+    yaw_delta_rad: float,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not 0 <= design_cell < DESIGN_CELLS_PER_MODE:
+        raise ValueError("design_cell must be in [0, 7]")
+    physical = {
+        key: list(value) if isinstance(value, (tuple, list)) else float(value)
+        for key, value in anchor.items()
+    }
+    centered = 2.0 * min(max(float(fraction), 0.0), 1.0) - 1.0
+    factors = (
+        "size_x",
+        "size_y",
+        "size_z",
+        "mass",
+        "friction",
+        "offset_x",
+        "offset_y",
+        "yaw",
+    )
+    factor = factors[design_cell]
+    if design_cell < 3:
+        relative_delta = size_relative * centered
+        physical["size_m"][design_cell] = round(
+            physical["size_m"][design_cell] * (1.0 + relative_delta), 10
+        )
+        applied_delta = relative_delta
+    elif design_cell == 3:
+        applied_delta = mass_relative * centered
+        physical["mass_kg"] = round(
+            physical["mass_kg"] * (1.0 + applied_delta), 10
+        )
+    elif design_cell == 4:
+        applied_delta = friction_relative * centered
+        physical["friction"] = round(
+            physical["friction"] * (1.0 + applied_delta), 10
+        )
+    elif design_cell in {5, 6}:
+        applied_delta = offset_delta_m * centered
+        physical["offset_m"][design_cell - 5] = round(
+            physical["offset_m"][design_cell - 5] + applied_delta, 10
+        )
+    else:
+        applied_delta = yaw_delta_rad * centered
+        physical["yaw_rad"] = round(physical["yaw_rad"] + applied_delta, 10)
+    return physical, {
+        "one_factor_cell": design_cell,
+        "perturbed_factor": factor,
+        "applied_delta": round(applied_delta, 10),
+    }
+
+
 def _interpolate_anchor_path(
     anchors: tuple[dict[str, Any], ...], fraction: float
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -92,19 +158,17 @@ def _interpolate_anchor_path(
     alpha = position - lower_index
     lower = anchors[lower_index]
     upper = anchors[upper_index]
-    interpolated: dict[str, Any] = {}
+    physical: dict[str, Any] = {}
     for key, lower_value in lower.items():
         upper_value = upper[key]
         if isinstance(lower_value, (tuple, list)):
-            interpolated[key] = [
+            physical[key] = [
                 _lerp(float(first), float(second), alpha)
                 for first, second in zip(lower_value, upper_value, strict=True)
             ]
         else:
-            interpolated[key] = _lerp(
-                float(lower_value), float(upper_value), alpha
-            )
-    return interpolated, {
+            physical[key] = _lerp(float(lower_value), float(upper_value), alpha)
+    return physical, {
         "anchor_lower_index": lower_index,
         "anchor_upper_index": upper_index,
         "anchor_alpha": round(alpha, 10),
@@ -114,9 +178,18 @@ def _interpolate_anchor_path(
 def _top_suction(
     index: int, count: int, fractions: list[list[float]]
 ) -> dict[str, Any]:
-    profile = ("micro_box", "flat_mailer", "small_carton")[index % 3]
-    physical, anchor_provenance = _interpolate_anchor_path(
-        TOP_SUCTION_ANCHORS[profile], fractions[0][index]
+    seed_index = (index * 7) % len(TOP_SUCTION_SEEDS)
+    profile, profile_anchor_index, anchor = TOP_SUCTION_SEEDS[seed_index]
+    design_cell = index % DESIGN_CELLS_PER_MODE
+    physical, perturbation = _single_factor_perturbation(
+        anchor,
+        design_cell,
+        fractions[0][index],
+        size_relative=0.005,
+        mass_relative=0.01,
+        friction_relative=0.01,
+        offset_delta_m=0.0005,
+        yaw_delta_rad=0.005,
     )
     return {
         "profile": profile,
@@ -134,8 +207,12 @@ def _top_suction(
         # The 5/5 successful top-suction evidence used the nominal controller.
         # Recovery offsets are corrective trajectories, not generic demonstrations.
         "retry_index": 0,
-        "parameter_envelope_revision": "top-success-anchor-path-v3",
-        "anchor_provenance": anchor_provenance,
+        "parameter_envelope_revision": "top-success-anchor-one-factor-v4",
+        "anchor_provenance": {
+            "seed_index": seed_index,
+            "profile_anchor_index": profile_anchor_index,
+            **perturbation,
+        },
         "task_text": (
             f"Pick up the {profile.replace('_', ' ')} with top suction and place it "
             "at the marked parcel destination."
@@ -288,7 +365,7 @@ def build_plan(attempts_per_mode: int, seed: int, phase: str) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "collection_id": f"parcel-success-{phase}-v{COLLECTION_REVISION}",
-        "protocol": "pi05-success-anchor-mixture-collection-v3",
+        "protocol": "pi05-success-anchor-one-factor-collection-v4",
         "seed": seed,
         "phase": phase,
         "attempts_per_mode": attempts_per_mode,

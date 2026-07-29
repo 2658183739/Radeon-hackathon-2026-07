@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -30,8 +31,8 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
         episodes = plan["episodes"]
 
         self.assertEqual(len(episodes), 30)
-        self.assertEqual(plan["collection_id"], "parcel-success-pilot-v3")
-        self.assertEqual(plan["protocol"], "pi05-success-anchor-mixture-collection-v3")
+        self.assertEqual(plan["collection_id"], "parcel-success-pilot-v4")
+        self.assertEqual(plan["protocol"], "pi05-success-anchor-one-factor-collection-v4")
         self.assertEqual(len({item["episode_id"] for item in episodes}), 30)
         self.assertEqual(len({item["source_identity"] for item in episodes}), 30)
         self.assertEqual(
@@ -60,7 +61,7 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
         )
         self.assertEqual(
             {item["parameter_envelope_revision"] for item in top},
-            {"top-success-anchor-path-v3"},
+            {"top-success-anchor-one-factor-v4"},
         )
         self.assertTrue(all("anchor_provenance" in item for item in top))
         cradle = [
@@ -72,22 +73,50 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
         )
         self.assertTrue(all("anchor_provenance" in item for item in cradle))
 
-    def test_anchor_paths_preserve_joint_success_parameters(self) -> None:
-        for profile, anchors in PLANNER.TOP_SUCTION_ANCHORS.items():
-            first, first_source = PLANNER._interpolate_anchor_path(anchors, 0.0)
-            last, last_source = PLANNER._interpolate_anchor_path(anchors, 1.0)
-            self.assertEqual(first, {key: list(value) if isinstance(value, tuple) else value for key, value in anchors[0].items()})
-            self.assertEqual(last, {key: list(value) if isinstance(value, tuple) else value for key, value in anchors[-1].items()})
-            self.assertEqual(first_source["anchor_lower_index"], 0, profile)
-            self.assertEqual(last_source["anchor_upper_index"], len(anchors) - 1, profile)
+    def test_one_factor_design_changes_only_its_declared_field(self) -> None:
+        anchor = PLANNER.TOP_SUCTION_ANCHORS["micro_box"][0]
+        expected_keys = (
+            "size_m",
+            "size_m",
+            "size_m",
+            "mass_kg",
+            "friction",
+            "offset_m",
+            "offset_m",
+            "yaw_rad",
+        )
+        baseline = {
+            key: list(value) if isinstance(value, tuple) else float(value)
+            for key, value in anchor.items()
+        }
+        for design_cell, expected_key in enumerate(expected_keys):
+            physical, provenance = PLANNER._single_factor_perturbation(
+                anchor,
+                design_cell,
+                1.0,
+                size_relative=0.005,
+                mass_relative=0.01,
+                friction_relative=0.01,
+                offset_delta_m=0.0005,
+                yaw_delta_rad=0.005,
+            )
+            changed = {key for key in baseline if physical[key] != baseline[key]}
+            self.assertEqual(changed, {expected_key})
+            self.assertEqual(provenance["one_factor_cell"], design_cell)
 
-        midpoint, source = PLANNER._interpolate_anchor_path(
+        cradle, provenance = PLANNER._interpolate_anchor_path(
             PLANNER.CRADLE_ANCHORS, 0.5
         )
-        self.assertEqual(midpoint["size_m"], list(PLANNER.CRADLE_ANCHORS[1]["size_m"]))
-        self.assertEqual(midpoint["mass_kg"], PLANNER.CRADLE_ANCHORS[1]["mass_kg"])
-        self.assertEqual(source["anchor_lower_index"], 1)
-        self.assertEqual(source["anchor_alpha"], 0.0)
+        self.assertEqual(
+            cradle["recovery_contact_offset_m"],
+            list(PLANNER.CRADLE_ANCHORS[1]["recovery_contact_offset_m"]),
+        )
+        self.assertEqual(
+            cradle["recovery_left_lift_offset_m"],
+            list(PLANNER.CRADLE_ANCHORS[1]["recovery_left_lift_offset_m"]),
+        )
+        self.assertEqual(provenance["anchor_lower_index"], 1)
+        self.assertEqual(provenance["anchor_alpha"], 0.0)
 
     def test_plan_is_reproducible_and_seed_sensitive(self) -> None:
         first = PLANNER.build_plan(8, 11, "pilot")
@@ -129,6 +158,30 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
             ),
             {120},
         )
+
+        physical_keys = (
+            "size_m",
+            "mass_kg",
+            "friction",
+            "offset_m",
+            "yaw_rad",
+            "recovery_contact_offset_m",
+            "recovery_contact_penetration_delta_m",
+            "recovery_vertical_speed_scale",
+            "recovery_left_lift_offset_m",
+            "recovery_right_lift_offset_m",
+        )
+        physical_signatures = {
+            json.dumps(
+                {
+                    "grasp_mode": item["grasp_mode"],
+                    **{key: item[key] for key in physical_keys if key in item},
+                },
+                sort_keys=True,
+            )
+            for item in plan["episodes"]
+        }
+        self.assertEqual(len(physical_signatures), plan["planned_attempts"])
 
     def test_bulk_plan_rejects_an_impossible_candidate_budget(self) -> None:
         with self.assertRaisesRegex(ValueError, "below its success quota"):
