@@ -1,7 +1,9 @@
 \documentclass[11pt]{article}
 
-% Venue-neutral double-blind draft. Replace this preamble with the official
-% ICLR 2027 style after the venue releases it; do not change the evidence text.
+% Venue-neutral double-blind draft. The ICLR 2027 author guide is live, but its
+% linked iclr2027.zip was absent from the official template repository on
+% 2026-07-29. Replace only this preamble when the archive becomes retrievable;
+% do not change evidence text during the format migration.
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath}
 \usepackage{booktabs}
@@ -307,6 +309,25 @@ methodological motivation.
 \section{Conclusion}
 
 % Write after the candidate LIBERO and frozen parcel gates complete.
+
+\section*{AI Use Statement}
+
+OpenAI Codex was used to assist with experimental-design review, software
+implementation and testing, evidence organization, literature retrieval,
+statistical summarization, and drafting and editing this manuscript. All
+AI-assisted code and numerical claims were checked through executable tests,
+frozen manifests, and machine-readable artifacts. \texttt{TBD: final author
+confirmation of manual review and responsibility before submission.}
+
+\section*{Reproducibility Statement}
+
+Every reported result is tied to versioned configurations, dataset and
+checkpoint hashes, action contracts, random seeds, raw summaries, paired
+statistical tests, and ROCm telemetry. The anonymized supplementary release will
+include the executable evaluation and training entry points together with the
+frozen manifests needed to reproduce each claim. Cells marked \texttt{TBD} are
+not treated as results and will be replaced only from the corresponding
+machine-readable summaries.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
