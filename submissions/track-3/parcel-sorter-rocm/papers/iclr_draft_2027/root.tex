@@ -50,9 +50,10 @@ actions, but it may not query an expert pose, select a grasp family, or complete
 failed action. Each architectural and runtime change is evaluated as a single
 factor under paired initial states.
 
-The paper is organized around three questions. First, can a contract-gated
-adaptation improve over the public $\pi_{0.5}$ LIBERO baseline without using
-privileged state? Second, can the same methodology produce reliable pure-VLA
+The paper is organized around three questions. First, can a protocol-matched
+candidate improve over the locally reproduced $\pi_{0.5}$ LIBERO control
+without using privileged state? Second, can the same methodology produce
+reliable pure-VLA
 pick--transport--place--release behavior across a heterogeneous parcel set?
 Third, which Radeon runtime choices improve latency or energy without regressing
 closed-loop success? The current draft reports completed baseline and negative
@@ -173,9 +174,11 @@ is frozen.
 \subsection{Ablations}
 
 The study changes one declared factor at a time. B2 uses the absolute action
-contract, B3 replaces it with bounded incremental SE(3), B3-SW adds normalized
-stage weighting to the continuous flow loss, B4 adds verified recovery replay,
-and B5 adds short observation memory and explicit policy metadata. Runtime
+contract, and B3 replaces it with bounded incremental SE(3). After B3 fails its
+action-fidelity gate, B3-SW returns to the B2 absolute contract and changes only
+the normalized stage weighting of the continuous flow loss. B4 adds verified
+recovery replay, and B5 adds short observation memory and explicit policy
+metadata. Runtime
 ablations keep the checkpoint fixed and compare action-execution cadence,
 persistent serving, and eager or compiled execution.
 
