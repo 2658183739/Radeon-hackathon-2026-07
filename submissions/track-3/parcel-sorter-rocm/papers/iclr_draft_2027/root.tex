@@ -115,12 +115,13 @@ transport, place, and terminal phases. We therefore apply a pre-registered stage
 weight $w_s$ only to the per-sample continuous flow loss,
 \begin{equation}
   \mathcal{L}=w_s\mathcal{L}_{\mathrm{flow}}+
-  \lambda_{\mathrm{mode}}\mathcal{L}_{\mathrm{mode}},
+  \lambda_{\mathrm{head}}\mathcal{L}_{\mathrm{head}},
 \end{equation}
-while leaving the categorical mode loss unweighted. The weights are normalized
-so that their dataset-frequency-weighted mean equals one. This preserves the
-overall gradient scale and isolates the effect of emphasizing contact-critical
-stages from changes to the already trained mode decoder.
+while leaving the existing categorical mode-head coefficient and class weights
+unchanged and outside the stage multiplier. The stage weights are normalized so
+that their dataset-frequency-weighted mean equals one. This preserves the overall
+gradient scale and isolates the effect of emphasizing contact-critical stages
+from changes to the already trained mode decoder.
 
 \subsection{Verified Recovery Replay}
 
