@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
 PERSISTENCE_ROOT="${PI05_PERSISTENCE_ROOT:-/workspace/persistence/parcel-sorter-opt-v1}"
 DATASET_ROOT="${1:-${ROOT_DIR}/outputs/pi05-b0-absolute-v1-merged}"
 OUTPUT_DIR="${2:-${PERSISTENCE_ROOT}/runs/mobile-pi05-b3-sw-stage-weighted-12000-v1}"

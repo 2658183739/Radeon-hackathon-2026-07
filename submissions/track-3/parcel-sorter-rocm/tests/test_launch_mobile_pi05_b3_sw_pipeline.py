@@ -53,6 +53,9 @@ class LaunchMobilePI05B3SWPipelineTests(unittest.TestCase):
         self.assertIn("MOBILE_PI05_LORA_R=16", text)
         self.assertIn("MOBILE_PI05_STEPS=12000", text)
         self.assertIn("MOBILE_PI05_STAGE_LOSS_WEIGHTS=\"${STAGE_WEIGHTS}\"", text)
+        self.assertIn(
+            'PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"', text
+        )
         self.assertIn("/workspace/persistence/parcel-sorter-opt-v1", text)
         self.assertNotIn("incremental_se3_v1", text)
 
