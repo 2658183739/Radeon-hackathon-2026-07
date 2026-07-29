@@ -144,13 +144,19 @@ def classify_mobile_failure(summary: dict[str, Any]) -> str | None:
     )
     if peak_force >= 35.0:
         return "force_safety_abort"
+    if not bool(summary.get("scene_stable")):
+        return "scene_stability_failure"
+    if not bool(summary.get("latched")):
+        return (
+            "contact_failure"
+            if float(suction.get("max_contact_force_n") or 0.0) <= 0.0
+            else "suction_latch_failure"
+        )
     ordered_gates = (
-        ("scene_stable", "scene_stability"),
-        ("latched", "suction_latch"),
-        ("lift_success", "lift_success"),
-        ("transport_success", "transport_success"),
-        ("placed_before_release", "placement_success"),
-        ("released", "release_success"),
+        ("lift_success", "lift_support_failure"),
+        ("transport_success", "transport_failure"),
+        ("placed_before_release", "placement_failure"),
+        ("released", "release_failure"),
     )
     for field, stage in ordered_gates:
         if not bool(summary.get(field)):
@@ -325,13 +331,18 @@ def recovery_recipes(previous_failure: str | None) -> tuple[RecoveryRecipe, ...]
 
     if previous_failure is None:
         return (NOMINAL_RECOVERY,)
-    if previous_failure == "suction_latch":
+    if previous_failure in {"contact_failure", "suction_latch_failure", "suction_latch"}:
         return (SEAL_SEARCH_PLUS_Y, SEAL_SEARCH_MINUS_Y)
-    if previous_failure == "lift_success":
+    if previous_failure in {"lift_support_failure", "lift_success"}:
         return (GENTLE_LIFT, TRANSPORT_STABILIZE)
-    if previous_failure == "transport_success":
+    if previous_failure in {"transport_failure", "transport_success"}:
         return (TRANSPORT_STABILIZE, GENTLE_LIFT)
-    if previous_failure in {"placement_success", "release_success"}:
+    if previous_failure in {
+        "placement_failure",
+        "release_failure",
+        "placement_success",
+        "release_success",
+    }:
         return (PRECISION_PLACE,)
     if previous_failure == "force_safety_abort":
         return (FORCE_RETREAT,)
@@ -494,6 +505,11 @@ def _allowed_strategies(
     if previous_failure == "force_safety_abort":
         candidates = [item for item in candidates if item.name == EXPERT_RECOVERY.name]
     elif previous_failure in {
+        "contact_failure",
+        "suction_latch_failure",
+        "lift_support_failure",
+        "placement_failure",
+        "release_failure",
         "suction_latch",
         "lift_success",
         "placement_success",

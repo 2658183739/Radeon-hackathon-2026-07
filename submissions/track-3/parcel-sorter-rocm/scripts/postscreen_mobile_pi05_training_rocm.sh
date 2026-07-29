@@ -4,6 +4,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STAGE_PANEL="${MOBILE_PI05_STAGE_PANEL:?postscreen requires MOBILE_PI05_STAGE_PANEL}"
+ACTION_THRESHOLDS="${MOBILE_PI05_ACTION_THRESHOLDS:?postscreen requires MOBILE_PI05_ACTION_THRESHOLDS}"
 TRAIN_PID="${1:?usage: $0 TRAIN_PID TRAIN_LOG RUN_ROOT DATASET_ROOT OUTPUT_DIR RUN_NAME [STEP ...]}"
 TRAIN_LOG="${2:?usage: $0 TRAIN_PID TRAIN_LOG RUN_ROOT DATASET_ROOT OUTPUT_DIR RUN_NAME [STEP ...]}"
 RUN_ROOT="${3:?usage: $0 TRAIN_PID TRAIN_LOG RUN_ROOT DATASET_ROOT OUTPUT_DIR RUN_NAME [STEP ...]}"
@@ -38,7 +40,8 @@ fi
 mkdir -p "${OUTPUT_DIR}"
 screen_status=0
 bash "${ROOT_DIR}/scripts/screen_mobile_pi05_checkpoints_rocm.sh" \
-  "${RUN_ROOT}" "${DATASET_ROOT}" "${OUTPUT_DIR}" "${RUN_NAME}" \
+  "${RUN_ROOT}" "${DATASET_ROOT}" "${STAGE_PANEL}" "${ACTION_THRESHOLDS}" \
+  "${OUTPUT_DIR}" "${RUN_NAME}" \
   "${STEPS[@]}" || screen_status=$?
 
 if [[ "${screen_status}" -ge 3 ]]; then
@@ -66,12 +69,7 @@ for step in "${STEPS[@]}"; do
   python scripts/probe_mobile_pi05_high_noise_mode_rocm.py \
     "${checkpoint}" \
     "${DATASET_ROOT}" \
-    --index 0 \
-    --index 644 \
-    --index 1286 \
-    --index 3636 \
-    --index 4699 \
-    --index 5285 \
+    --panel "${STAGE_PANEL}" \
     --samples 3 \
     --seed 20260727 \
     --output "${output}" 2>&1 | tee "${log}"

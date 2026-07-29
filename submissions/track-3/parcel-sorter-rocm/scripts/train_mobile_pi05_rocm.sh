@@ -12,6 +12,12 @@ BASE_MODEL="${PI05_BASE_MODEL:-${DEFAULT_BASE_MODEL}}"
 BASE_REVISION="${PI05_BASE_REVISION:-7de663972b7817d2c4cf2d84c821153dfea772e9}"
 STEPS="${MOBILE_PI05_STEPS:-1000}"
 BATCH_SIZE="${MOBILE_PI05_BATCH_SIZE:-1}"
+TRAINING_ROLE="${MOBILE_PI05_TRAINING_ROLE:-}"
+SCHEDULER_WARMUP_STEPS="${MOBILE_PI05_SCHEDULER_WARMUP_STEPS:-0}"
+SCHEDULER_DECAY_STEPS="${MOBILE_PI05_SCHEDULER_DECAY_STEPS:-${STEPS}}"
+TINY_OVERFIT_PANEL="${MOBILE_PI05_TINY_OVERFIT_PANEL:-}"
+ACTION_THRESHOLDS="${MOBILE_PI05_ACTION_THRESHOLDS:-}"
+TINY_OVERFIT_GATE="${MOBILE_PI05_TINY_OVERFIT_GATE:-}"
 NUM_WORKERS="${MOBILE_PI05_NUM_WORKERS:-0}"
 LORA_R="${MOBILE_PI05_LORA_R:-16}"
 LORA_ALPHA="${MOBILE_PI05_LORA_ALPHA:-32}"
@@ -19,6 +25,7 @@ SAVE_FREQ="${MOBILE_PI05_SAVE_FREQ:-${STEPS}}"
 CHUNK_SIZE="${MOBILE_PI05_CHUNK_SIZE:-30}"
 N_ACTION_STEPS="${MOBILE_PI05_N_ACTION_STEPS:-10}"
 RESUME_CONFIG="${MOBILE_PI05_RESUME_CONFIG:-}"
+RESUME_CHECKPOINT_STEP="${MOBILE_PI05_RESUME_CHECKPOINT_STEP:-}"
 RESUME_DECAY_STEPS="${MOBILE_PI05_RESUME_DECAY_STEPS:-}"
 RESUME_WARMUP_STEPS="${MOBILE_PI05_RESUME_WARMUP_STEPS:-}"
 MODE_LOSS_WEIGHT="${MOBILE_PI05_MODE_LOSS_WEIGHT:-1}"
@@ -46,6 +53,14 @@ if [[ "${FULL_ACTION_PROJECTIONS}" != "0" && "${FULL_ACTION_PROJECTIONS}" != "1"
   echo "ERROR: MOBILE_PI05_FULL_ACTION_PROJECTIONS must be 0 or 1" >&2
   exit 2
 fi
+if [[ "${TRAINING_ROLE}" != "smoke" && "${TRAINING_ROLE}" != "tiny_overfit" && "${TRAINING_ROLE}" != "candidate" ]]; then
+  echo "ERROR: MOBILE_PI05_TRAINING_ROLE must be smoke, tiny_overfit, or candidate" >&2
+  exit 2
+fi
+if [[ "${TRAINING_ROLE}" != "smoke" && ( "${ACTION_CONTRACT}" != "absolute_v1" || "${FULL_ACTION_PROJECTIONS}" != "1" ) ]]; then
+  echo "ERROR: tiny_overfit/candidate training requires absolute_v1 with full action projections" >&2
+  exit 2
+fi
 
 export HIP_VISIBLE_DEVICES="${HIP_VISIBLE_DEVICES:-0}"
 export PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
@@ -56,6 +71,43 @@ export TOKENIZERS_PARALLELISM=false
 export MOBILE_PI05_ACTION_CONTRACT="${ACTION_CONTRACT}"
 
 cd "${ROOT_DIR}"
+launch_audit_dir="$(mktemp -d)"
+launch_audit="${launch_audit_dir}/PI05_TRAINING_LAUNCH_AUDIT.json"
+resume_staging_dir=""
+cleanup_contract_staging() {
+  rm -f "${launch_audit}"
+  rmdir "${launch_audit_dir}" 2>/dev/null || true
+  if [[ -n "${resume_staging_dir}" && -d "${resume_staging_dir}" ]]; then
+    rm -f "${resume_staging_dir}/PI05_TRAINING_CONTRACT.json" \
+      "${resume_staging_dir}/PI05_RESUME_AUDIT.json"
+    rmdir "${resume_staging_dir}" 2>/dev/null || true
+  fi
+}
+trap cleanup_contract_staging EXIT
+launch_audit_args=(
+  --training-role "${TRAINING_ROLE}"
+  --dataset-root "${DATASET_ROOT}"
+  --action-contract "${ACTION_CONTRACT}"
+  --steps "${STEPS}"
+  --scheduler-warmup-steps "${SCHEDULER_WARMUP_STEPS}"
+  --scheduler-decay-steps "${SCHEDULER_DECAY_STEPS}"
+  --output "${launch_audit}"
+)
+if [[ "${TRAINING_ROLE}" == "tiny_overfit" ]]; then
+  test -n "${TINY_OVERFIT_PANEL}" && test -n "${ACTION_THRESHOLDS}" || {
+    echo "ERROR: tiny_overfit requires MOBILE_PI05_TINY_OVERFIT_PANEL and MOBILE_PI05_ACTION_THRESHOLDS" >&2
+    exit 2
+  }
+  launch_audit_args+=(--stage-panel "${TINY_OVERFIT_PANEL}" --action-thresholds "${ACTION_THRESHOLDS}")
+elif [[ "${TRAINING_ROLE}" == "candidate" ]]; then
+  test -n "${TINY_OVERFIT_GATE}" || {
+    echo "ERROR: candidate training requires MOBILE_PI05_TINY_OVERFIT_GATE" >&2
+    exit 2
+  }
+  launch_audit_args+=(--tiny-overfit-gate "${TINY_OVERFIT_GATE}")
+fi
+python scripts/audit_mobile_pi05_training_launch.py "${launch_audit_args[@]}"
+
 source scripts/activate_radeon_env.sh
 bash scripts/preflight_radeon.sh
 if [[ "${MOBILE_PI05_ALLOW_CHECKPOINT_CLEANUP:-0}" == "1" ]]; then
@@ -76,9 +128,16 @@ test -f "${DATASET_ROOT}/meta/info.json" || {
 MOBILE_PI05_MIN_RECOVERY_EPISODES="${MOBILE_PI05_MIN_RECOVERY_EPISODES:-6}"
 MOBILE_PI05_MIN_NONZERO_FRAMES="${MOBILE_PI05_MIN_NONZERO_FRAMES:-60}"
 MOBILE_PI05_MIN_EPISODES_PER_MODE="${MOBILE_PI05_MIN_EPISODES_PER_MODE:-2}"
+DATASET_GATE_ALLOW_ZERO_SEED=0
+if [[ "${TRAINING_ROLE}" != "candidate" ]]; then
+  DATASET_GATE_ALLOW_ZERO_SEED=1
+elif [[ "${MOBILE_PI05_ALLOW_ZERO_SEED:-0}" != "0" ]]; then
+  echo "ERROR: candidate training cannot bypass the verified-source dataset gate" >&2
+  exit 4
+fi
 python - "${DATASET_ROOT}" "${MOBILE_PI05_MIN_RECOVERY_EPISODES}" \
   "${MOBILE_PI05_MIN_NONZERO_FRAMES}" "${MOBILE_PI05_MIN_EPISODES_PER_MODE}" \
-  "${MOBILE_PI05_ALLOW_ZERO_SEED:-0}" "${WRIST_RGBD}" "${ACTION_CONTRACT}" <<'PY'
+  "${DATASET_GATE_ALLOW_ZERO_SEED}" "${WRIST_RGBD}" "${ACTION_CONTRACT}" <<'PY'
 import json
 from pathlib import Path
 import sys
@@ -94,6 +153,7 @@ from parcel_sorter.mobile_dataset import (
     infer_mobile_policy_modality,
     mobile_policy_visual_keys,
 )
+from parcel_sorter.mobile_pi05_research_protocol import independent_source_identity
 
 root = Path(sys.argv[1])
 minimum_episodes = int(sys.argv[2])
@@ -175,15 +235,15 @@ independent_recovery_ids = {
 recovery_episodes = len(independent_recovery_ids)
 replayed_training_episodes = len(recovery_entries) - recovery_episodes
 mode_names = ("top_suction", "side_suction", "cooperative_cradle")
+mode_source_identities = {mode: set() for mode in mode_names}
+for item in recovery_entries:
+    identity = independent_source_identity(item)
+    for mode in item.get("grasp_modes", ()):
+        if mode in mode_source_identities:
+            mode_source_identities[mode].add(identity)
 mode_episode_counts = {
-    mode: int((manifest.get("mode_episode_counts") or {}).get(mode, 0))
-    for mode in mode_names
+    mode: len(identities) for mode, identities in mode_source_identities.items()
 }
-if not any(mode_episode_counts.values()):
-    for item in recovery_entries:
-        for mode in item.get("grasp_modes", ()):
-            if mode in mode_episode_counts:
-                mode_episode_counts[mode] += 1
 missing_modes = {
     mode: count
     for mode, count in mode_episode_counts.items()
@@ -217,8 +277,8 @@ if not allow_zero_seed and (
         "ERROR: formal PI0.5 training requires verified, leakage-free recovery data; "
         f"episodes={recovery_episodes}/{minimum_episodes}, "
         f"frames={nonzero_frames}/{minimum_frames}, summary={verified_summary!r}, "
-        f"mode_episode_counts={mode_episode_counts}, "
-        f"minimum_per_mode={minimum_per_mode}, "
+        f"independent_source_counts_by_mode={mode_episode_counts}, "
+        f"minimum_independent_sources_per_mode={minimum_per_mode}, "
         f"mode_conditioning={mode_conditioning_policy!r}, "
         f"lift_supervision={lift_residual_supervision!r}"
     )
@@ -234,8 +294,8 @@ print(
             "nonzero_supervision_kind": (
                 "base_command" if absolute_contract else "contact_residual"
             ),
-            "mode_episode_counts": mode_episode_counts,
-            "minimum_episodes_per_mode": minimum_per_mode,
+            "independent_source_counts_by_mode": mode_episode_counts,
+            "minimum_independent_sources_per_mode": minimum_per_mode,
             "missing_modes": missing_modes,
             "mode_conditioning_policy": mode_conditioning_policy,
             "task_language_policy": manifest.get("task_language_policy", "source_text"),
@@ -307,6 +367,13 @@ write_training_contract() {
     --base-revision "${BASE_REVISION}" \
     --chunk-size "${CHUNK_SIZE}" \
     --n-action-steps "${N_ACTION_STEPS}" \
+    --training-role "${TRAINING_ROLE}" \
+    --requested-training-steps "${STEPS}" \
+    --training-batch-size "${BATCH_SIZE}" \
+    --scheduler-type cosine_decay \
+    --scheduler-warmup-steps "${SCHEDULER_WARMUP_STEPS}" \
+    --scheduler-decay-steps "${SCHEDULER_DECAY_STEPS}" \
+    --launch-audit "${launch_audit}" \
     "${architecture_args[@]}"
 }
 
@@ -315,20 +382,54 @@ if [[ -n "${RESUME_CONFIG}" ]]; then
     echo "ERROR: PI0.5 resume config not found: ${RESUME_CONFIG}" >&2
     exit 5
   }
-  write_training_contract
-  resume_scheduler_args=()
-  if [[ -n "${RESUME_DECAY_STEPS}" ]]; then
-    resume_scheduler_args+=(--scheduler.num_decay_steps "${RESUME_DECAY_STEPS}")
+  if [[ -n "${RESUME_DECAY_STEPS}" && "${RESUME_DECAY_STEPS}" != "${SCHEDULER_DECAY_STEPS}" ]]; then
+    echo "ERROR: resume decay steps conflict with the frozen scheduler contract" >&2
+    exit 5
   fi
-  if [[ -n "${RESUME_WARMUP_STEPS}" ]]; then
-    resume_scheduler_args+=(--scheduler.num_warmup_steps "${RESUME_WARMUP_STEPS}")
+  if [[ -n "${RESUME_WARMUP_STEPS}" && "${RESUME_WARMUP_STEPS}" != "${SCHEDULER_WARMUP_STEPS}" ]]; then
+    echo "ERROR: resume warmup steps conflict with the frozen scheduler contract" >&2
+    exit 5
   fi
+  if [[ ! "${RESUME_CHECKPOINT_STEP}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: resume requires MOBILE_PI05_RESUME_CHECKPOINT_STEP" >&2
+    exit 5
+  fi
+  existing_contract="${OUTPUT_DIR}/PI05_TRAINING_CONTRACT.json"
+  existing_launch_audit="${OUTPUT_DIR}/PI05_TRAINING_LAUNCH_AUDIT.json"
+  test -f "${existing_contract}" || {
+    echo "ERROR: immutable PI0.5 training contract is missing" >&2
+    exit 5
+  }
+  test -f "${existing_launch_audit}" || {
+    echo "ERROR: original PI0.5 training launch audit is missing" >&2
+    exit 5
+  }
+  resume_staging_dir="$(mktemp -d)"
+  write_training_contract "${resume_staging_dir}"
+  resume_audit="${resume_staging_dir}/PI05_RESUME_AUDIT.json"
+  resume_audit_target="${OUTPUT_DIR}/PI05_RESUME_AUDIT_STEP_$(printf '%06d' "${RESUME_CHECKPOINT_STEP}").json"
+  test ! -e "${resume_audit_target}" || {
+    echo "ERROR: resume audit already exists: ${resume_audit_target}" >&2
+    exit 5
+  }
+  python scripts/audit_mobile_pi05_resume_training.py \
+    --existing-contract "${existing_contract}" \
+    --proposed-contract "${resume_staging_dir}/PI05_TRAINING_CONTRACT.json" \
+    --existing-launch-audit "${existing_launch_audit}" \
+    --proposed-launch-audit "${launch_audit}" \
+    --checkpoint "$(dirname "${RESUME_CONFIG}")" \
+    --checkpoint-step "${RESUME_CHECKPOINT_STEP}" \
+    --output "${resume_audit}"
+  cp "${resume_audit}" "${resume_audit_target}"
+  rm -f "${resume_staging_dir}/PI05_TRAINING_CONTRACT.json" "${resume_audit}"
+  rmdir "${resume_staging_dir}"
   "${TRAIN_ENTRY[@]}" \
     --config_path="${RESUME_CONFIG}" \
     --resume true \
     --steps "${STEPS}" \
     --save_freq "${SAVE_FREQ}" \
-    "${resume_scheduler_args[@]}" \
+    --scheduler.num_decay_steps "${SCHEDULER_DECAY_STEPS}" \
+    --scheduler.num_warmup_steps "${SCHEDULER_WARMUP_STEPS}" \
     --wandb.enable false
   exit 0
 fi
@@ -374,6 +475,8 @@ write_training_contract "${contract_staging_dir}"
   --log_freq 1 \
   --save_checkpoint true \
   --save_freq "${SAVE_FREQ}" \
+  --scheduler.num_decay_steps "${SCHEDULER_DECAY_STEPS}" \
+  --scheduler.num_warmup_steps "${SCHEDULER_WARMUP_STEPS}" \
   --wandb.enable false \
   --env_eval_freq 0 \
   --eval_steps 0 &
@@ -386,6 +489,7 @@ if [[ -d "${OUTPUT_DIR}" ]]; then
   contract_tmp="${OUTPUT_DIR}/.PI05_TRAINING_CONTRACT.json.tmp.$$"
   mv "${contract_staging_dir}/PI05_TRAINING_CONTRACT.json" "${contract_tmp}"
   mv "${contract_tmp}" "${OUTPUT_DIR}/PI05_TRAINING_CONTRACT.json"
+  cp "${launch_audit}" "${OUTPUT_DIR}/PI05_TRAINING_LAUNCH_AUDIT.json"
   rmdir "${contract_staging_dir}"
   echo "training_contract=installed_before_first_checkpoint"
 else

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Freeze one PI0.5 checkpoint after the development route screen."""
+"""Freeze one PI0.5 checkpoint after the development stage-action screen."""
 
 from __future__ import annotations
 
@@ -10,10 +10,15 @@ from pathlib import Path
 import re
 from typing import Any
 
+from parcel_sorter.mobile_pi05_training_contract import validate_pi05_training_contract
+from parcel_sorter.pi05_action_projection_adapter import (
+    PI05_FULL_ACTION_PROJECTION_PROTOCOL,
+)
 
-SCREEN_PROTOCOL = "pi05-three-mode-hidden-input-screen-v2"
-PANEL_ROLE = "training_distribution_development"
-SELECTION_PROTOCOL = "pi05-earliest-passing-route-checkpoint-selection-v1"
+
+SCREEN_PROTOCOL = "pi05-stage-complete-action-screen-v3"
+PANEL_ROLE = "heldout_action_development"
+SELECTION_PROTOCOL = "pi05-earliest-passing-stage-action-checkpoint-selection-v2"
 
 
 def _sha256(path: Path) -> str:
@@ -22,6 +27,12 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _is_sha256(value: str) -> bool:
+    return len(value) == 64 and all(
+        character in "0123456789abcdef" for character in value
+    )
 
 
 def _checkpoint_step(checkpoint: Path) -> int:
@@ -55,12 +66,16 @@ def select_checkpoint(
 ) -> dict[str, Any]:
     if len(screen_paths) != expected_count:
         raise ValueError(
-            f"expected {expected_count} route screens, received {len(screen_paths)}"
+            f"expected {expected_count} stage-action screens, received {len(screen_paths)}"
         )
 
     candidates: list[dict[str, Any]] = []
     datasets: set[str] = set()
     seed_panels: set[tuple[int, ...]] = set()
+    panel_hashes: set[str] = set()
+    threshold_hashes: set[str] = set()
+    manifest_hashes: set[str] = set()
+    training_contract_paths: set[Path] = set()
     steps: set[int] = set()
     for path in screen_paths:
         payload = _read_screen(path)
@@ -69,39 +84,65 @@ def select_checkpoint(
         if step in steps:
             raise ValueError(f"duplicate checkpoint step: {step}")
         steps.add(step)
+        training_contract = _find_training_contract(checkpoint).resolve()
+        training_contract_paths.add(training_contract)
         metrics = payload.get("metrics") or {}
         passed = (
             payload.get("status") == "passed"
             and not payload.get("errors")
-            and int(metrics.get("probes", 0)) == 6
-            and int(metrics.get("correct_probes", 0)) == 6
+            and payload.get("action_contract") == "pi05_absolute_v1"
+            and payload.get("action_fidelity_required") is True
+            and payload.get("deployment_calibrated_thresholds") is True
+            and int(payload.get("mode_stage_cells", 0)) == 18
+            and int(payload.get("routing_error_count", -1)) == 0
+            and int(payload.get("action_fidelity_error_count", -1)) == 0
+            and int(payload.get("structural_error_count", -1)) == 0
+            and int(metrics.get("probes", 0)) >= 18
+            and int(metrics.get("correct_probes", -1))
+            == int(metrics.get("probes", 0))
             and float(metrics.get("probe_accuracy", 0.0)) == 1.0
-            and float(metrics.get("macro_mode_accuracy", 0.0)) == 1.0
         )
         datasets.add(str(payload.get("dataset", "")))
         seed_panels.add(tuple(int(seed) for seed in payload.get("sample_seeds", ())))
+        panel_hashes.add(str(payload.get("stage_panel_sha256") or ""))
+        threshold_hashes.add(str(payload.get("action_thresholds_sha256") or ""))
+        manifest_hashes.add(str(payload.get("dataset_manifest_sha256") or ""))
         candidates.append(
             {
                 "step": step,
                 "checkpoint": str(checkpoint),
                 "screen": str(path.resolve()),
                 "screen_sha256": _sha256(path),
+                "training_contract": str(training_contract),
                 "status": str(payload.get("status")),
-                "route_gate_passed": passed,
+                "stage_action_gate_passed": passed,
                 "probe_accuracy": float(metrics.get("probe_accuracy", 0.0)),
-                "macro_mode_accuracy": float(
-                    metrics.get("macro_mode_accuracy", 0.0)
+                "routing_error_count": int(payload.get("routing_error_count", -1)),
+                "action_fidelity_error_count": int(
+                    payload.get("action_fidelity_error_count", -1)
+                ),
+                "structural_error_count": int(
+                    payload.get("structural_error_count", -1)
                 ),
             }
         )
 
     if len(datasets) != 1 or "" in datasets:
-        raise ValueError("route screens do not use one frozen dataset")
+        raise ValueError("stage-action screens do not use one frozen dataset")
     if len(seed_panels) != 1 or not next(iter(seed_panels)):
-        raise ValueError("route screens do not use one non-empty seed panel")
-    passing = [item for item in candidates if item["route_gate_passed"]]
+        raise ValueError("stage-action screens do not use one non-empty seed panel")
+    for label, values in (
+        ("stage panel", panel_hashes),
+        ("action thresholds", threshold_hashes),
+        ("dataset manifest", manifest_hashes),
+    ):
+        if len(values) != 1 or not _is_sha256(next(iter(values))):
+            raise ValueError(f"screens do not share one frozen {label}")
+    if len(training_contract_paths) != 1:
+        raise ValueError("stage-action screens do not belong to one training run")
+    passing = [item for item in candidates if item["stage_action_gate_passed"]]
     if not passing:
-        raise ValueError("no checkpoint passed the development route gate")
+        raise ValueError("no checkpoint passed the development stage-action gate")
 
     selected = min(passing, key=lambda item: int(item["step"]))
     checkpoint = Path(str(selected["checkpoint"]))
@@ -115,7 +156,23 @@ def select_checkpoint(
         if not path.is_file():
             raise ValueError(f"selected checkpoint artifact is missing: {path}")
         artifacts[name] = _sha256(path)
-    training_contract = _find_training_contract(checkpoint)
+    training_contract = next(iter(training_contract_paths))
+    training_payload = json.loads(training_contract.read_text(encoding="utf-8"))
+    validate_pi05_training_contract(
+        training_payload,
+        state_dim=int(training_payload.get("state_dimension", 0)),
+        action_dim=int(training_payload.get("action_dimension", 0)),
+        chunk_size=int(training_payload.get("action_chunk_size", 0)),
+        required_action_projection_protocol=PI05_FULL_ACTION_PROJECTION_PROTOCOL,
+    )
+    if training_payload.get("training_role") != "candidate":
+        raise ValueError("selected checkpoint is not from a candidate training run")
+    if not training_payload.get("training_launch_audit_sha256"):
+        raise ValueError("selected checkpoint lacks a passed training-launch audit")
+    if training_payload.get("dataset_manifest_sha256") != next(iter(manifest_hashes)):
+        raise ValueError("training contract and development screen dataset mismatch")
+    if int(training_payload.get("requested_training_steps", 0)) < max(steps):
+        raise ValueError("checkpoint panel exceeds the contracted training budget")
 
     return {
         "schema_version": 1,
@@ -123,13 +180,16 @@ def select_checkpoint(
         "status": "selected",
         "selection_panel_role": PANEL_ROLE,
         "checkpoint_selection_rule": (
-            "minimum training step among checkpoints tied at the complete 6/6 "
-            "development route threshold"
+            "minimum training step among checkpoints with zero routing, action-fidelity, "
+            "and structural errors on one frozen stage-complete development panel"
         ),
         "heldout_observations_accessed": False,
         "closed_loop_results_accessed": False,
         "dataset": next(iter(datasets)),
         "sample_seeds": list(next(iter(seed_panels))),
+        "stage_panel_sha256": next(iter(panel_hashes)),
+        "action_thresholds_sha256": next(iter(threshold_hashes)),
+        "dataset_manifest_sha256": next(iter(manifest_hashes)),
         "candidates": sorted(candidates, key=lambda item: int(item["step"])),
         "selected_step": int(selected["step"]),
         "selected_checkpoint": str(checkpoint),
@@ -138,7 +198,7 @@ def select_checkpoint(
         "selected_checkpoint_artifact_sha256": artifacts,
         "training_contract": str(training_contract.resolve()),
         "training_contract_sha256": _sha256(training_contract),
-        "next_gate": "three-episode-strict-development-closed-loop",
+        "next_gate": "three-episode-pure-vla-development-closed-loop",
         "claim_boundary": (
             "Deterministic development checkpoint selection only; this is not "
             "held-out generalization or closed-loop success evidence."

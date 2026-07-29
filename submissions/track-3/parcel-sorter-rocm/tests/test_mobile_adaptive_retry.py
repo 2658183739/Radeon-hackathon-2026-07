@@ -28,6 +28,35 @@ class MobileAdaptiveRetryTests(unittest.TestCase):
         }
         self.assertEqual(classify_mobile_failure(summary), "force_safety_abort")
 
+    def test_first_causal_failure_separates_contact_latch_and_lift(self) -> None:
+        base = {
+            "success": False,
+            "scene_stable": True,
+            "lift_success": False,
+            "transport_success": False,
+            "placed_before_release": False,
+            "released": False,
+        }
+        no_contact = {
+            **base,
+            "latched": False,
+            "suction": {"max_contact_force_n": 0.0},
+        }
+        no_latch = {
+            **base,
+            "latched": False,
+            "suction": {"max_contact_force_n": 2.0},
+        }
+        lost_lift = {
+            **base,
+            "latched": True,
+            "suction": {"max_contact_force_n": 2.0},
+        }
+
+        self.assertEqual(classify_mobile_failure(no_contact), "contact_failure")
+        self.assertEqual(classify_mobile_failure(no_latch), "suction_latch_failure")
+        self.assertEqual(classify_mobile_failure(lost_lift), "lift_support_failure")
+
     def test_force_abort_permits_only_expert_recovery(self) -> None:
         memory = EpisodicStrategyMemory()
         selected = choose_retry_strategy(

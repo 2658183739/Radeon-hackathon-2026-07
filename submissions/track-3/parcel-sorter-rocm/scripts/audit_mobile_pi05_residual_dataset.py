@@ -22,6 +22,7 @@ from parcel_sorter.mobile_pi05_normalization import unsafe_quantile_dimensions
 from parcel_sorter.mobile_pi05_data_quality import (
     summarize_pi05_action_chunk_activity,
 )
+from parcel_sorter.mobile_pi05_research_protocol import independent_source_identity
 
 
 def main() -> int:
@@ -30,6 +31,7 @@ def main() -> int:
     parser.add_argument("--source-root", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--min-recovery-episodes", type=int, default=2)
+    parser.add_argument("--min-independent-sources-per-mode", type=int, default=2)
     args = parser.parse_args()
 
     import pyarrow.parquet as pq
@@ -118,6 +120,19 @@ def main() -> int:
         )
         for item in recovery_entries
     }
+    mode_source_identities = {
+        mode: set() for mode in ("top_suction", "side_suction", "cooperative_cradle")
+    }
+    try:
+        for item in recovery_entries:
+            identity = independent_source_identity(item)
+            for mode in item.get("grasp_modes") or ():
+                if mode not in mode_source_identities:
+                    errors.append(f"invalid_grasp_mode:{mode}")
+                else:
+                    mode_source_identities[mode].add(identity)
+    except ValueError as exc:
+        errors.append(f"invalid_source_identity:{exc}")
     for file_index, path in enumerate(dataset_files):
         columns = ["episode_index", "observation.stage_id", "observation.state", "action"]
         rows = pq.read_table(path, columns=columns).to_pylist()
@@ -226,6 +241,14 @@ def main() -> int:
 
     if len(independent_recovery_ids) < args.min_recovery_episodes:
         errors.append("insufficient_verified_recovery_episodes")
+    independent_source_counts_by_mode = {
+        mode: len(values) for mode, values in mode_source_identities.items()
+    }
+    errors.extend(
+        f"insufficient_independent_sources:{mode}:{count}"
+        for mode, count in independent_source_counts_by_mode.items()
+        if count < args.min_independent_sources_per_mode
+    )
     if absolute_contract:
         if manifest.get("expert_reference_used") is not False:
             errors.append("absolute_contract_uses_expert_reference")
@@ -290,6 +313,10 @@ def main() -> int:
         "episodes": int(manifest.get("episodes", 0)),
         "verified_recovery_episode_instances": len(recovery_episode_ids),
         "independent_verified_recovery_episodes": len(independent_recovery_ids),
+        "independent_source_counts_by_mode": independent_source_counts_by_mode,
+        "minimum_independent_sources_per_mode": (
+            args.min_independent_sources_per_mode
+        ),
         "replayed_training_episodes": len(recovery_episode_ids)
         - len(independent_recovery_ids),
         "frames": total_frames,

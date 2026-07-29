@@ -4,11 +4,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_ROOT="${1:?usage: $0 RUN_ROOT DATASET_ROOT OUTPUT_DIR RUN_NAME [STEP ...]}"
-DATASET_ROOT="${2:?usage: $0 RUN_ROOT DATASET_ROOT OUTPUT_DIR RUN_NAME [STEP ...]}"
-OUTPUT_DIR="${3:?usage: $0 RUN_ROOT DATASET_ROOT OUTPUT_DIR RUN_NAME [STEP ...]}"
-RUN_NAME="${4:?usage: $0 RUN_ROOT DATASET_ROOT OUTPUT_DIR RUN_NAME [STEP ...]}"
-shift 4
+USAGE="usage: $0 RUN_ROOT DATASET_ROOT STAGE_PANEL ACTION_THRESHOLDS OUTPUT_DIR RUN_NAME [STEP ...]"
+RUN_ROOT="${1:?${USAGE}}"
+DATASET_ROOT="${2:?${USAGE}}"
+STAGE_PANEL="${3:?${USAGE}}"
+ACTION_THRESHOLDS="${4:?${USAGE}}"
+OUTPUT_DIR="${5:?${USAGE}}"
+RUN_NAME="${6:?${USAGE}}"
+shift 6
 if [[ "$#" -eq 0 ]]; then
   STEPS=(1000 2000 3000)
 else
@@ -18,19 +21,11 @@ fi
 export PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
 export HIP_VISIBLE_DEVICES="${HIP_VISIBLE_DEVICES:-0}"
 export TOKENIZERS_PARALLELISM=false
-REQUIRE_ACTION_FIDELITY="${MOBILE_PI05_REQUIRE_ACTION_FIDELITY:-0}"
-REQUIRE_FULL_ACTION_PROJECTIONS="${MOBILE_PI05_REQUIRE_FULL_ACTION_PROJECTIONS:-0}"
 EXPECTED_STAGE_LOSS_WEIGHTS="${MOBILE_PI05_EXPECTED_STAGE_LOSS_WEIGHTS:-}"
 EXPECTED_MODE_FLOW_LOSS_WEIGHTS="${MOBILE_PI05_EXPECTED_MODE_FLOW_LOSS_WEIGHTS:-}"
 EXPECTED_MODE_FLOW_LOSS_NORMALIZER="${MOBILE_PI05_EXPECTED_MODE_FLOW_LOSS_NORMALIZER:-}"
-if [[ "${REQUIRE_ACTION_FIDELITY}" != "0" && "${REQUIRE_ACTION_FIDELITY}" != "1" ]]; then
-  echo "ERROR: MOBILE_PI05_REQUIRE_ACTION_FIDELITY must be 0 or 1" >&2
-  exit 2
-fi
-if [[ "${REQUIRE_FULL_ACTION_PROJECTIONS}" != "0" && "${REQUIRE_FULL_ACTION_PROJECTIONS}" != "1" ]]; then
-  echo "ERROR: MOBILE_PI05_REQUIRE_FULL_ACTION_PROJECTIONS must be 0 or 1" >&2
-  exit 2
-fi
+test -f "${STAGE_PANEL}" || { echo "ERROR: missing frozen stage panel: ${STAGE_PANEL}" >&2; exit 2; }
+test -f "${ACTION_THRESHOLDS}" || { echo "ERROR: missing action thresholds: ${ACTION_THRESHOLDS}" >&2; exit 2; }
 
 cd "${ROOT_DIR}"
 source scripts/activate_radeon_env.sh
@@ -40,10 +35,10 @@ status=0
 for step in "${STEPS[@]}"; do
   printf -v checkpoint_step "%06d" "${step}"
   checkpoint="${RUN_ROOT}/checkpoints/${checkpoint_step}/pretrained_model"
-  probe="${OUTPUT_DIR}/${RUN_NAME}-step${step}-six-observation-probes.json"
-  screen="${OUTPUT_DIR}/${RUN_NAME}-step${step}-six-observation-screen.json"
+  probe="${OUTPUT_DIR}/${RUN_NAME}-step${step}-stage-panel-probes.json"
+  screen="${OUTPUT_DIR}/${RUN_NAME}-step${step}-stage-panel-screen.json"
   audit="${OUTPUT_DIR}/${RUN_NAME}-step${step}-checkpoint-audit.json"
-  log="${OUTPUT_DIR}/${RUN_NAME}-step${step}-six-observation-probes.log"
+  log="${OUTPUT_DIR}/${RUN_NAME}-step${step}-stage-panel-probes.log"
 
   if [[ ! -f "${checkpoint}/adapter_model.safetensors" ]]; then
     echo "ERROR: missing PI0.5 adapter: ${checkpoint}" >&2
@@ -51,10 +46,7 @@ for step in "${STEPS[@]}"; do
     continue
   fi
 
-  audit_args=()
-  if [[ "${REQUIRE_FULL_ACTION_PROJECTIONS}" == "1" ]]; then
-    audit_args+=(--require-full-action-projections)
-  fi
+  audit_args=(--require-full-action-projections)
   if [[ -n "${EXPECTED_STAGE_LOSS_WEIGHTS}" ]]; then
     audit_args+=(--expected-stage-loss-weights "${EXPECTED_STAGE_LOSS_WEIGHTS}")
   fi
@@ -77,24 +69,15 @@ for step in "${STEPS[@]}"; do
   python scripts/probe_mobile_pi05_checkpoint_rocm.py \
     "${checkpoint}" \
     "${DATASET_ROOT}" \
-    --index 0 \
-    --index 644 \
-    --index 1286 \
-    --index 3636 \
-    --index 4699 \
-    --index 5285 \
+    --panel "${STAGE_PANEL}" \
     --samples 3 \
     --output "${probe}" 2>&1 | tee "${log}"
 
-  summary_args=()
-  if [[ "${REQUIRE_ACTION_FIDELITY}" == "1" ]]; then
-    summary_args+=(--require-action-fidelity)
-  fi
   if ! python scripts/summarize_mobile_pi05_mode_screen.py \
     --probe "${probe}" \
-    --output "${screen}" \
-    "${summary_args[@]}" \
-    --min-probes-per-mode 2; then
+    --design "${STAGE_PANEL}" \
+    --thresholds "${ACTION_THRESHOLDS}" \
+    --output "${screen}"; then
     status=2
   fi
 done

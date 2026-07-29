@@ -5,10 +5,10 @@
   "original_b0": {
     "description": "generic PI0.5 base parcel fine-tune with the absolute action contract",
     "offline_screen_12k": {
-      "status": "passed",
+      "status": "routing_only_action_fidelity_not_evaluated",
       "routing_correct": 6,
       "routing_total": 6,
-      "action_fidelity_error_count": 0,
+      "action_fidelity_error_count": null,
       "sha256": "e7c4fb9490567b04d9fc4dc18069670cf9ad3e9e23ea164fb19df7688c66a0e9"
     },
     "strict_pure_vla_development": {

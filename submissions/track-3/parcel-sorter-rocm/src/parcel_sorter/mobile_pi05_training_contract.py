@@ -20,6 +20,7 @@ from .pi05_weighted_loss import (
     PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE,
     PI05_STAGE_LOSS_WEIGHTING_SCOPE,
 )
+from .mobile_pi05_research_protocol import validate_training_launch_audit
 
 
 PI05_TRAINING_CONTRACT_FILENAME = "PI05_TRAINING_CONTRACT.json"
@@ -45,6 +46,13 @@ def build_pi05_training_contract(
     mode_flow_loss_weights: list[float] | None = None,
     mode_flow_loss_population_normalizer: float | None = None,
     action_projection_protocol: str | None = None,
+    training_role: str | None = None,
+    requested_training_steps: int | None = None,
+    training_batch_size: int | None = None,
+    scheduler_type: str | None = None,
+    scheduler_warmup_steps: int | None = None,
+    scheduler_decay_steps: int | None = None,
+    training_launch_audit: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a canonical contract tying a checkpoint to data semantics."""
 
@@ -106,6 +114,32 @@ def build_pi05_training_contract(
     fps = int(info.get("fps", 0))
     if fps <= 0:
         raise ValueError("PI0.5 dataset FPS must be positive")
+    strict_training_fields = (
+        training_role,
+        requested_training_steps,
+        training_batch_size,
+        scheduler_type,
+        scheduler_warmup_steps,
+        scheduler_decay_steps,
+        training_launch_audit,
+    )
+    if any(value is not None for value in strict_training_fields):
+        if any(value is None for value in strict_training_fields):
+            raise ValueError("strict PI0.5 scheduler/launch contract is incomplete")
+        if int(requested_training_steps) < 1 or int(training_batch_size) < 1:
+            raise ValueError("training steps and batch size must be positive")
+        if str(scheduler_type) != "cosine_decay":
+            raise ValueError("formal PI0.5 training requires cosine_decay")
+        validate_training_launch_audit(
+            training_launch_audit or {},
+            expected_training_role=str(training_role),
+            dataset_manifest_sha256=_sha256(manifest_path),
+        )
+        if int(scheduler_decay_steps) != int(requested_training_steps):
+            raise ValueError("scheduler decay must equal requested training steps")
+    total_frames = int(info.get("total_frames", 0))
+    if training_role is not None and total_frames <= 0:
+        raise ValueError("strict PI0.5 contract requires a positive dataset frame count")
     payload: dict[str, Any] = {
         "schema_version": 1,
         "protocol": "parcel-pi05-training-contract-v1",
@@ -151,6 +185,39 @@ def build_pi05_training_contract(
             else None
         ),
         "action_projection_protocol": action_projection_protocol,
+        "training_role": training_role,
+        "requested_training_steps": requested_training_steps,
+        "training_batch_size": training_batch_size,
+        "dataset_total_frames": total_frames if training_role is not None else None,
+        "planned_dataset_epochs": (
+            float(requested_training_steps) * float(training_batch_size) / total_frames
+            if training_role is not None
+            else None
+        ),
+        "scheduler_type": scheduler_type,
+        "scheduler_warmup_steps": scheduler_warmup_steps,
+        "scheduler_decay_steps": scheduler_decay_steps,
+        "scheduler_step_budget": requested_training_steps,
+        "training_launch_audit_sha256": (
+            training_launch_audit.get("audit_sha256")
+            if training_launch_audit is not None
+            else None
+        ),
+        "stage_panel_sha256": (
+            training_launch_audit.get("stage_panel_sha256")
+            if training_launch_audit is not None
+            else None
+        ),
+        "action_thresholds_sha256": (
+            training_launch_audit.get("action_thresholds_sha256")
+            if training_launch_audit is not None
+            else None
+        ),
+        "tiny_overfit_gate_sha256": (
+            training_launch_audit.get("tiny_overfit_gate_sha256")
+            if training_launch_audit is not None
+            else None
+        ),
         "absolute_delta_policy": (
             {
                 "base": "velocity_residual",
@@ -263,8 +330,45 @@ def validate_pi05_training_contract(
         raise ValueError("PI0.5 training contract state names mismatch")
     if payload.get("action_names") != list(expected_action_names):
         raise ValueError("PI0.5 training contract action names mismatch")
+    if int(payload.get("state_dimension", 0)) != len(expected_state_names):
+        raise ValueError("PI0.5 training contract state dimension mismatch")
+    if int(payload.get("action_dimension", 0)) != len(expected_action_names):
+        raise ValueError("PI0.5 training contract action dimension mismatch")
+    executed_steps = int(payload.get("executed_action_steps", 0))
+    if not 1 <= executed_steps <= int(payload.get("action_chunk_size", 0)):
+        raise ValueError("PI0.5 training contract action chunk execution mismatch")
     if int(payload.get("dataset_fps_hz", 0)) <= 0:
         raise ValueError("PI0.5 training contract has invalid control frequency")
+    if payload.get("training_role") is not None:
+        role = payload.get("training_role")
+        if role not in {"smoke", "tiny_overfit", "candidate"}:
+            raise ValueError("PI0.5 training contract mismatch: training_role")
+        steps = int(payload.get("requested_training_steps", 0))
+        batch_size = int(payload.get("training_batch_size", 0))
+        total_frames = int(payload.get("dataset_total_frames", 0))
+        if steps < 1 or batch_size < 1 or total_frames < 1:
+            raise ValueError("PI0.5 training contract has an invalid step/epoch budget")
+        if payload.get("scheduler_type") != "cosine_decay":
+            raise ValueError("PI0.5 training contract mismatch: scheduler_type")
+        warmup = int(payload.get("scheduler_warmup_steps", -1))
+        decay = int(payload.get("scheduler_decay_steps", -1))
+        if not 0 <= warmup <= steps or decay != steps:
+            raise ValueError("PI0.5 training contract mismatch: scheduler budget")
+        expected_epochs = steps * batch_size / total_frames
+        if not math.isclose(
+            float(payload.get("planned_dataset_epochs", math.nan)),
+            expected_epochs,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("PI0.5 training contract mismatch: planned_dataset_epochs")
+        launch_hash = str(payload.get("training_launch_audit_sha256") or "")
+        if len(launch_hash) != 64:
+            raise ValueError("PI0.5 training contract lacks a launch-audit fingerprint")
+        if role == "tiny_overfit" and not payload.get("stage_panel_sha256"):
+            raise ValueError("tiny-overfit contract lacks a stage panel")
+        if role == "candidate" and not payload.get("tiny_overfit_gate_sha256"):
+            raise ValueError("candidate contract lacks a tiny-overfit gate")
     if required_visual_keys is not None:
         # Contracts written before the wrist ablation pre-registration used the
         # fixed overhead RGB-D input but did not yet serialize those two keys.

@@ -13,6 +13,8 @@ import subprocess
 import sys
 from typing import Any
 
+from parcel_sorter.mobile_adaptive_retry import classify_mobile_failure
+
 
 def _validate_episode(item: dict[str, Any], seen: set[str]) -> None:
     episode_id = str(item.get("episode_id", ""))
@@ -498,19 +500,7 @@ def main() -> int:
             "parameters": item,
             "return_code": completed.returncode,
             "success": success,
-            "failure_stage": next(
-                (
-                    name
-                    for name in (
-                        "lift_success",
-                        "transport_success",
-                        "placed_before_release",
-                        "released",
-                    )
-                    if not summary.get(name, False)
-                ),
-                None,
-            ),
+            "failure_stage": classify_mobile_failure(summary),
             "placement_error_m": summary.get("placement_error_m"),
             "max_suction_force_n": summary.get("suction", {}).get(
                 "max_suction_force_n"

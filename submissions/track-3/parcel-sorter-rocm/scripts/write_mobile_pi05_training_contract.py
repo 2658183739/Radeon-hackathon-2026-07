@@ -31,6 +31,15 @@ def main() -> int:
     parser.add_argument("--base-revision", required=True)
     parser.add_argument("--chunk-size", type=int, required=True)
     parser.add_argument("--n-action-steps", type=int, required=True)
+    parser.add_argument(
+        "--training-role", choices=("smoke", "tiny_overfit", "candidate"), required=True
+    )
+    parser.add_argument("--requested-training-steps", type=int, required=True)
+    parser.add_argument("--training-batch-size", type=int, required=True)
+    parser.add_argument("--scheduler-type", choices=("cosine_decay",), required=True)
+    parser.add_argument("--scheduler-warmup-steps", type=int, required=True)
+    parser.add_argument("--scheduler-decay-steps", type=int, required=True)
+    parser.add_argument("--launch-audit", type=Path, required=True)
     parser.add_argument("--state-token", action="store_true")
     parser.add_argument("--mode-head", action="store_true")
     parser.add_argument("--full-action-projections", action="store_true")
@@ -116,6 +125,15 @@ def main() -> int:
             PI05_FULL_ACTION_PROJECTION_PROTOCOL
             if args.full_action_projections
             else None
+        ),
+        training_role=args.training_role,
+        requested_training_steps=args.requested_training_steps,
+        training_batch_size=args.training_batch_size,
+        scheduler_type=args.scheduler_type,
+        scheduler_warmup_steps=args.scheduler_warmup_steps,
+        scheduler_decay_steps=args.scheduler_decay_steps,
+        training_launch_audit=json.loads(
+            args.launch_audit.read_text(encoding="utf-8")
         ),
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)

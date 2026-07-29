@@ -15,6 +15,13 @@ from parcel_sorter.mobile_adaptive_retry import classify_mobile_failure
 
 PROTOCOL = "pi05-autonomous-recovery-v2"
 FAILURE_OBSERVATIONS = {
+    "scene_stability_failure": "The previous scene did not settle before manipulation.",
+    "contact_failure": "The previous attempt did not establish physical parcel contact.",
+    "suction_latch_failure": "The previous contact did not form a stable suction seal.",
+    "lift_support_failure": "The previous attempt lost support during lift.",
+    "transport_failure": "The previous attempt lost stable support during transport.",
+    "placement_failure": "The previous attempt did not reach a valid placement pose.",
+    "release_failure": "The previous attempt did not complete a verified release.",
     "scene_stability": "The previous scene did not settle before manipulation.",
     "suction_latch": "The previous attempt did not form a stable suction seal.",
     "lift_success": "The previous attempt lost support during lift.",

@@ -27,7 +27,7 @@ done
 
 screens=()
 for step in 3000 6000 9000 12000; do
-  screen="${SCREEN_ROOT}/${RUN_NAME}-step${step}-six-observation-screen.json"
+  screen="${SCREEN_ROOT}/${RUN_NAME}-step${step}-stage-panel-screen.json"
   if [[ ! -f "${screen}" ]]; then
     echo "ERROR: missing completed B0 route screen: ${screen}" >&2
     exit 4

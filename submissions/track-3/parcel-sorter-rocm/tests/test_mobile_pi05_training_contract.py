@@ -19,6 +19,10 @@ from parcel_sorter.mobile_pi05_training_contract import (
     validate_pi05_training_contract,
     with_pi05_architecture_protocols,
 )
+from parcel_sorter.mobile_pi05_research_protocol import (
+    build_training_launch_audit,
+    file_sha256,
+)
 from parcel_sorter.pi05_weighted_loss import (
     PI05_MODE_FLOW_LOSS_WEIGHTING_SCOPE,
     PI05_STAGE_LOSS_WEIGHTING_SCOPE,
@@ -35,6 +39,7 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
             json.dumps(
                 {
                     "fps": 30,
+                    "total_frames": 100,
                     "features": {
                         "observation.state": {
                             "shape": [80],
@@ -71,6 +76,7 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
             json.dumps(
                 {
                     "fps": 30,
+                    "total_frames": 100,
                     "features": {
                         "observation.state": {
                             "shape": [80],
@@ -280,6 +286,20 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
             env["PYTHONPATH"] = os.pathsep.join(
                 filter(None, (str(ROOT / "src"), env.get("PYTHONPATH")))
             )
+            launch_audit = build_training_launch_audit(
+                training_role="smoke",
+                action_contract="absolute_v1",
+                dataset_manifest_sha256=file_sha256(
+                    dataset / "PI05_ABSOLUTE_DATASET_MANIFEST.json"
+                ),
+                requested_training_steps=2,
+                scheduler_warmup_steps=0,
+                scheduler_decay_steps=2,
+            )
+            launch_audit_path = root / "launch-audit.json"
+            launch_audit_path.write_text(
+                json.dumps(launch_audit), encoding="utf-8"
+            )
             subprocess.run(
                 [
                     sys.executable,
@@ -296,6 +316,20 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
                     "30",
                     "--n-action-steps",
                     "1",
+                    "--training-role",
+                    "smoke",
+                    "--requested-training-steps",
+                    "2",
+                    "--training-batch-size",
+                    "1",
+                    "--scheduler-type",
+                    "cosine_decay",
+                    "--scheduler-warmup-steps",
+                    "0",
+                    "--scheduler-decay-steps",
+                    "2",
+                    "--launch-audit",
+                    str(launch_audit_path),
                     "--stage-loss-weights",
                     "2,2,1.25,0.5,0.75,0.5",
                     "--mode-flow-loss-weights",
@@ -319,6 +353,9 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
         )
         self.assertEqual(contract["mode_flow_loss_weights"], [0.75, 1.0, 1.5])
         self.assertEqual(contract["mode_flow_loss_population_normalizer"], 1.01)
+        self.assertEqual(contract["training_role"], "smoke")
+        self.assertEqual(contract["scheduler_decay_steps"], 2)
+        self.assertAlmostEqual(contract["planned_dataset_epochs"], 0.02)
 
     def test_visual_contract_rejects_checkpoint_dataset_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

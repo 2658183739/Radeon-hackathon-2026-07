@@ -9,6 +9,7 @@ import json
 import math
 from pathlib import Path
 import statistics
+from typing import Any, Mapping
 
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
@@ -26,6 +27,10 @@ from parcel_sorter.mobile_pi05_action_fidelity import (
     absolute_action_fidelity,
     aggregate_absolute_action_fidelity,
 )
+from parcel_sorter.mobile_pi05_research_protocol import (
+    file_sha256,
+    validate_stage_panel,
+)
 
 
 def main() -> int:
@@ -33,65 +38,73 @@ def main() -> int:
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("dataset", type=Path)
     parser.add_argument("--output", type=Path)
-    parser.add_argument(
-        "--index",
-        type=int,
-        action="append",
-        dest="indices",
-        help="dataset index to probe; repeat to reuse one model load across frames",
-    )
+    parser.add_argument("--panel", type=Path, required=True)
     parser.add_argument("--samples", type=int, default=1)
     parser.add_argument("--seed", type=int, default=20260727)
-    parser.add_argument(
-        "--panel-role",
-        choices=("training_distribution_development", "heldout_observation"),
-        default="training_distribution_development",
-        help="evidence role of the observation panel; does not change inference",
-    )
     args = parser.parse_args()
     if args.samples < 1 or args.samples > 9 or args.samples % 2 == 0:
         parser.error("samples must be an odd integer in [1, 9]")
 
     import torch
 
+    panel = json.loads(args.panel.read_text(encoding="utf-8"))
+    panel_audit = validate_stage_panel(panel)
+    dataset_root = args.dataset.resolve()
+    if dataset_root != Path(str(panel.get("dataset_root"))).resolve():
+        parser.error("dataset path does not match the frozen stage panel")
+    manifest_paths = [
+        path
+        for path in (
+            dataset_root / "PI05_ABSOLUTE_DATASET_MANIFEST.json",
+            dataset_root / "PI05_RESIDUAL_DATASET_MANIFEST.json",
+            dataset_root / "PI05_INCREMENTAL_DATASET_MANIFEST.json",
+        )
+        if path.is_file()
+    ]
+    if len(manifest_paths) != 1:
+        parser.error("dataset must contain exactly one PI0.5 manifest")
+    if file_sha256(manifest_paths[0]) != panel["dataset_manifest_sha256"]:
+        parser.error("dataset manifest fingerprint does not match the frozen panel")
     dataset = LeRobotDataset(
         "local/mobile-bimanual-parcel-expert",
-        root=args.dataset,
+        root=dataset_root,
     )
-    indices = args.indices or [0]
+    observations = list(panel["observations"])
+    indices = [int(item["dataset_index"]) for item in observations]
     if any(not 0 <= index < len(dataset) for index in indices):
         parser.error(f"every index must be in [0, {len(dataset) - 1}]")
 
     torch.cuda.reset_peak_memory_stats()
     controller = MobileVLAHarnessController(args.checkpoint, seed=args.seed)
+    if not controller.uses_absolute_contract:
+        raise RuntimeError("stage-complete action screening requires absolute_v1")
     summaries = [
         _probe_index(
             controller=controller,
             dataset=dataset,
-            dataset_index=index,
+            panel_observation=observation,
             samples=args.samples,
             checkpoint=args.checkpoint,
             dataset_path=args.dataset,
-            panel_role=args.panel_role,
+            panel=panel,
             torch=torch,
         )
-        for index in indices
+        for observation in observations
     ]
-    summary = (
-        summaries[0]
-        if len(summaries) == 1
-        else {
-            "schema_version": 1,
-            "protocol": "pi05-multi-index-checkpoint-probe-v1",
-            "checkpoint": str(args.checkpoint.resolve()),
-            "dataset": str(args.dataset.resolve()),
-            "sample_count_per_index": args.samples,
-            "sample_seeds": [args.seed + offset for offset in range(args.samples)],
-            "sampling_seed_protocol": "common-random-numbers-per-observation-v1",
-            "peak_vram_bytes": torch.cuda.max_memory_allocated(),
-            "screens": summaries,
-        }
-    )
+    summary = {
+        "schema_version": 1,
+        "protocol": "pi05-frozen-stage-panel-checkpoint-probe-v2",
+        "checkpoint": str(args.checkpoint.resolve()),
+        "dataset": str(dataset_root),
+        "observation_panel_role": panel_audit["role"],
+        "stage_panel_sha256": panel["panel_sha256"],
+        "dataset_manifest_sha256": panel["dataset_manifest_sha256"],
+        "sample_count_per_index": args.samples,
+        "sample_seeds": [args.seed + offset for offset in range(args.samples)],
+        "sampling_seed_protocol": "common-random-numbers-per-observation-v1",
+        "peak_vram_bytes": torch.cuda.max_memory_allocated(),
+        "screens": summaries,
+    }
     payload = json.dumps(summary, indent=2, sort_keys=True)
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -104,14 +117,20 @@ def _probe_index(
     *,
     controller: MobileVLAHarnessController,
     dataset: LeRobotDataset,
-    dataset_index: int,
+    panel_observation: Mapping[str, Any],
     samples: int,
     checkpoint: Path,
     dataset_path: Path,
-    panel_role: str,
+    panel: Mapping[str, Any],
     torch: object,
 ) -> dict[str, object]:
+    dataset_index = int(panel_observation["dataset_index"])
     frame = dataset[dataset_index]
+    frame_episode = frame.get("episode_index")
+    if hasattr(frame_episode, "item"):
+        frame_episode = frame_episode.item()
+    if int(frame_episode) != int(panel_observation["episode_index"]):
+        raise RuntimeError("dataset episode index does not match the frozen panel")
     rgb = (
         frame["observation.images.overhead_rgb"]
         .permute(1, 2, 0)
@@ -142,6 +161,10 @@ def _probe_index(
     expected_mode = PI05_GRASP_MODES[
         max(range(3), key=label_action[mode_start : mode_start + 3].__getitem__)
     ]
+    if expected_mode != panel_observation["grasp_mode"]:
+        raise RuntimeError("action label grasp mode does not match the frozen panel")
+    if residual_context.stage != panel_observation["stage"]:
+        raise RuntimeError("observation stage does not match the frozen panel")
     residual_context = replace(residual_context, grasp_mode=expected_mode)
     state = encoded_state[:43]
     expert_action = (
@@ -241,12 +264,17 @@ def _probe_index(
         "checkpoint": str(checkpoint.resolve()),
         "dataset": str(dataset_path.resolve()),
         "dataset_index": dataset_index,
+        "observation_id": panel_observation["observation_id"],
+        "episode_index": int(panel_observation["episode_index"]),
+        "source_identity": panel_observation["source_identity"],
         "policy_visual_keys": sorted(
             key
             for key in controller._config.input_features
             if key.startswith("observation.images.")
         ),
-        "observation_panel_role": panel_role,
+        "observation_panel_role": panel["role"],
+        "stage_panel_sha256": panel["panel_sha256"],
+        "dataset_manifest_sha256": panel["dataset_manifest_sha256"],
         "stage": residual_context.stage,
         "grasp_mode_conditioned": residual_context.grasp_mode_conditioned,
         "expected_grasp_mode": expected_mode,
@@ -279,9 +307,7 @@ def _probe_index(
         "label_residual": (
             list(label_action[:9]) if controller.uses_residual_contract else None
         ),
-        "label_action": (
-            list(label_action[:19]) if controller.uses_absolute_contract else None
-        ),
+        "label_action": list(label_action) if controller.uses_absolute_contract else None,
         "predicted_progress": statistics.fmean(
             float(probe["predicted_progress"]) for probe in probes
         ),

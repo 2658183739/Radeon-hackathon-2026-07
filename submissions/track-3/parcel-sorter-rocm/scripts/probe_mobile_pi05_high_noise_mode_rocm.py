@@ -30,6 +30,10 @@ from parcel_sorter.mobile_pi05_contract import (
     encode_pi05_state,
     select_pi05_mode_consensus,
 )
+from parcel_sorter.mobile_pi05_research_protocol import (
+    file_sha256,
+    validate_stage_panel,
+)
 from parcel_sorter.mobile_vla_controller import (
     MobileVLAHarnessController,
     select_vla_policy_task,
@@ -41,7 +45,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("dataset", type=Path)
-    parser.add_argument("--index", type=int, action="append", dest="indices")
+    parser.add_argument("--panel", type=Path, required=True)
     parser.add_argument("--samples", type=int, default=3)
     parser.add_argument("--seed", type=int, default=20260727)
     parser.add_argument("--output", type=Path, required=True)
@@ -52,22 +56,44 @@ def main() -> int:
     import numpy as np
     import torch
 
-    dataset = LeRobotDataset(
-        "local/mobile-bimanual-parcel-expert", root=args.dataset
-    )
-    indices = args.indices or [0]
-    controller = MobileVLAHarnessController(args.checkpoint, seed=args.seed)
-    if controller.policy_type != "pi05" or not (
-        controller.uses_residual_contract or controller.uses_absolute_contract
-    ):
-        raise RuntimeError(
-            "high-noise mode probe requires a supported PI0.5 mobile checkpoint"
+    panel = json.loads(args.panel.read_text(encoding="utf-8"))
+    panel_audit = validate_stage_panel(panel)
+    dataset_root = args.dataset.resolve()
+    if dataset_root != Path(str(panel.get("dataset_root"))).resolve():
+        parser.error("dataset path does not match the frozen stage panel")
+    manifest_paths = [
+        path
+        for path in (
+            dataset_root / "PI05_ABSOLUTE_DATASET_MANIFEST.json",
+            dataset_root / "PI05_RESIDUAL_DATASET_MANIFEST.json",
+            dataset_root / "PI05_INCREMENTAL_DATASET_MANIFEST.json",
         )
-    mode_start = 19 if controller.uses_absolute_contract else 9
+        if path.is_file()
+    ]
+    if len(manifest_paths) != 1:
+        parser.error("dataset must contain exactly one PI0.5 manifest")
+    if file_sha256(manifest_paths[0]) != panel["dataset_manifest_sha256"]:
+        parser.error("dataset manifest fingerprint does not match the frozen panel")
+    dataset = LeRobotDataset(
+        "local/mobile-bimanual-parcel-expert", root=dataset_root
+    )
+    observations = list(panel["observations"])
+    controller = MobileVLAHarnessController(args.checkpoint, seed=args.seed)
+    if controller.policy_type != "pi05" or not controller.uses_absolute_contract:
+        raise RuntimeError(
+            "stage-panel high-noise probe requires an absolute_v1 PI0.5 checkpoint"
+        )
+    mode_start = 19
     policy = controller._policy.get_base_model()
     screens = []
-    for index in indices:
+    for observation in observations:
+        index = int(observation["dataset_index"])
         frame = dataset[index]
+        frame_episode = frame.get("episode_index")
+        if hasattr(frame_episode, "item"):
+            frame_episode = frame_episode.item()
+        if int(frame_episode) != int(observation["episode_index"]):
+            raise RuntimeError("dataset episode index does not match the frozen panel")
         encoded_state = tuple(float(value) for value in frame["observation.state"])
         context = decode_pi05_context(encoded_state)
         action = tuple(float(value) for value in frame["action"])
@@ -77,6 +103,10 @@ def main() -> int:
                 key=action[mode_start : mode_start + 3].__getitem__,
             )
         ]
+        if expected_mode != observation["grasp_mode"]:
+            raise RuntimeError("action label grasp mode does not match the frozen panel")
+        if context.stage != observation["stage"]:
+            raise RuntimeError("observation stage does not match the frozen panel")
         context = replace(
             context, grasp_mode=expected_mode, grasp_mode_conditioned=False
         )
@@ -212,6 +242,9 @@ def main() -> int:
         screens.append(
             {
                 "dataset_index": index,
+                "observation_id": observation["observation_id"],
+                "episode_index": int(observation["episode_index"]),
+                "source_identity": observation["source_identity"],
                 "expected_grasp_mode": expected_mode,
                 "stage": context.stage,
                 "observable_object_context": {
@@ -253,7 +286,10 @@ def main() -> int:
         "schema_version": 1,
         "protocol": "pi05-pure-noise-endpoint-mode-probe-v1",
         "checkpoint": str(args.checkpoint.resolve()),
-        "dataset": str(args.dataset.resolve()),
+        "dataset": str(dataset_root),
+        "observation_panel_role": panel_audit["role"],
+        "stage_panel_sha256": panel["panel_sha256"],
+        "dataset_manifest_sha256": panel["dataset_manifest_sha256"],
         "policy_visual_keys": sorted(
             key
             for key in controller._config.input_features
