@@ -326,3 +326,15 @@ B3-SW 已从隔离 staging 部署到实际 Radeon 仓库。部署前后源码快
 两臂 return code 均为 0，动作调用计数验证通过，峰值 allocated 显存均为 `8.965 GiB`，ROCm 遥测采样错误均为 0。8-step 暖态模型 P95 为 `516.21 ms`，相对 10-step 的 `518.82 ms` 低约 `0.50%`；但能耗为 `194.91 Wh`，相对 `170.11 Wh` 高 `14.58%`，故不能写成 Radeon 能效提升。机器摘要 SHA-256 为 `7be890f17ace3d66635a9381de5f3886b2e5254e22a115727c42c3a7c9f6846f`，合同 SHA-256 为 `c0d2f8345500c8993f7b533a56c7221efbda20e8313c3b09c6053016a2c25dd2`。
 
 自动门已按冻结规则只打开一次 confirmation，命令固定 `init_state_offset=0`、`n_action_steps=8`、eager bf16、同一 checkpoint 和 seed `20260729`；冻结的 10-step baseline 为 `385/400`。confirmation 完成前不得回填候选最终分数，也不得声称超过本地 PI0.5、公开 OpenPI 数值或 PI0.6。
+
+# 2026-07-29 LIBERO action-step 一次性确认完成
+
+唯一一次冻结 confirmation 已完整结束且未重跑。8-step candidate 为 `386/400`（96.50%，Wilson 95% CI `94.21--97.90%`），各 suite 为 Spatial `97/100`、Object `98/100`、Goal `96/100`、LIBERO-10 `95/100`；本地 10-step PI0.5 control 为 `385/400`（96.25%）。配对 wins/losses/ties 为 `12/11/377`，差值 `+0.25` 个百分点，Newcombe 95% CI `[-2.24, 2.76]`，单侧 exact McNemar `p=0.5`。因此 candidate 在本次冻结确认上数值更高，但不具备统计优越性；OpenPI 公开 `96.85%` 更高且不属于配对比较，PI0.6 仍没有同协议可执行 comparator。
+
+candidate 和 evaluator return code 均为 0，400 个 episode 完整，measurement validation 为 `passed`。共记录 7,908 次模型推理、0 次采样错误；暖态模型推理 P50/P95/P99 为 `473.20/502.79/684.68 ms`，峰值 allocated/reserved 显存为 `8.965/9.305 GiB`。完整运行耗时 `5869.33 s`、能耗 `191.787 Wh`，平均/峰值 junction 温度为 `51.35/54 C`。该能耗与延迟用于描述 Radeon eager confirmation，不构成相对 control 的能效晋级。
+
+小型原始证据已归档到 `evidence/pi05_libero_action_steps_v1/`。confirmation contract、summary、candidate run summary 和 B3-SW v1 decision 的 SHA-256 分别为 `97e84a7d70e700e02abd2cc0ca9f339d1247887102b9bba7b97eea42afc1c195`、`1ee5f1014083600a32c417a076a1bc98bbed554f6119fc6db5c11052620db4a6`、`935e60891e7fec3c5e91b03a7735102b4c11c3e9c7d351e2ca66e28606698ec6` 和 `27cba544de81740fe1d3bba53cf69447c3cf5b5e24fe8f709feec33adc3bc3f9`；完整视频和 1 Hz 遥测继续保存在 `/workspace/persistence/parcel-sorter-opt-v1`。
+
+# 2026-07-29 B3-SW 启动恢复
+
+B3-SW v1 在训练前因遥测包装器缺少仓库 `PYTHONPATH` 退出，v2 在该修复后继续暴露训练合同 CLI 未接受 `--stage-loss-weights`；两次均未加载模型、未产生 checkpoint，GPU 利用率为 0，失败目录与日志保持不可变。修复分别提交为 `cd1fd64` 和 `7b5d683`，部署前后源码及 SHA-256 保存在持久化 `artifacts/mobile-pi05-b3-sw-deployment-v2` 与 `mobile-pi05-b3-sw-deployment-v3`。远端对应回归、Python 编译和 shell 语法检查通过后，冻结配置以新路径 `v3` 启动。首轮复核时训练已到 `569/12000`，日志逐步记录 `stage_selected_weight_mean`、未加权/加权 flow loss 和模式头指标，训练显存约 `9.18 GiB`；这证明训练链和冻结权重生效，仍不计作 checkpoint 动作门或快递能力结果。
