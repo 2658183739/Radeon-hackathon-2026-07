@@ -32,6 +32,29 @@ class SuctionWrench:
     broken: bool
 
 
+def inertia_scaled_rotational_gains(
+    minimum_principal_inertia_kg_m2: float,
+    *,
+    natural_frequency_rad_s: float = 20.0,
+    maximum_stiffness_nm_rad: float = 5.0,
+) -> tuple[float, float]:
+    """Return stable, critically damped gains for the lightest rotation axis."""
+
+    values = (
+        minimum_principal_inertia_kg_m2,
+        natural_frequency_rad_s,
+        maximum_stiffness_nm_rad,
+    )
+    if any(not math.isfinite(value) or value <= 0.0 for value in values):
+        raise ValueError("inertia and rotational-gain limits must be finite and positive")
+    stiffness = min(
+        maximum_stiffness_nm_rad,
+        minimum_principal_inertia_kg_m2 * natural_frequency_rad_s**2,
+    )
+    damping = 2.0 * math.sqrt(stiffness * minimum_principal_inertia_kg_m2)
+    return stiffness, damping
+
+
 def tri_cup_offsets(footprint_radius_m: float) -> tuple[Vector3, Vector3, Vector3]:
     """Return an equilateral three-cup layout in the hand XY plane."""
 
@@ -119,6 +142,7 @@ def compliant_suction_wrench(
     max_torque_nm: float,
     break_distance_m: float,
     break_angle_rad: float,
+    free_twist_axis_world: Vector3 | None = None,
 ) -> SuctionWrench:
     """Compute a bounded spring-damper wrench for a latched parcel."""
 
@@ -168,6 +192,20 @@ def compliant_suction_wrench(
             value / vector_norm * orientation_error_rad
             for value in error_quaternion[1:]
         )
+    if free_twist_axis_world is not None:
+        axis_norm = _norm(free_twist_axis_world)
+        if axis_norm <= 1e-12:
+            raise ValueError("free twist axis must have non-zero length")
+        axis = tuple(value / axis_norm for value in free_twist_axis_world)
+        twist = sum(
+            value * component
+            for value, component in zip(rotation_vector, axis, strict=True)
+        )
+        rotation_vector = tuple(
+            value - twist * component
+            for value, component in zip(rotation_vector, axis, strict=True)
+        )
+        orientation_error_rad = _norm(rotation_vector)
 
     broken = (
         position_error_m > break_distance_m

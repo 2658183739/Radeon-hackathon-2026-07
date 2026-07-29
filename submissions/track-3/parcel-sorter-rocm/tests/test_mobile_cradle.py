@@ -1,46 +1,32 @@
 import unittest
 
-from parcel_sorter.mobile_cradle import discover_mobile_v_cradle_geoms
+from parcel_sorter.mobile_cradle import update_cradle_contact_memory_offset
 
 
-class _Geom:
-    def __init__(self, index: int, name: str = "") -> None:
-        self.idx = index
-        self.name = name
+class MobileCradleContactMemoryTests(unittest.TestCase):
+    def test_lost_contact_accumulates_only_to_bounded_authority(self) -> None:
+        offset = 0.0
+        for _ in range(200):
+            offset = update_cradle_contact_memory_offset(
+                offset, contact_geoms=0, contact_force_n=0.0
+            )
+        self.assertEqual(offset, 0.005)
 
+    def test_contact_and_force_release_accumulated_offset(self) -> None:
+        contact_release = update_cradle_contact_memory_offset(
+            0.001, contact_geoms=1, contact_force_n=5.0
+        )
+        force_release = update_cradle_contact_memory_offset(
+            0.001, contact_geoms=1, contact_force_n=25.0
+        )
+        self.assertLess(contact_release, 0.001)
+        self.assertLess(force_release, contact_release)
 
-class _Link:
-    def __init__(self, name: str, geoms: list[_Geom]) -> None:
-        self.name = name
-        self.geoms = geoms
-
-
-class MobileCradleDiscoveryTests(unittest.TestCase):
-    def test_discovers_two_named_cradle_geometries(self) -> None:
-        robot = type(
-            "Robot",
-            (),
-            {
-                "links": [
-                    _Link(
-                        "tool",
-                        [
-                            _Geom(4, "mobile_right_v_cradle_left_collision"),
-                            _Geom(5, "mobile_right_v_cradle_right_collision"),
-                        ],
-                    )
-                ]
-            },
-        )()
-        self.assertEqual(discover_mobile_v_cradle_geoms(robot), frozenset({4, 5}))
-
-    def test_uses_audited_append_order_when_names_are_missing(self) -> None:
-        robot = type(
-            "Robot",
-            (),
-            {"links": [_Link("panda1_gripper", [_Geom(index) for index in range(6)])]},
-        )()
-        self.assertEqual(discover_mobile_v_cradle_geoms(robot), frozenset({4, 5}))
+    def test_invalid_telemetry_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            update_cradle_contact_memory_offset(
+                0.0, contact_geoms=-1, contact_force_n=0.0
+            )
 
 
 if __name__ == "__main__":

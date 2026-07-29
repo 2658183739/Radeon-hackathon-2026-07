@@ -36,10 +36,16 @@ def _validate_episode(item: dict[str, Any], seen: set[str]) -> None:
         raise ValueError(f"invalid offset_m for {episode_id}")
     shape = str(item.get("shape", "box"))
     orientation = str(item.get("orientation_mode", "yaw"))
+    grasp_mode = str(item.get("grasp_mode", "side_suction"))
+    minimum_sealed_cups = int(item.get("minimum_sealed_cups", 2))
     if shape not in {"box", "cylinder"}:
         raise ValueError(f"invalid shape for {episode_id}")
     if orientation not in {"yaw", "upright", "horizontal"}:
         raise ValueError(f"invalid orientation_mode for {episode_id}")
+    if grasp_mode not in {"top_suction", "side_suction", "cooperative_cradle"}:
+        raise ValueError(f"invalid grasp_mode for {episode_id}")
+    if not 1 <= minimum_sealed_cups <= 3:
+        raise ValueError(f"invalid minimum_sealed_cups for {episode_id}")
     if (shape == "box") != (orientation == "yaw"):
         raise ValueError(f"shape/orientation mismatch for {episode_id}")
     if shape == "cylinder":
@@ -51,6 +57,44 @@ def _validate_episode(item: dict[str, Any], seen: set[str]) -> None:
             raise ValueError(f"cylinder diameter dimensions differ for {episode_id}")
     if not -math.pi <= float(item.get("yaw_rad", 0.0)) <= math.pi:
         raise ValueError(f"invalid yaw_rad for {episode_id}")
+    recovery_offset = item.get("recovery_contact_offset_m", (0.0, 0.0))
+    if len(recovery_offset) != 2 or any(
+        abs(float(value)) > 0.008 for value in recovery_offset
+    ):
+        raise ValueError(f"invalid recovery_contact_offset_m for {episode_id}")
+    penetration_delta = float(item.get("recovery_contact_penetration_delta_m", 0.0))
+    if not -0.0015 <= penetration_delta <= 0.0015:
+        raise ValueError(
+            f"invalid recovery_contact_penetration_delta_m for {episode_id}"
+        )
+    cradle_delta = float(item.get("recovery_cradle_engagement_delta_m", 0.0))
+    if not -0.010 <= cradle_delta <= 0.010:
+        raise ValueError(f"invalid recovery_cradle_engagement_delta_m for {episode_id}")
+    if cradle_delta and not cooperative_cradle:
+        raise ValueError(f"cradle engagement recovery requires cradle mode: {episode_id}")
+    left_lift_offset = item.get("recovery_left_lift_offset_m", (0.0, 0.0, 0.0))
+    if len(left_lift_offset) != 3 or math.sqrt(
+        sum(float(value) ** 2 for value in left_lift_offset)
+    ) > 0.005:
+        raise ValueError(f"invalid recovery_left_lift_offset_m for {episode_id}")
+    if any(float(value) for value in left_lift_offset) and not cooperative_cradle:
+        raise ValueError(f"left lift recovery requires cradle mode: {episode_id}")
+    right_lift_offset = item.get("recovery_right_lift_offset_m", (0.0, 0.0, 0.0))
+    if len(right_lift_offset) != 3 or math.sqrt(
+        sum(float(value) ** 2 for value in right_lift_offset)
+    ) > 0.008:
+        raise ValueError(f"invalid recovery_right_lift_offset_m for {episode_id}")
+    if any(float(value) for value in right_lift_offset) and not cooperative_cradle:
+        raise ValueError(f"right lift recovery requires cradle mode: {episode_id}")
+    approach_scale = float(item.get("recovery_approach_speed_scale", 1.0))
+    vertical_scale = float(item.get("recovery_vertical_speed_scale", 1.0))
+    if not 0.40 <= approach_scale <= 1.0:
+        raise ValueError(f"invalid recovery_approach_speed_scale for {episode_id}")
+    if not 0.60 <= vertical_scale <= 1.0:
+        raise ValueError(f"invalid recovery_vertical_speed_scale for {episode_id}")
+    retry_index = int(item.get("retry_index", 0))
+    if not 0 <= retry_index <= 2:
+        raise ValueError(f"invalid retry_index for {episode_id}")
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -72,20 +116,72 @@ def main() -> int:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--backend", choices=("rocm", "cuda"), default="rocm")
+    parser.add_argument(
+        "--wrist-rgbd",
+        action="store_true",
+        help="record and provide synchronized left-wrist RGB-D in every rollout",
+    )
     parser.add_argument("--max-episodes", type=int)
+    parser.add_argument(
+        "--profile",
+        action="append",
+        help="run only the selected profile; repeat to select multiple profiles",
+    )
+    parser.add_argument(
+        "--episode-id",
+        action="append",
+        help="run only the selected episode id; repeat to select multiple episodes",
+    )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--audit-only", action="store_true")
+    parser.add_argument(
+        "--record-pi05-absolute-replay",
+        action="store_true",
+        help="record only full-authority successful absolute-VLA episodes",
+    )
     parser.add_argument("--smolvla-checkpoint", type=Path)
     parser.add_argument(
+        "--vla-policy-service-ready",
+        type=Path,
+        help="reuse a locally persistent PI0.5 policy process across episodes",
+    )
+    parser.add_argument(
         "--policy-mode",
-        choices=("shadow", "base_residual", "base_arm_residual"),
+        choices=(
+            "shadow",
+            "base_residual",
+            "base_arm_residual",
+            "base_dual_arm_residual",
+            "pi05_residual",
+            "pi05_absolute",
+        ),
         default="shadow",
     )
     parser.add_argument("--policy-hz", type=int, default=3)
     parser.add_argument(
+        "--pi05-chunk-execution-protocol",
+        choices=(
+            "first-action-hold-v1",
+            "pi05-window-aggregate-v1",
+            "pi05-open-loop-queue-v1",
+        ),
+        default="first-action-hold-v1",
+    )
+    parser.add_argument("--pi05-chunk-execution-steps", type=int, default=1)
+    parser.add_argument(
+        "--pi05-stage-chunk-execution-steps",
+        type=json.loads,
+        help="optional JSON object overriding PI0.5 execution steps per task stage",
+    )
+    parser.add_argument(
         "--require-vla-goal-verdict",
         action="store_true",
         help="require the VLA progress latch and geometric goal verifier",
+    )
+    parser.add_argument(
+        "--require-vla-grasp-mode",
+        action="store_true",
+        help="require PI0.5 to select the configured safe grasp family before execution",
     )
     parser.add_argument(
         "--record-media-per-profile",
@@ -107,13 +203,92 @@ def main() -> int:
         parser.error("workers must be positive")
     if args.workers > 1 and not args.audit_only:
         parser.error("parallel workers are supported only for audit-only campaigns")
+    if args.record_pi05_absolute_replay and args.audit_only:
+        parser.error("absolute replay recording is incompatible with audit-only")
     if args.policy_mode != "shadow" and args.smolvla_checkpoint is None:
         parser.error("base_residual mode requires --smolvla-checkpoint")
+    if args.vla_policy_service_ready is not None and args.smolvla_checkpoint is None:
+        parser.error("persistent policy service requires --smolvla-checkpoint")
+    if (
+        args.vla_policy_service_ready is not None
+        and not args.vla_policy_service_ready.is_file()
+    ):
+        parser.error("persistent policy service ready file is missing")
+    if not 1 <= args.pi05_chunk_execution_steps <= 30:
+        parser.error("PI0.5 chunk execution steps must be in [1, 30]")
+    if args.pi05_stage_chunk_execution_steps is not None:
+        if not isinstance(args.pi05_stage_chunk_execution_steps, dict):
+            parser.error("PI0.5 stage chunk execution steps must be a JSON object")
+        allowed_chunk_stages = {
+            "pregrasp",
+            "grasp_approach",
+            "lift",
+            "transport",
+            "place",
+            "release",
+        }
+        unknown_chunk_stages = (
+            set(args.pi05_stage_chunk_execution_steps) - allowed_chunk_stages
+        )
+        if unknown_chunk_stages:
+            parser.error(
+                "unsupported PI0.5 stage chunk keys: "
+                f"{sorted(unknown_chunk_stages)}"
+            )
+        if any(
+            not isinstance(value, int) or not 1 <= value <= 30
+            for value in args.pi05_stage_chunk_execution_steps.values()
+        ):
+            parser.error("each PI0.5 stage chunk execution step must be in [1, 30]")
+    if (
+        args.pi05_chunk_execution_protocol == "first-action-hold-v1"
+        and (
+            args.pi05_chunk_execution_steps != 1
+            or any(
+                value != 1
+                for value in (args.pi05_stage_chunk_execution_steps or {}).values()
+            )
+        )
+    ):
+        parser.error("first-action hold requires one chunk execution step in every stage")
+    if (
+        args.pi05_chunk_execution_protocol != "first-action-hold-v1"
+        and args.policy_mode not in {"pi05_residual", "pi05_absolute"}
+    ):
+        parser.error("multi-step chunk execution requires a PI0.5 policy mode")
     if args.require_vla_goal_verdict and args.smolvla_checkpoint is None:
         parser.error("VLA goal verdict requires --smolvla-checkpoint")
+    if args.require_vla_grasp_mode and (
+        args.smolvla_checkpoint is None
+        or args.policy_mode not in {"pi05_residual", "pi05_absolute"}
+    ):
+        parser.error("VLA grasp-mode selection requires a PI0.5 policy mode")
+    if args.record_pi05_absolute_replay and (
+        args.smolvla_checkpoint is None
+        or args.policy_mode != "pi05_absolute"
+        or not args.require_vla_goal_verdict
+        or not args.require_vla_grasp_mode
+    ):
+        parser.error(
+            "absolute replay requires pi05_absolute, mode routing, and goal verdict"
+        )
+    if args.wrist_rgbd and args.audit_only and args.smolvla_checkpoint is None:
+        parser.error("audit-only wrist RGB-D requires a VLA checkpoint")
 
     config = json.loads(args.config.read_text(encoding="utf-8"))
     episodes = list(config.get("episodes", ()))
+    if args.profile:
+        selected_profiles = set(args.profile)
+        episodes = [
+            item for item in episodes if str(item.get("profile")) in selected_profiles
+        ]
+    if args.episode_id:
+        selected_episode_ids = set(args.episode_id)
+        episodes = [
+            item
+            for item in episodes
+            if str(item.get("episode_id")) in selected_episode_ids
+        ]
     if args.max_episodes is not None:
         episodes = episodes[: args.max_episodes]
     if not episodes:
@@ -198,6 +373,10 @@ def main() -> int:
             str(item.get("orientation_mode", "yaw")),
             "--parcel-yaw-rad",
             _cli_float(item.get("yaw_rad", 0.0)),
+            "--grasp-mode",
+            str(item.get("grasp_mode", "side_suction")),
+            "--minimum-sealed-cups",
+            str(int(item.get("minimum_sealed_cups", 2))),
             "--parcel-size-m",
             *(_cli_float(value) for value in item["size_m"]),
             "--parcel-mass-kg",
@@ -206,11 +385,55 @@ def main() -> int:
             _cli_float(item["friction"]),
             "--parcel-offset-m",
             *(_cli_float(value) for value in item["offset_m"]),
+            "--recovery-contact-offset-m",
+            *(
+                _cli_float(value)
+                for value in item.get("recovery_contact_offset_m", (0.0, 0.0))
+            ),
+            "--recovery-contact-penetration-delta-m",
+            _cli_float(item.get("recovery_contact_penetration_delta_m", 0.0)),
+            "--recovery-cradle-engagement-delta-m",
+            _cli_float(item.get("recovery_cradle_engagement_delta_m", 0.0)),
+            "--recovery-left-lift-offset-m",
+            *(
+                _cli_float(value)
+                for value in item.get(
+                    "recovery_left_lift_offset_m", (0.0, 0.0, 0.0)
+                )
+            ),
+            "--recovery-right-lift-offset-m",
+            *(
+                _cli_float(value)
+                for value in item.get(
+                    "recovery_right_lift_offset_m", (0.0, 0.0, 0.0)
+                )
+            ),
+            "--recovery-approach-speed-scale",
+            _cli_float(item.get("recovery_approach_speed_scale", 1.0)),
+            "--recovery-vertical-speed-scale",
+            _cli_float(item.get("recovery_vertical_speed_scale", 1.0)),
+            "--recovery-lift-height-delta-m",
+            _cli_float(item.get("recovery_lift_height_delta_m", 0.0)),
+            "--recovery-placement-clearance-m",
+            _cli_float(item.get("recovery_placement_clearance_m", 0.015)),
+            "--retry-index",
+            str(int(item.get("retry_index", 0))),
         ]
         if item.get("cooperative_cradle"):
             command.append("--cooperative-cradle")
+        if item.get("cradle_contact_memory"):
+            command.append("--cradle-contact-memory")
+        if args.wrist_rgbd:
+            command.append("--wrist-rgbd")
         if not args.audit_only:
-            command.extend(("--record-dataset", str(dataset_root)))
+            command.extend(
+                (
+                    "--record-pi05-absolute-dataset"
+                    if args.record_pi05_absolute_replay
+                    else "--record-dataset",
+                    str(dataset_root),
+                )
+            )
         if args.smolvla_checkpoint is not None:
             command.extend(
                 (
@@ -220,10 +443,33 @@ def main() -> int:
                     args.policy_mode,
                     "--policy-hz",
                     str(args.policy_hz),
+                    "--pi05-chunk-execution-protocol",
+                    args.pi05_chunk_execution_protocol,
+                    "--pi05-chunk-execution-steps",
+                    str(args.pi05_chunk_execution_steps),
                 )
             )
+            if args.pi05_stage_chunk_execution_steps is not None:
+                command.extend(
+                    (
+                        "--pi05-stage-chunk-execution-steps",
+                        json.dumps(
+                            args.pi05_stage_chunk_execution_steps,
+                            separators=(",", ":"),
+                        ),
+                    )
+                )
             if args.require_vla_goal_verdict:
                 command.append("--require-vla-goal-verdict")
+            if args.require_vla_grasp_mode:
+                command.append("--require-vla-grasp-mode")
+            if args.vla_policy_service_ready is not None:
+                command.extend(
+                    (
+                        "--vla-policy-service-ready",
+                        str(args.vla_policy_service_ready),
+                    )
+                )
         if item.get("task_text"):
             command.extend(("--task-text", str(item["task_text"])))
         if episode_id in media_episode_ids:
@@ -273,6 +519,37 @@ def main() -> int:
                 "max_contact_force_n"
             ),
             "frames": summary.get("dataset", {}).get("frames", 0),
+            "recovery_label": {
+                "verified_success": success,
+                "contact_offset_m": summary.get("recovery_parameters", {}).get(
+                    "contact_offset_m",
+                    list(item.get("recovery_contact_offset_m", (0.0, 0.0))),
+                ),
+                "contact_penetration_delta_m": summary.get(
+                    "recovery_parameters", {}
+                ).get(
+                    "contact_penetration_delta_m",
+                    item.get("recovery_contact_penetration_delta_m", 0.0),
+                ),
+                "approach_axis_world": summary.get("approach_axis_world"),
+                "right_tool_axis_world": summary.get("right_tool_axis_world"),
+                "cradle_engagement_delta_m": summary.get(
+                    "recovery_parameters", {}
+                ).get(
+                    "cradle_engagement_delta_m",
+                    item.get("recovery_cradle_engagement_delta_m", 0.0),
+                ),
+                "left_lift_offset_m": summary.get("recovery_parameters", {}).get(
+                    "left_lift_offset_m",
+                    list(item.get("recovery_left_lift_offset_m", (0.0, 0.0, 0.0))),
+                ),
+                "right_lift_offset_m": summary.get("recovery_parameters", {}).get(
+                    "right_lift_offset_m",
+                    list(item.get("recovery_right_lift_offset_m", (0.0, 0.0, 0.0))),
+                ),
+                "grasp_mode": summary.get("grasp_mode", item.get("grasp_mode")),
+                "retry_index": int(item.get("retry_index", 0)),
+            },
             "media": summary.get("media"),
             "summary": str(summary_path.resolve()),
             "log": str(log_path.resolve()),
@@ -301,6 +578,9 @@ def main() -> int:
                     "successful_episodes": sum(
                         bool(result.get("success")) for result in results
                     ),
+                    "policy_visual_modality": (
+                        "rgbd_wrist" if args.wrist_rgbd else "rgbd"
+                    ),
                     "results": results,
                     "status": "collecting",
                 },
@@ -317,32 +597,45 @@ def main() -> int:
                 raise RuntimeError(f"merged dataset already exists: {merged_root}")
             # The merged dataset is derived; source shards remain immutable and auditable.
             shutil.rmtree(merged_root)
-        editor = shutil.which("lerobot-edit-dataset")
-        if editor is None:
-            adjacent_editor = Path(sys.executable).parent / "lerobot-edit-dataset"
-            editor = str(adjacent_editor) if adjacent_editor.is_file() else None
-        if editor is None:
-            raise RuntimeError("lerobot-edit-dataset is required to merge episode shards")
-        repo_ids = ["local/mobile-bimanual-parcel-expert"] * len(successful_roots)
-        merge_command = [
-            editor,
-            "--operation.type",
-            "merge",
-            "--operation.repo_ids",
-            json.dumps(repo_ids),
-            "--operation.roots",
-            json.dumps([str(path) for path in successful_roots]),
-            "--operation.concatenate_videos",
-            "false",
-            "--operation.concatenate_data",
-            "false",
-            "--new_repo_id",
-            "local/mobile-bimanual-parcel-multiprofile",
-            "--new_root",
-            str(merged_root),
-            "--push_to_hub",
-            "false",
-        ]
+        if args.record_pi05_absolute_replay:
+            merge_command = [
+                sys.executable,
+                str(root / "scripts/merge_mobile_pi05_residual_datasets.py"),
+                *(
+                    argument
+                    for source in successful_roots
+                    for argument in ("--source", str(source))
+                ),
+                "--output",
+                str(merged_root),
+            ]
+        else:
+            editor = shutil.which("lerobot-edit-dataset")
+            if editor is None:
+                adjacent_editor = Path(sys.executable).parent / "lerobot-edit-dataset"
+                editor = str(adjacent_editor) if adjacent_editor.is_file() else None
+            if editor is None:
+                raise RuntimeError("lerobot-edit-dataset is required to merge episode shards")
+            repo_ids = ["local/mobile-bimanual-parcel-expert"] * len(successful_roots)
+            merge_command = [
+                editor,
+                "--operation.type",
+                "merge",
+                "--operation.repo_ids",
+                json.dumps(repo_ids),
+                "--operation.roots",
+                json.dumps([str(path) for path in successful_roots]),
+                "--operation.concatenate_videos",
+                "false",
+                "--operation.concatenate_data",
+                "false",
+                "--new_repo_id",
+                "local/mobile-bimanual-parcel-multiprofile",
+                "--new_root",
+                str(merged_root),
+                "--push_to_hub",
+                "false",
+            ]
         merge_log = args.output / "merge.log"
         with merge_log.open("w", encoding="utf-8") as log:
             merged = subprocess.run(merge_command, stdout=log, stderr=subprocess.STDOUT)
@@ -368,17 +661,30 @@ def main() -> int:
         "completed_episodes": len(results),
         "successful_episodes": successful_count,
         "failed_episodes": len(results) - successful_count,
+        "policy_visual_modality": "rgbd_wrist" if args.wrist_rgbd else "rgbd",
         "merged_dataset_root": str(merged_root.resolve()) if merged_root.is_dir() else None,
         "checkpoint_selection": checkpoint_selection,
         "goal_verdict_required": args.require_vla_goal_verdict,
+        "grasp_mode_verdict_required": args.require_vla_grasp_mode,
+        "persistent_policy_service": bool(args.vla_policy_service_ready),
         "media_episode_ids": sorted(media_episode_ids),
         "merge_error": merge_error,
         "results": results,
+        "successful_episode_order": [
+            str(result["episode_id"])
+            for result in results
+            if bool(result.get("success"))
+        ],
         "status": status,
         "claim_boundary": (
             "audit-only campaign; no episode is written to or merged into training data"
             if args.audit_only
-            else "successful expert episodes are merged for training; failed runs remain audit-only"
+            else (
+                "only full-authority successful absolute-VLA episodes are merged; "
+                "failed, fallback, safety-blended, and force-violating runs are excluded"
+                if args.record_pi05_absolute_replay
+                else "successful expert episodes are merged for training; failed runs remain audit-only"
+            )
         ),
     }
     _write_json(args.output / "collection-summary.json", payload)

@@ -10,6 +10,12 @@ from pathlib import Path
 from typing import Any
 
 
+ACTIVE_CHECKPOINT_PROTOCOLS = {
+    "pash-active-mobile-checkpoint-v1",
+    "pi05-active-mobile-checkpoint-v1",
+}
+
+
 @dataclass(frozen=True)
 class ActiveCheckpoint:
     checkpoint: Path
@@ -40,7 +46,7 @@ def load_active_checkpoint(
 
     config = Path(config_path).resolve()
     payload = json.loads(config.read_text(encoding="utf-8"))
-    if payload.get("protocol") != "pash-active-mobile-checkpoint-v1":
+    if payload.get("protocol") not in ACTIVE_CHECKPOINT_PROTOCOLS:
         raise ValueError("unsupported active-checkpoint protocol")
     if payload.get("status") != "promoted":
         raise ValueError("active checkpoint must have promoted status")
@@ -67,7 +73,7 @@ def load_active_checkpoint(
     if sha256_file(evidence) != expected_evidence_sha:
         raise ValueError("promotion evidence hash mismatch")
     gate = json.loads(evidence.read_text(encoding="utf-8"))
-    if gate.get("promoted") is not True:
+    if not _gate_promoted(gate):
         raise ValueError("promotion evidence does not authorize the checkpoint")
     paired_sha = ((gate.get("pairing") or {}).get("candidate_checkpoint_sha256"))
     if paired_sha != expected_artifact_sha:
@@ -88,8 +94,9 @@ def activate_promoted_checkpoint(
     project_root: str | Path,
     checkpoint: str | Path,
     promotion_evidence: str | Path,
-    artifact_name: str = "model.safetensors",
+    artifact_name: str | None = None,
     promoted_on: str | None = None,
+    protocol: str = "pash-active-mobile-checkpoint-v1",
 ) -> ActiveCheckpoint:
     """Atomically activate a checkpoint already authorized by a frozen gate."""
 
@@ -97,7 +104,10 @@ def activate_promoted_checkpoint(
     config = Path(config_path).resolve()
     checkpoint_path = Path(checkpoint).resolve()
     evidence_path = Path(promotion_evidence).resolve()
-    artifact = (checkpoint_path / artifact_name).resolve()
+    if protocol not in ACTIVE_CHECKPOINT_PROTOCOLS:
+        raise ValueError("unsupported active-checkpoint protocol")
+    resolved_artifact_name = artifact_name or _detect_artifact_name(checkpoint_path)
+    artifact = (checkpoint_path / resolved_artifact_name).resolve()
     for path, name in (
         (config, "active-checkpoint config"),
         (checkpoint_path, "checkpoint"),
@@ -113,7 +123,7 @@ def activate_promoted_checkpoint(
     artifact_sha = sha256_file(artifact)
     evidence_sha = sha256_file(evidence_path)
     gate = json.loads(evidence_path.read_text(encoding="utf-8"))
-    if gate.get("promoted") is not True:
+    if not _gate_promoted(gate):
         raise ValueError("promotion evidence rejected the candidate checkpoint")
     paired_sha = (gate.get("pairing") or {}).get("candidate_checkpoint_sha256")
     if paired_sha != artifact_sha:
@@ -121,12 +131,12 @@ def activate_promoted_checkpoint(
 
     payload = {
         "schema_version": 1,
-        "protocol": "pash-active-mobile-checkpoint-v1",
+        "protocol": protocol,
         "status": "promoted",
         "checkpoint_relative_path": _relative_to_root(
             root, checkpoint_path, "checkpoint"
         ).as_posix(),
-        "artifact": artifact_name,
+        "artifact": resolved_artifact_name,
         "artifact_sha256": artifact_sha,
         "promotion_evidence_relative_path": _relative_to_root(
             root, evidence_path, "promotion evidence"
@@ -168,3 +178,16 @@ def _sha(value: Any, name: str) -> str:
     if len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
     return text
+
+
+def _detect_artifact_name(checkpoint: Path) -> str:
+    for name in ("adapter_model.safetensors", "model.safetensors"):
+        if (checkpoint / name).is_file():
+            return name
+    raise FileNotFoundError(
+        "checkpoint has neither adapter_model.safetensors nor model.safetensors"
+    )
+
+
+def _gate_promoted(gate: dict[str, Any]) -> bool:
+    return gate.get("promoted") is True or gate.get("promotion_gate_passed") is True

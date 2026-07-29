@@ -5,6 +5,30 @@ from __future__ import annotations
 from typing import Any
 
 
+def update_cradle_contact_memory_offset(
+    current_offset_m: float,
+    *,
+    contact_geoms: int,
+    contact_force_n: float,
+    increment_m: float = 0.00005,
+    maximum_offset_m: float = 0.005,
+    force_release_n: float = 20.0,
+) -> float:
+    """Advance a bounded normal correction for lost cradle contact."""
+
+    if not 0.0 <= current_offset_m <= maximum_offset_m:
+        raise ValueError("current cradle contact-memory offset is out of bounds")
+    if contact_geoms < 0 or contact_force_n < 0.0:
+        raise ValueError("cradle contact telemetry must be non-negative")
+    if increment_m <= 0.0 or maximum_offset_m <= 0.0:
+        raise ValueError("cradle contact-memory limits must be positive")
+    if contact_force_n >= force_release_n:
+        return max(0.0, current_offset_m - 4.0 * increment_m)
+    if contact_geoms > 0:
+        return max(0.0, current_offset_m - 0.5 * increment_m)
+    return min(maximum_offset_m, current_offset_m + increment_m)
+
+
 def discover_mobile_v_cradle_geoms(robot: Any) -> frozenset[int]:
     """Resolve the two generated V-cradle collision geometries."""
 

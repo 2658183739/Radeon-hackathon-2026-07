@@ -9,6 +9,8 @@ from pathlib import Path
 import tomllib
 from typing import Any
 
+from parcel_sorter.mobile_grasp_routing import route_mobile_grasp
+
 
 QUANTILES = (0.1, 0.3, 0.5, 0.7, 0.9)
 OFFSETS_M = ((0.0, 0.0), (0.01, 0.0), (-0.01, 0.0), (0.0, 0.01), (0.0, -0.01))
@@ -44,13 +46,12 @@ def build_campaign(catalog_path: Path) -> dict[str, Any]:
                     size[index] = diameter
             mass_kg = _lerp(profile["mass_kg_min"], profile["mass_kg_max"], quantile)
             handling_class = str(profile["handling_class"])
-            cooperative_cradle = bool(
-                handling_class == "cradle_required"
-                or max(size) > 0.60
-                or (
-                    size[0] >= 0.28
-                    and (mass_kg >= 1.0 or handling_class != "parallel_jaw")
-                )
+            route = route_mobile_grasp(
+                shape=shape,
+                orientation_mode=orientation,
+                size_m=size,
+                mass_kg=mass_kg,
+                handling_class=handling_class,
             )
             episodes.append(
                 {
@@ -60,7 +61,10 @@ def build_campaign(catalog_path: Path) -> dict[str, Any]:
                     "orientation_mode": orientation,
                     "yaw_rad": yaw,
                     "handling_class": handling_class,
-                    "cooperative_cradle": cooperative_cradle,
+                    "grasp_mode": route.mode,
+                    "minimum_sealed_cups": route.minimum_sealed_cups,
+                    "cooperative_cradle": route.cooperative_cradle,
+                    "grasp_route_reason": route.reason,
                     "size_m": size,
                     "mass_kg": mass_kg,
                     "friction": _lerp(

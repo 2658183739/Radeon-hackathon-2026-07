@@ -13,7 +13,12 @@ from parcel_sorter.dataset import metric_depth_to_visual_rgb
 from parcel_sorter.mobile_dataset import (
     MOBILE_DEPTH_KEY,
     MOBILE_DEPTH_RGB_KEY,
+    MOBILE_POLICY_MODALITIES,
     mobile_policy_visual_keys,
+)
+from parcel_sorter.mobile_pi05_contract import (
+    MOBILE_PI05_RESIDUAL_ACTION_NAMES,
+    MOBILE_PI05_STATE_NAMES,
 )
 
 
@@ -28,7 +33,7 @@ def main() -> int:
     parser.add_argument("--dataset-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--min-episodes", type=int, default=1)
-    parser.add_argument("--policy-modality", choices=("rgb", "rgbd"), default="rgb")
+    parser.add_argument("--policy-modality", choices=MOBILE_POLICY_MODALITIES, default="rgb")
     args = parser.parse_args()
     if args.min_episodes < 1:
         parser.error("min-episodes must be positive")
@@ -46,14 +51,17 @@ def main() -> int:
     action_feature = info["features"]["action"]
     action_width = int(action_feature["shape"][0])
     action_names = tuple(str(name) for name in action_feature.get("names", ()))
-    if action_width not in (19, 20):
+    residual_contract = action_width == len(MOBILE_PI05_RESIDUAL_ACTION_NAMES)
+    if action_width not in (19, 20, len(MOBILE_PI05_RESIDUAL_ACTION_NAMES)):
         raise ValueError(f"unsupported mobile action width: {action_width}")
     table = pq.read_table(parquet_files)
     policy_input_features = (
         "observation.state",
         *mobile_policy_visual_keys(args.policy_modality),
     )
-    states = _fixed_list_array(table, "observation.state", 43, np)
+    state_width = int(info["features"]["observation.state"]["shape"][0])
+    expected_state_width = len(MOBILE_PI05_STATE_NAMES) if residual_contract else 43
+    states = _fixed_list_array(table, "observation.state", state_width, np)
     actions = _fixed_list_array(table, "action", action_width, np)
     stage_ids = np.asarray(
         table["observation.stage_id"].combine_chunks().to_numpy(), dtype=np.int64
@@ -83,14 +91,24 @@ def main() -> int:
         for episode_index in sorted(set(int(value) for value in episode_indices))
     }
 
-    quaternion_slices = (slice(6, 10), slice(14, 18))
-    quaternion_norm_error = max(
-        float(np.abs(np.linalg.norm(actions[:, indices], axis=1) - 1.0).max())
-        for indices in quaternion_slices
+    quaternion_norm_error = (
+        0.0
+        if residual_contract
+        else max(
+            float(np.abs(np.linalg.norm(actions[:, indices], axis=1) - 1.0).max())
+            for indices in (slice(6, 10), slice(14, 18))
+        )
     )
     base_speed = np.linalg.norm(actions[:, :2], axis=1)
     tool_values = sorted(
-        set(float(value) for value in np.concatenate((actions[:, 10], actions[:, 18])))
+        set(
+            float(value)
+            for value in (
+                actions[:, 12]
+                if residual_contract
+                else np.concatenate((actions[:, 10], actions[:, 18]))
+            )
+        )
     )
 
     depth_min = math.inf
@@ -125,7 +143,10 @@ def main() -> int:
     errors = []
     if int(info["total_episodes"]) < args.min_episodes or len(table) != expected_frames:
         errors.append("episode_or_frame_count")
-    if states.shape != (expected_frames, 43) or actions.shape != (
+    if state_width != expected_state_width or states.shape != (
+        expected_frames,
+        expected_state_width,
+    ) or actions.shape != (
         expected_frames,
         action_width,
     ):
@@ -148,7 +169,7 @@ def main() -> int:
         ):
             errors.append("timestamp_cadence")
             break
-    if float(base_speed.max()) > 0.050001:
+    if float(base_speed.max()) > (0.020001 if residual_contract else 0.050001):
         errors.append("base_speed_limit")
     if quaternion_norm_error > 1e-4:
         errors.append("action_quaternion_norm")
@@ -162,10 +183,11 @@ def main() -> int:
         errors.append("missing_policy_input_feature")
     if "observation.privileged_state" in policy_input_features:
         errors.append("privileged_policy_leakage")
-    progress_enabled = action_width == 20
-    progress = actions[:, 19] if progress_enabled else None
+    progress_enabled = action_width in (20, len(MOBILE_PI05_RESIDUAL_ACTION_NAMES))
+    progress_index = 13 if residual_contract else 19
+    progress = actions[:, progress_index] if progress_enabled else None
     if progress_enabled and (
-        len(action_names) != 20
+        len(action_names) != action_width
         or action_names[-1] != "primitive_progress"
         or float(progress.min()) < 0.0
         or float(progress.max()) > 1.0
@@ -185,6 +207,7 @@ def main() -> int:
         "state_shape": list(states.shape),
         "action_shape": list(actions.shape),
         "primitive_progress_enabled": progress_enabled,
+        "action_contract": "pi05_residual_v1" if residual_contract else "legacy_absolute",
         "primitive_progress_min": float(progress.min()) if progress_enabled else None,
         "primitive_progress_max": float(progress.max()) if progress_enabled else None,
         "base_action_speed_max_m_s": float(base_speed.max()),

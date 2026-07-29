@@ -5,7 +5,13 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .suction import SuctionAttachment, compliant_suction_wrench, create_attachment
+from .suction import (
+    SuctionAttachment,
+    compliant_suction_wrench,
+    create_attachment,
+    inertia_scaled_rotational_gains,
+    rotate_vector,
+)
 
 
 def discover_mobile_suction_cup_geoms(robot: Any) -> frozenset[int]:
@@ -61,18 +67,39 @@ class MobileTriSuctionController:
         self.min_sealed_cups = min_sealed_cups
         self.force_limit_n = force_limit_n
         self.cup_geom_indices = discover_mobile_suction_cup_geoms(robot)
+        self._ordered_cup_geom_indices = tuple(sorted(self.cup_geom_indices))
         self.attachment: SuctionAttachment | None = None
         self.latch_count = 0
         self.break_count = 0
         self.max_force_n = 0.0
         self.max_contact_force_n = 0.0
         self.last_sealed_cups = 0
+        self.last_sealed_cup_mask = (False, False, False)
+        self.last_attachment_position_error_m = 0.0
+        self.last_attachment_orientation_error_rad = 0.0
+        self.last_break_reason: str | None = None
+        inertia_matrix = self.np.asarray(
+            self.parcel.base_link.inertial_i,
+            dtype=self.np.float64,
+        )
+        principal_inertias = self.np.linalg.eigvalsh(inertia_matrix)
+        self.minimum_principal_inertia_kg_m2 = max(
+            1e-8,
+            float(self.np.min(principal_inertias)),
+        )
+        (
+            self.rotational_stiffness_nm_rad,
+            self.rotational_damping_nm_s_rad,
+        ) = inertia_scaled_rotational_gains(
+            self.minimum_principal_inertia_kg_m2,
+        )
 
     def contact_snapshot(self) -> tuple[int, float]:
         contacts = self.robot.get_contacts(with_entity=self.parcel)
         geom_a = contacts["geom_a"]
         if geom_a.numel() == 0:
             self.last_sealed_cups = 0
+            self.last_sealed_cup_mask = (False, False, False)
             return 0, 0.0
         geom_b = contacts["geom_b"]
         valid = contacts.get("valid_mask")
@@ -90,8 +117,14 @@ class MobileTriSuctionController:
         if bool(mask.any().item()):
             force_n = float(self.torch.linalg.vector_norm(forces[mask], dim=-1).max().item())
         self.last_sealed_cups = len(sealed)
+        self.last_sealed_cup_mask = tuple(
+            geom_index in sealed for geom_index in self._ordered_cup_geom_indices
+        )
         self.max_contact_force_n = max(self.max_contact_force_n, force_n)
         return len(sealed), force_n
+
+    def sealed_cup_mask(self) -> tuple[bool, bool, bool]:
+        return self.last_sealed_cup_mask
 
     def try_latch(self) -> bool:
         sealed_cups, contact_force_n = self.contact_snapshot()
@@ -122,14 +155,24 @@ class MobileTriSuctionController:
             velocity[3:],
             translational_stiffness_n_m=800.0,
             translational_damping_n_s_m=18.0,
-            rotational_stiffness_nm_rad=5.0,
-            rotational_damping_nm_s_rad=0.25,
+            rotational_stiffness_nm_rad=self.rotational_stiffness_nm_rad,
+            rotational_damping_nm_s_rad=self.rotational_damping_nm_s_rad,
             max_force_n=self.force_limit_n,
             max_torque_nm=self.force_limit_n * 0.025,
             break_distance_m=0.08,
             break_angle_rad=0.65,
+            free_twist_axis_world=(
+                rotate_vector(_flat_tuple(self.hand.get_quat()), (0.0, 0.0, 1.0))
+                if self.attachment.sealed_cup_count == 1
+                else None
+            ),
         )
+        self.last_attachment_position_error_m = wrench.position_error_m
+        self.last_attachment_orientation_error_rad = wrench.orientation_error_rad
         if wrench.broken:
+            self.last_break_reason = (
+                "position" if wrench.position_error_m > 0.08 else "orientation"
+            )
             self.break_count += 1
             self.release()
             return False
@@ -147,14 +190,25 @@ class MobileTriSuctionController:
     def _zero_wrench(self) -> None:
         self.parcel.control_dofs_force(self.np.zeros(6, dtype=self.np.float32))
 
-    def summary(self) -> dict[str, float | int | bool]:
+    def summary(self) -> dict[str, float | int | bool | str | None]:
         return {
             "attached": self.attachment is not None,
             "sealed_cups": self.last_sealed_cups,
+            "sealed_cup_mask": list(self.last_sealed_cup_mask),
             "latch_count": self.latch_count,
             "break_count": self.break_count,
             "max_suction_force_n": self.max_force_n,
             "max_contact_force_n": self.max_contact_force_n,
+            "last_attachment_position_error_m": self.last_attachment_position_error_m,
+            "last_attachment_orientation_error_rad": (
+                self.last_attachment_orientation_error_rad
+            ),
+            "last_break_reason": self.last_break_reason,
+            "minimum_principal_inertia_kg_m2": (
+                self.minimum_principal_inertia_kg_m2
+            ),
+            "rotational_stiffness_nm_rad": self.rotational_stiffness_nm_rad,
+            "rotational_damping_nm_s_rad": self.rotational_damping_nm_s_rad,
         }
 
 

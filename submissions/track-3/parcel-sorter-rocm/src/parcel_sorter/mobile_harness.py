@@ -1,4 +1,4 @@
-"""Fail-closed residual harness for the 19-D mobile bimanual policy."""
+"""Fail-closed safety harness for residual and absolute mobile VLA actions."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ class MobileHarnessConfig:
     max_position_residual_m: float = 0.01
     max_quaternion_residual_rad: float = math.radians(5.0)
     max_base_linear_speed_m_s: float = 0.05
+    max_contact_base_linear_speed_m_s: float = 0.12
     max_base_yaw_rate_rad_s: float = 1.0
     max_cartesian_step_m: float = 0.04
     min_progress_ratio: float = 0.50
@@ -33,6 +34,7 @@ class MobileHarnessConfig:
             self.max_position_residual_m,
             self.max_quaternion_residual_rad,
             self.max_base_linear_speed_m_s,
+            self.max_contact_base_linear_speed_m_s,
             self.max_base_yaw_rate_rad_s,
             self.max_cartesian_step_m,
             self.force_limit_n,
@@ -144,12 +146,14 @@ def select_mobile_harness_action(
     config: MobileHarnessConfig = MobileHarnessConfig(),
     maximum_vla_scale: float = 1.0,
     maximum_vla_scale_reason: str = "force_memory_scale_gate",
+    arm_reference_is_expert_target: bool = False,
+    absolute_vla_action: bool = False,
 ) -> MobileHarnessDecision:
-    """Generate residual candidates and select the largest verified VLA contribution.
+    """Select the largest safe VLA contribution under the declared authority.
 
-    The deterministic expert remains the nominal controller. SmolVLA may only
-    contribute bounded continuous residuals. Discrete tool commands are copied
-    from the expert because a sign error can release a parcel immediately.
+    Residual policies remain anchored to the deterministic expert. Absolute VLA
+    policies are projected only against the observed robot state and safety
+    limits; the expert action is not blended into their executable candidate.
     """
 
     if not math.isfinite(maximum_vla_scale) or not 0.0 <= maximum_vla_scale <= 1.0:
@@ -168,7 +172,18 @@ def select_mobile_harness_action(
             <= 1e-8
             for start in (6, 14)
         )
-    vla = expert if rejected_vla else raw_vla
+    if rejected_vla and absolute_vla_action:
+        vla = (
+            0.0,
+            0.0,
+            0.0,
+            *state_values[24:31],
+            1.0,
+            *state_values[31:38],
+            1.0,
+        )
+    else:
+        vla = expert if rejected_vla else raw_vla
     force_n = max(abs(state_values[38]), abs(state_values[39]))
     if force_n >= config.force_limit_n:
         stop = _emergency_stop_candidate(
@@ -182,8 +197,9 @@ def select_mobile_harness_action(
             rejected_vla=rejected_vla,
         )
 
+    candidate_builder = _absolute_candidate if absolute_vla_action else _candidate
     candidates = tuple(
-        _candidate(
+        candidate_builder(
             scale=float(scale),
             state=state_values,
             expert=expert,
@@ -193,6 +209,7 @@ def select_mobile_harness_action(
             rejected_vla=rejected_vla,
             maximum_vla_scale=maximum_vla_scale,
             maximum_vla_scale_reason=maximum_vla_scale_reason,
+            arm_reference_is_expert_target=arm_reference_is_expert_target,
         )
         for scale in config.candidate_scales
     )
@@ -212,7 +229,7 @@ def select_mobile_harness_action(
     return MobileHarnessDecision(
         selected=selected,
         candidates=candidates,
-        fallback_to_expert=selected.scale == 0.0,
+        fallback_to_expert=(not absolute_vla_action and selected.scale == 0.0),
         emergency_stop=False,
         rejected_vla=rejected_vla,
     )
@@ -324,6 +341,7 @@ def _candidate(
     rejected_vla: bool,
     maximum_vla_scale: float,
     maximum_vla_scale_reason: str,
+    arm_reference_is_expert_target: bool,
 ) -> MobileHarnessCandidate:
     expert_base_speed = math.hypot(expert[0], expert[1])
     precision_handoff = stage == "grasp_approach" and expert_base_speed < 0.025
@@ -376,38 +394,49 @@ def _candidate(
         action.append(expert_tool)
 
     reasons = []
+    left_reference = (
+        expert[3:6] if arm_reference_is_expert_target else state[24:27]
+    )
+    right_reference = (
+        expert[11:14] if arm_reference_is_expert_target else state[31:34]
+    )
+    stage_base_speed_limit = (
+        config.max_contact_base_linear_speed_m_s
+        if stage == "grasp_approach"
+        else config.max_base_linear_speed_m_s
+    )
     try:
         expert_decoded = decode_mobile_bimanual_action(
             expert,
-            max_base_linear_speed_m_s=config.max_base_linear_speed_m_s,
+            max_base_linear_speed_m_s=stage_base_speed_limit,
             max_base_yaw_rate_rad_s=config.max_base_yaw_rate_rad_s,
         )
         expert_left = limit_mobile_arm_step(
-            expert_decoded.left, state[24:27], max_step_m=config.max_cartesian_step_m
+            expert_decoded.left, left_reference, max_step_m=config.max_cartesian_step_m
         )
         expert_right = limit_mobile_arm_step(
-            expert_decoded.right, state[31:34], max_step_m=config.max_cartesian_step_m
+            expert_decoded.right, right_reference, max_step_m=config.max_cartesian_step_m
         )
         decoded = decode_mobile_bimanual_action(
             action,
-            max_base_linear_speed_m_s=config.max_base_linear_speed_m_s,
+            max_base_linear_speed_m_s=stage_base_speed_limit,
             max_base_yaw_rate_rad_s=config.max_base_yaw_rate_rad_s,
         )
         left = limit_mobile_arm_step(
-            decoded.left, state[24:27], max_step_m=config.max_cartesian_step_m
+            decoded.left, left_reference, max_step_m=config.max_cartesian_step_m
         )
         right = limit_mobile_arm_step(
-            decoded.right, state[31:34], max_step_m=config.max_cartesian_step_m
+            decoded.right, right_reference, max_step_m=config.max_cartesian_step_m
         )
-        left_step = math.dist(left.position_m, state[24:27])
-        right_step = math.dist(right.position_m, state[31:34])
+        left_step = math.dist(left.position_m, left_reference)
+        right_step = math.dist(right.position_m, right_reference)
         if left.position_m != decoded.left.position_m or right.position_m != decoded.right.position_m:
             reasons.append("cartesian_step_clipped")
-        if math.hypot(*action[:2]) > config.max_base_linear_speed_m_s + 1e-9:
+        if math.hypot(*action[:2]) > stage_base_speed_limit + 1e-9:
             reasons.append("base_speed_clipped")
         progress_values = [
-            _progress_ratio(state[24:27], expert_left.position_m, left.position_m),
-            _progress_ratio(state[31:34], expert_right.position_m, right.position_m),
+            _progress_ratio(left_reference, expert_left.position_m, left.position_m),
+            _progress_ratio(right_reference, expert_right.position_m, right.position_m),
         ]
         selected_base = decoded.base_velocity_xy_yaw[:2]
         if expert_base_speed > 1e-9:
@@ -473,6 +502,117 @@ def _candidate(
         max_cartesian_step_m=max(left_step, right_step),
         tool_command_corrections=tool_corrections,
         reasons=tuple(reasons or ("verified",)),
+    )
+
+
+def _absolute_candidate(
+    *,
+    scale: float,
+    state: tuple[float, ...],
+    expert: tuple[float, ...],
+    vla: tuple[float, ...],
+    stage: str,
+    config: MobileHarnessConfig,
+    rejected_vla: bool,
+    maximum_vla_scale: float,
+    maximum_vla_scale_reason: str,
+    arm_reference_is_expert_target: bool,
+) -> MobileHarnessCandidate:
+    """Project an absolute VLA action without using expert motion as a reference."""
+
+    del expert, arm_reference_is_expert_target
+    stage_base_speed_limit = (
+        config.max_contact_base_linear_speed_m_s
+        if stage == "grasp_approach"
+        else config.max_base_linear_speed_m_s
+    )
+    reasons: list[str] = []
+    tool_corrections = 0
+    try:
+        raw_decoded = decode_mobile_bimanual_action(
+            vla,
+            max_base_linear_speed_m_s=stage_base_speed_limit,
+            max_base_yaw_rate_rad_s=config.max_base_yaw_rate_rad_s,
+        )
+        base = tuple(scale * value for value in raw_decoded.base_velocity_xy_yaw)
+        action: list[float] = [*base]
+        max_step = 0.0
+        for decoded_arm, state_start, release_tool in (
+            (raw_decoded.left, 24, -1.0),
+            (raw_decoded.right, 31, 1.0),
+        ):
+            current_position = state[state_start : state_start + 3]
+            current_quaternion = state[state_start + 3 : state_start + 7]
+            scaled_position = tuple(
+                current + scale * (target - current)
+                for current, target in zip(
+                    current_position, decoded_arm.position_m, strict=True
+                )
+            )
+            bounded_position = limit_mobile_arm_step(
+                decoded_arm,
+                current_position,
+                max_step_m=config.max_cartesian_step_m,
+            ).position_m
+            if scale < 1.0:
+                scaled_decoded = type(decoded_arm)(
+                    position_m=scaled_position,
+                    quaternion_wxyz=_bounded_slerp(
+                        current_quaternion,
+                        decoded_arm.quaternion_wxyz,
+                        scale=scale,
+                        max_angle_rad=config.max_quaternion_residual_rad,
+                    ),
+                    gripper=decoded_arm.gripper,
+                )
+                bounded_position = limit_mobile_arm_step(
+                    scaled_decoded,
+                    current_position,
+                    max_step_m=config.max_cartesian_step_m,
+                ).position_m
+                bounded_quaternion = scaled_decoded.quaternion_wxyz
+            else:
+                bounded_quaternion = _bounded_slerp(
+                    current_quaternion,
+                    decoded_arm.quaternion_wxyz,
+                    scale=1.0,
+                    max_angle_rad=config.max_quaternion_residual_rad,
+                )
+            if bounded_position != scaled_position:
+                reasons.append("cartesian_step_clipped")
+            max_step = max(max_step, math.dist(current_position, bounded_position))
+            tool = decoded_arm.gripper
+            if stage == "release":
+                tool_corrections += int((tool >= 0.0) != (release_tool >= 0.0))
+                tool = release_tool
+                if tool_corrections:
+                    reasons.append("deterministic_release_interlock")
+            action.extend((*bounded_position, *bounded_quaternion, tool))
+        if raw_decoded.base_velocity_xy_yaw != tuple(vla[:3]):
+            reasons.append("base_speed_clipped")
+        if rejected_vla and scale > 0.0:
+            reasons.append("invalid_vla_action")
+        if scale > maximum_vla_scale + 1e-9:
+            reasons.append(maximum_vla_scale_reason)
+        safe = not any(
+            reason in {"invalid_vla_action", maximum_vla_scale_reason}
+            for reason in reasons
+        )
+        executable_action = tuple(float(value) for value in action)
+    except (TypeError, ValueError) as exc:
+        max_step = math.inf
+        executable_action = tuple(float(value) for value in vla)
+        reasons.append(f"decode_error:{exc}")
+        safe = False
+    return MobileHarnessCandidate(
+        scale=scale,
+        action=executable_action,
+        safe=safe,
+        score=scale - (10.0 if not safe else 0.0),
+        min_progress_ratio=1.0,
+        max_cartesian_step_m=max_step,
+        tool_command_corrections=tool_corrections,
+        reasons=tuple(reasons or ("absolute_vla_verified",)),
     )
 
 

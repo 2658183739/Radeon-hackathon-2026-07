@@ -12,6 +12,7 @@ from parcel_sorter.genesis_env import (
 from parcel_sorter.suction import (
     compliant_suction_wrench,
     create_attachment,
+    inertia_scaled_rotational_gains,
     tri_cup_offsets,
 )
 
@@ -76,6 +77,15 @@ class TriSuctionAssetTests(unittest.TestCase):
 
 
 class SuctionAttachmentTests(unittest.TestCase):
+    def test_rotational_gains_scale_with_payload_inertia(self) -> None:
+        light_stiffness, light_damping = inertia_scaled_rotational_gains(1.5e-5)
+        heavy_stiffness, heavy_damping = inertia_scaled_rotational_gains(0.02)
+
+        self.assertAlmostEqual(light_stiffness, 0.006)
+        self.assertAlmostEqual(light_damping, 0.0006)
+        self.assertEqual(heavy_stiffness, 5.0)
+        self.assertAlmostEqual(heavy_damping, 2.0 * math.sqrt(0.1))
+
     def test_bounded_spring_wrench_and_break_gate(self) -> None:
         attachment = create_attachment(
             (0.0, 0.0, 0.20),
@@ -121,6 +131,37 @@ class SuctionAttachmentTests(unittest.TestCase):
             break_angle_rad=0.70,
         )
         self.assertTrue(broken.broken)
+
+    def test_single_round_cup_can_twist_about_its_surface_normal(self) -> None:
+        attachment = create_attachment(
+            (0.0, 0.0, 0.20),
+            (1.0, 0.0, 0.0, 0.0),
+            (0.0, 0.0, 0.10),
+            (1.0, 0.0, 0.0, 0.0),
+            sealed_cup_count=1,
+        )
+        half_turn = math.sqrt(0.5)
+        wrench = compliant_suction_wrench(
+            attachment,
+            (0.0, 0.0, 0.20),
+            (1.0, 0.0, 0.0, 0.0),
+            (0.0, 0.0, 0.10),
+            (half_turn, 0.0, 0.0, half_turn),
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, 0.0),
+            translational_stiffness_n_m=800.0,
+            translational_damping_n_s_m=18.0,
+            rotational_stiffness_nm_rad=5.0,
+            rotational_damping_nm_s_rad=0.25,
+            max_force_n=30.0,
+            max_torque_nm=0.75,
+            break_distance_m=0.08,
+            break_angle_rad=0.65,
+            free_twist_axis_world=(0.0, 0.0, 1.0),
+        )
+        self.assertFalse(wrench.broken)
+        self.assertAlmostEqual(wrench.orientation_error_rad, 0.0, places=6)
+        self.assertEqual(wrench.torque_world_nm, (0.0, 0.0, 0.0))
 
     def test_suction_capability_requires_the_physical_variant(self) -> None:
         self.assertEqual(

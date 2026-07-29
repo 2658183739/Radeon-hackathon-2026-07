@@ -8,7 +8,10 @@ build/
 dist/
 *.egg-info/
 third_party/
-artifacts/
+artifacts/*
+!artifacts/patches/
+artifacts/patches/*
+!artifacts/patches/lerobot-libero-frozen-eval.patch
 checkpoints/
 datasets/
 wandb/

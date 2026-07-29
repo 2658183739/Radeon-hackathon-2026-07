@@ -111,6 +111,38 @@ class CheckpointRegistryTests(unittest.TestCase):
             selected = load_active_checkpoint(config, project_root=root)
             self.assertEqual(selected.checkpoint, checkpoint)
 
+    def test_pi05_activation_auto_detects_adapter_artifact(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint = root / "outputs/pi05"
+            checkpoint.mkdir(parents=True)
+            artifact = checkpoint / "adapter_model.safetensors"
+            artifact.write_bytes(b"pi05-adapter")
+            artifact_sha = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            evidence = root / "evidence/pi05-gate.json"
+            evidence.parent.mkdir()
+            evidence.write_text(
+                json.dumps(
+                    {
+                        "promotion_gate_passed": True,
+                        "pairing": {"candidate_checkpoint_sha256": artifact_sha},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = root / "configs/pi05-active.json"
+            selected = activate_promoted_checkpoint(
+                config,
+                project_root=root,
+                checkpoint=checkpoint,
+                promotion_evidence=evidence,
+                protocol="pi05-active-mobile-checkpoint-v1",
+            )
+            payload = json.loads(config.read_text(encoding="utf-8"))
+            self.assertEqual(payload["artifact"], "adapter_model.safetensors")
+            self.assertEqual(payload["protocol"], "pi05-active-mobile-checkpoint-v1")
+            self.assertEqual(selected.artifact, artifact)
+
     def test_rejects_gate_for_different_checkpoint(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
