@@ -31,10 +31,10 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
         episodes = plan["episodes"]
 
         self.assertEqual(len(episodes), 30)
-        self.assertEqual(plan["collection_id"], "parcel-success-pilot-v6")
+        self.assertEqual(plan["collection_id"], "parcel-success-pilot-v8")
         self.assertEqual(
             plan["protocol"],
-            "pi05-success-current-contract-anchor-place-gated-v6",
+            "pi05-success-current-contract-video-backed-v8",
         )
         self.assertEqual(len({item["episode_id"] for item in episodes}), 30)
         self.assertEqual(len({item["source_identity"] for item in episodes}), 30)
@@ -72,14 +72,18 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
         ]
         self.assertEqual(
             {item["parameter_envelope_revision"] for item in cradle},
-            {"cradle-current-success-anchor-path-v6"},
+            {"cradle-verified-anchor-one-factor-v8"},
         )
         self.assertTrue(all("anchor_provenance" in item for item in cradle))
+        self.assertEqual(
+            {item["anchor_provenance"]["anchor_index"] for item in cradle},
+            {0, 1},
+        )
         self.assertTrue(
             all(
-                0.0018923421
-                <= item["recovery_left_lift_offset_m"][2]
-                <= 0.0019686068
+                "anchor_alpha" not in item["anchor_provenance"]
+                and "anchor_lower_index" not in item["anchor_provenance"]
+                and "anchor_upper_index" not in item["anchor_provenance"]
                 for item in cradle
             )
         )
@@ -115,20 +119,26 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
             self.assertEqual(changed, {expected_key})
             self.assertEqual(provenance["one_factor_cell"], design_cell)
 
-        cradle, provenance = PLANNER._interpolate_anchor_path(
-            PLANNER.CRADLE_ANCHORS, 0.5
+        cradle, provenance = PLANNER._single_factor_perturbation(
+            PLANNER.CRADLE_ANCHORS[0],
+            3,
+            1.0,
+            size_relative=PLANNER.CRADLE_SIZE_RELATIVE,
+            mass_relative=PLANNER.CRADLE_MASS_RELATIVE,
+            friction_relative=PLANNER.CRADLE_FRICTION_RELATIVE,
+            offset_delta_m=PLANNER.CRADLE_OFFSET_DELTA_M,
+            yaw_delta_rad=PLANNER.CRADLE_YAW_DELTA_RAD,
         )
         self.assertEqual(
             cradle["recovery_contact_offset_m"],
-            [0.0, 0.0030181926],
+            list(PLANNER.CRADLE_ANCHORS[0]["recovery_contact_offset_m"]),
         )
         self.assertEqual(
             cradle["recovery_left_lift_offset_m"],
-            [0.0, 0.0, 0.0019304745],
+            list(PLANNER.CRADLE_ANCHORS[0]["recovery_left_lift_offset_m"]),
         )
-        self.assertEqual(provenance["anchor_lower_index"], 0)
-        self.assertEqual(provenance["anchor_upper_index"], 1)
-        self.assertEqual(provenance["anchor_alpha"], 0.5)
+        self.assertEqual(provenance["perturbed_factor"], "mass")
+        self.assertNotEqual(cradle["mass_kg"], PLANNER.CRADLE_ANCHORS[0]["mass_kg"])
 
     def test_plan_is_reproducible_and_seed_sensitive(self) -> None:
         first = PLANNER.build_plan(8, 11, "pilot")
@@ -338,7 +348,15 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
     def test_collection_success_requires_a_saved_nonempty_dataset(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "episode"
-            summary = {"success": True, "dataset": {"saved": True, "frames": 90}}
+            summary = {
+                "success": True,
+                "dataset": {
+                    "saved": True,
+                    "frames": 90,
+                    "storage_format": "video",
+                    "bytes": 8_000_000,
+                },
+            }
 
             self.assertFalse(
                 COLLECTOR._verified_collection_success(
@@ -352,6 +370,13 @@ class BuildMobilePI05SuccessCollectionPlanTests(unittest.TestCase):
                 )
             )
             summary["dataset"]["frames"] = 0
+            self.assertFalse(
+                COLLECTOR._verified_collection_success(
+                    0, summary, audit_only=False, dataset_root=root
+                )
+            )
+            summary["dataset"]["frames"] = 90
+            summary["dataset"]["bytes"] = 161_000_000
             self.assertFalse(
                 COLLECTOR._verified_collection_success(
                     0, summary, audit_only=False, dataset_root=root

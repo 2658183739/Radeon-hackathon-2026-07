@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DATASET_ROOT="${1:-${ROOT_DIR}/outputs/mobile-pi05-residual-seed-v1}"
 OUTPUT_DIR="${2:-/root/pi05-runs/mobile-pi05-residual-lora-v1}"
+DATASET_ROOT="$(realpath -m -- "${DATASET_ROOT}")"
+OUTPUT_DIR="$(realpath -m -- "${OUTPUT_DIR}")"
 DEFAULT_BASE_MODEL=lerobot/pi05_base
 if [[ -f /root/pi05-assets/pi05-base-local/model.safetensors ]]; then
   DEFAULT_BASE_MODEL=/root/pi05-assets/pi05-base-local
@@ -41,6 +43,18 @@ MODE_FLOW_LOSS_NORMALIZER="${MOBILE_PI05_MODE_FLOW_LOSS_NORMALIZER:-1}"
 WRIST_RGBD="${MOBILE_PI05_WRIST_RGBD:-0}"
 ACTION_CONTRACT="${MOBILE_PI05_ACTION_CONTRACT:-residual_v1}"
 FULL_ACTION_PROJECTIONS="${MOBILE_PI05_FULL_ACTION_PROJECTIONS:-0}"
+SAMPLING_MANIFEST="${MOBILE_PI05_SAMPLING_MANIFEST:-}"
+TRAIN_STATS="${MOBILE_PI05_TRAIN_STATS:-}"
+TRAIN_STATS_MANIFEST="${MOBILE_PI05_TRAIN_STATS_MANIFEST:-}"
+if [[ -n "${SAMPLING_MANIFEST}" ]]; then
+  SAMPLING_MANIFEST="$(realpath -m -- "${SAMPLING_MANIFEST}")"
+fi
+if [[ -n "${TRAIN_STATS}" ]]; then
+  TRAIN_STATS="$(realpath -m -- "${TRAIN_STATS}")"
+fi
+if [[ -n "${TRAIN_STATS_MANIFEST}" ]]; then
+  TRAIN_STATS_MANIFEST="$(realpath -m -- "${TRAIN_STATS_MANIFEST}")"
+fi
 if [[ "${ACTION_CONTRACT}" != "residual_v1" && "${ACTION_CONTRACT}" != "absolute_v1" ]]; then
   echo "ERROR: MOBILE_PI05_ACTION_CONTRACT must be residual_v1 or absolute_v1" >&2
   exit 2
@@ -80,6 +94,26 @@ export MOBILE_PI05_STAGE_LOSS_WEIGHTS="${STAGE_LOSS_WEIGHTS}"
 export MOBILE_PI05_MODE_FLOW_LOSS_WEIGHTS="${MODE_FLOW_LOSS_WEIGHTS}"
 export MOBILE_PI05_MODE_FLOW_LOSS_NORMALIZER="${MODE_FLOW_LOSS_NORMALIZER}"
 export MOBILE_PI05_FULL_ACTION_PROJECTIONS="${FULL_ACTION_PROJECTIONS}"
+if [[ -f "${DATASET_ROOT}/PARCEL_SUCCESS_SPLIT.json" ]]; then
+  SAMPLING_MANIFEST="${SAMPLING_MANIFEST:-${DATASET_ROOT}/PARCEL_PI05_SAMPLING_MANIFEST.json}"
+  TRAIN_STATS="${TRAIN_STATS:-${DATASET_ROOT}/meta/train_stats.json}"
+  TRAIN_STATS_MANIFEST="${TRAIN_STATS_MANIFEST:-${DATASET_ROOT}/PARCEL_TRAIN_STATS_MANIFEST.json}"
+  test -f "${SAMPLING_MANIFEST}" || {
+    echo "ERROR: parcel success training requires a stratified sampling manifest" >&2
+    exit 2
+  }
+  test -f "${TRAIN_STATS}" && test -f "${TRAIN_STATS_MANIFEST}" || {
+    echo "ERROR: parcel success training requires balanced train-only normalization stats" >&2
+    exit 2
+  }
+fi
+if [[ -n "${TRAIN_STATS}" && ( -z "${TRAIN_STATS_MANIFEST}" || -z "${SAMPLING_MANIFEST}" ) ]]; then
+  echo "ERROR: train-only stats require their manifest and sampling manifest" >&2
+  exit 2
+fi
+export MOBILE_PI05_SAMPLING_MANIFEST="${SAMPLING_MANIFEST}"
+export MOBILE_PI05_TRAIN_STATS="${TRAIN_STATS}"
+export MOBILE_PI05_TRAIN_STATS_MANIFEST="${TRAIN_STATS_MANIFEST}"
 
 cd "${ROOT_DIR}"
 launch_audit_dir="$(mktemp -d)"
@@ -150,6 +184,7 @@ python - "${DATASET_ROOT}" "${MOBILE_PI05_MIN_RECOVERY_EPISODES}" \
   "${MOBILE_PI05_MIN_NONZERO_FRAMES}" "${MOBILE_PI05_MIN_EPISODES_PER_MODE}" \
   "${DATASET_GATE_ALLOW_ZERO_SEED}" "${WRIST_RGBD}" "${ACTION_CONTRACT}" <<'PY'
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -201,7 +236,9 @@ if observed_visual_modality != required_visual_modality:
 required_visual_keys = list(mobile_policy_visual_keys(required_visual_modality))
 if manifest.get("policy_visual_keys") not in (None, required_visual_keys):
     raise SystemExit("ERROR: PI0.5 residual manifest visual keys mismatch")
-stats_path = root / "meta/stats.json"
+stats_path = Path(
+    os.environ.get("MOBILE_PI05_TRAIN_STATS") or root / "meta/stats.json"
+)
 if not stats_path.is_file():
     raise SystemExit("ERROR: PI0.5 dataset normalization stats are missing")
 stats = json.loads(stats_path.read_text(encoding="utf-8"))
@@ -343,7 +380,8 @@ if [[ "${MODE_LOSS_WEIGHT}" != "1" && "${MODE_LOSS_WEIGHT}" != "1.0" ]] || \
   [[ -n "${STAGE_LOSS_WEIGHTS}" ]] || \
   [[ -n "${MODE_FLOW_LOSS_WEIGHTS}" ]] || \
   [[ "${ACTION_CONTRACT}" == "absolute_v1" ]] || \
-  [[ "${FULL_ACTION_PROJECTIONS}" == "1" ]]; then
+  [[ "${FULL_ACTION_PROJECTIONS}" == "1" ]] || \
+  [[ -n "${SAMPLING_MANIFEST}" ]] || [[ -n "${TRAIN_STATS}" ]]; then
   TRAIN_ENTRY=(python "${ROOT_DIR}/scripts/train_mobile_pi05_weighted_entry.py")
 fi
 
@@ -370,6 +408,15 @@ write_training_contract() {
   fi
   if [[ "${FULL_ACTION_PROJECTIONS}" == "1" ]]; then
     architecture_args+=(--full-action-projections)
+  fi
+  if [[ -n "${SAMPLING_MANIFEST}" ]]; then
+    architecture_args+=(--sampling-manifest "${SAMPLING_MANIFEST}")
+  fi
+  if [[ -n "${TRAIN_STATS}" ]]; then
+    architecture_args+=(
+      --normalization-stats "${TRAIN_STATS}"
+      --train-stats-manifest "${TRAIN_STATS_MANIFEST}"
+    )
   fi
   python scripts/write_mobile_pi05_training_contract.py \
     --dataset-root "${DATASET_ROOT}" \
@@ -439,8 +486,8 @@ if [[ -n "${RESUME_CONFIG}" ]]; then
     --resume true \
     --steps "${STEPS}" \
     --save_freq "${SAVE_FREQ}" \
-    --scheduler.num_decay_steps "${SCHEDULER_DECAY_STEPS}" \
-    --scheduler.num_warmup_steps "${SCHEDULER_WARMUP_STEPS}" \
+    --policy.scheduler_decay_steps "${SCHEDULER_DECAY_STEPS}" \
+    --policy.scheduler_warmup_steps "${SCHEDULER_WARMUP_STEPS}" \
     --wandb.enable false
   exit 0
 fi
@@ -458,6 +505,8 @@ write_training_contract "${contract_staging_dir}"
 "${TRAIN_ENTRY[@]}" \
   --dataset.repo_id local/mobile-bimanual-parcel-expert \
   --dataset.root "${DATASET_ROOT}" \
+  --dataset.video_backend pyav \
+  --dataset.depth_output_unit m \
   --dataset.image_transforms.enable false \
   --policy.type pi05 \
   --policy.pretrained_path "${BASE_MODEL}" \
@@ -486,8 +535,8 @@ write_training_contract "${contract_staging_dir}"
   --log_freq 1 \
   --save_checkpoint true \
   --save_freq "${SAVE_FREQ}" \
-  --scheduler.num_decay_steps "${SCHEDULER_DECAY_STEPS}" \
-  --scheduler.num_warmup_steps "${SCHEDULER_WARMUP_STEPS}" \
+  --policy.scheduler_decay_steps "${SCHEDULER_DECAY_STEPS}" \
+  --policy.scheduler_warmup_steps "${SCHEDULER_WARMUP_STEPS}" \
   --wandb.enable false \
   --env_eval_freq 0 \
   --eval_steps 0 &

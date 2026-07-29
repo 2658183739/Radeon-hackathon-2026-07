@@ -58,6 +58,39 @@ v5b 在补齐远端缺失的 `mobile_vla_service.py` 后完成了 4 条 top 单�
 
 confirmation 索引在模型、训练配方和 AMD 运行时配置冻结前不得读取。训练采样器按模式各 1/3，再在模式内按 8 个设计单元各 1/8 采样，避免 62/63 条的轻微数量差异改变梯度比例。
 
+存储格式固定为 LeRobot v3 视频后端：两路 RGB、两路 12-bit metric depth 和两路三通道 depth view 均按视频保存，训练和审计固定使用 `dataset.video_backend=pyav` 与 `dataset.depth_output_unit=m`。单条 594 帧实测由约 161 MB 降至 7.8 MB；PyAV 随机解码三处关键帧通过，depth view 相对重新计算值的平均误差为 0.21--0.26/255，99% 像素误差不超过 2。不得使用当前 ROCm 环境中无法加载的 TorchCodec 默认后端。
+
+collection v7 仅冻结上述视频存储和审计合同，物理参数继续使用已经通过探针的 v6 成功包络。v6 三模式先导用于物理成功率证据；v7 先导必须再次证明直接视频写入、合并、PyAV 解码与相同完整任务成功率，随后 bulk 只允许使用 v7 计划和匹配的 collector 哈希。
+
+### 5.1 训练前的三个冻结产物
+
+收满并合并 1500 条成功回合后，训练不能直接读取全量帧，也不能直接使用全量 `meta/stats.json`。必须依次生成并冻结：
+
+1. `PARCEL_SUCCESS_SPLIT.json`：按独立回合、模式和设计单元生成 1200/150/150 切分。
+2. `PARCEL_PI05_SAMPLING_MANIFEST.json`：只索引 1200 条 train 回合，24 个设计单元每轮严格等量，每回合每阶段最多 100 个唯一帧。
+3. `meta/train_stats.json` 与 `PARCEL_TRAIN_STATS_MANIFEST.json`：只使用上述等权 train 帧计算 state/action 归一化统计，development 和 confirmation 帧数必须为 0。
+
+训练入口会同时检查 sampling manifest 的内容哈希和文件哈希、train-stats manifest、LeRobot 顶层 `EpisodeAwareSampler` 的实际类绑定，以及训练合同中的有效每轮样本数。任一缺失时 fail closed，避免出现“文档写 1/3，实际仍按原始帧数采样”或 confirmation 通过全量统计泄漏的问题。
+
+```bash
+python scripts/build_mobile_pi05_success_split.py \
+  --collection-summary RUN/collection-summary.json \
+  --dataset-info RUN/lerobot_dataset/meta/info.json \
+  --output RUN/lerobot_dataset/PARCEL_SUCCESS_SPLIT.json
+
+python scripts/build_mobile_pi05_sampling_manifest.py \
+  --dataset-root RUN/lerobot_dataset \
+  --split-manifest RUN/lerobot_dataset/PARCEL_SUCCESS_SPLIT.json \
+  --output RUN/lerobot_dataset/PARCEL_PI05_SAMPLING_MANIFEST.json
+
+python scripts/build_mobile_pi05_train_stats.py \
+  --dataset-root RUN/lerobot_dataset \
+  --split-manifest RUN/lerobot_dataset/PARCEL_SUCCESS_SPLIT.json \
+  --sampling-manifest RUN/lerobot_dataset/PARCEL_PI05_SAMPLING_MANIFEST.json \
+  --output-stats RUN/lerobot_dataset/meta/train_stats.json \
+  --output-manifest RUN/lerobot_dataset/PARCEL_TRAIN_STATS_MANIFEST.json
+```
+
 ## 6. 复现来源
 
 文献元数据于 2026-07-29 通过 arXiv API 一次定向查询：

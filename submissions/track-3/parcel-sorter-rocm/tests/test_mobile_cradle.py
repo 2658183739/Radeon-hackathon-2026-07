@@ -12,15 +12,15 @@ class MobileCradleContactMemoryTests(unittest.TestCase):
             )
         self.assertEqual(offset, 0.005)
 
-    def test_contact_and_force_release_accumulated_offset(self) -> None:
-        contact_release = update_cradle_contact_memory_offset(
+    def test_low_force_contact_holds_and_high_force_releases_offset(self) -> None:
+        contact_hold = update_cradle_contact_memory_offset(
             0.001, contact_geoms=1, contact_force_n=5.0
         )
         force_release = update_cradle_contact_memory_offset(
             0.001, contact_geoms=1, contact_force_n=25.0
         )
-        self.assertLess(contact_release, 0.001)
-        self.assertLess(force_release, contact_release)
+        self.assertEqual(contact_hold, 0.001)
+        self.assertLess(force_release, contact_hold)
 
     def test_invalid_telemetry_is_rejected(self) -> None:
         with self.assertRaises(ValueError):

@@ -43,6 +43,9 @@ class MobilePI05TrainingContractTests(unittest.TestCase):
             "MOBILE_PI05_FULL_ACTION_PROJECTIONS",
             "MOBILE_PI05_STAGE_LOSS_WEIGHTS",
             "MOBILE_PI05_MODE_FLOW_LOSS_WEIGHTS",
+            "MOBILE_PI05_SAMPLING_MANIFEST",
+            "MOBILE_PI05_TRAIN_STATS",
+            "MOBILE_PI05_TRAIN_STATS_MANIFEST",
         )
         for name in required:
             self.assertIn(f'export {name}="', script)

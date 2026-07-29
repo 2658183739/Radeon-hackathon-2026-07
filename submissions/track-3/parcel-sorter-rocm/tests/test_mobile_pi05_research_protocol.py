@@ -140,8 +140,10 @@ class MobilePI05ResearchProtocolTests(unittest.TestCase):
 
         self.assertIn("MOBILE_PI05_TRAINING_ROLE", text)
         self.assertIn("candidate training requires MOBILE_PI05_TINY_OVERFIT_GATE", text)
-        self.assertIn('--scheduler.num_decay_steps "${SCHEDULER_DECAY_STEPS}"', text)
-        self.assertIn('--scheduler.num_warmup_steps "${SCHEDULER_WARMUP_STEPS}"', text)
+        self.assertIn('--policy.scheduler_decay_steps "${SCHEDULER_DECAY_STEPS}"', text)
+        self.assertIn('--policy.scheduler_warmup_steps "${SCHEDULER_WARMUP_STEPS}"', text)
+        self.assertNotIn("--scheduler.num_decay_steps", text)
+        self.assertNotIn("--scheduler.num_warmup_steps", text)
         self.assertNotIn('MOBILE_PI05_ALLOW_ZERO_SEED:-0}" "${WRIST_RGBD}', text)
 
     def test_checked_in_tiny_thresholds_are_fingerprinted_contract_only(self) -> None:

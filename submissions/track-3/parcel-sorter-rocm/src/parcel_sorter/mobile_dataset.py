@@ -146,6 +146,7 @@ class MobileBimanualLeRobotWriter:
         image_size: tuple[int, int] = (224, 224),
         include_depth: bool = True,
         include_wrist_rgbd: bool = False,
+        use_videos: bool = True,
         repo_id: str = "local/mobile-bimanual-parcel-expert",
         dataset_factory: Any | None = None,
     ) -> None:
@@ -157,6 +158,7 @@ class MobileBimanualLeRobotWriter:
             dataset_factory = LeRobotDataset.create
 
         width, height = image_size
+        visual_dtype = "video" if use_videos else "image"
         features: dict[str, dict[str, Any]] = {
             "observation.state": {
                 "dtype": "float32",
@@ -180,52 +182,66 @@ class MobileBimanualLeRobotWriter:
                 "info": {"stages": list(MOBILE_STAGE_NAMES), "policy_input": False},
             },
             MOBILE_RGB_KEY: {
-                "dtype": "image",
+                "dtype": visual_dtype,
                 "shape": (height, width, 3),
                 "names": ["height", "width", "channels"],
             },
         }
         if include_depth:
             features[MOBILE_DEPTH_KEY] = {
-                "dtype": "image",
+                "dtype": visual_dtype,
                 "shape": (height, width, 1),
                 "names": ["height", "width", "channels"],
                 "info": {"is_depth_map": True, "depth_unit": "m"},
             }
             features[MOBILE_DEPTH_RGB_KEY] = {
-                "dtype": "image",
+                "dtype": visual_dtype,
                 "shape": (height, width, 3),
                 "names": ["height", "width", "channels"],
                 "info": {"derived_from": "observation.images.overhead_depth"},
             }
         if include_wrist_rgbd:
             features[MOBILE_WRIST_RGB_KEY] = {
-                "dtype": "image",
+                "dtype": visual_dtype,
                 "shape": (height, width, 3),
                 "names": ["height", "width", "channels"],
             }
             features[MOBILE_WRIST_DEPTH_KEY] = {
-                "dtype": "image",
+                "dtype": visual_dtype,
                 "shape": (height, width, 1),
                 "names": ["height", "width", "channels"],
                 "info": {"is_depth_map": True, "depth_unit": "m"},
             }
             features[MOBILE_WRIST_DEPTH_RGB_KEY] = {
-                "dtype": "image",
+                "dtype": visual_dtype,
                 "shape": (height, width, 3),
                 "names": ["height", "width", "channels"],
                 "info": {"derived_from": MOBILE_WRIST_DEPTH_KEY},
             }
         self._include_depth = include_depth
         self._include_wrist_rgbd = include_wrist_rgbd
+        self._root = Path(root)
+        self._use_videos = use_videos
         self._dataset = dataset_factory(
             repo_id=repo_id,
-            root=Path(root),
+            root=self._root,
             fps=fps,
             features=features,
             robot_type="mobile_bi_franka_sim",
-            use_videos=False,
+            use_videos=use_videos,
+            video_backend="pyav" if use_videos else None,
+            batch_encoding_size=1,
             image_writer_threads=4,
+        )
+
+    @property
+    def storage_format(self) -> str:
+        return "video" if self._use_videos else "image_parquet"
+
+    @property
+    def dataset_bytes(self) -> int:
+        return sum(
+            path.stat().st_size for path in self._root.rglob("*") if path.is_file()
         )
 
     def add_frame(self, frame: MobileBimanualFrame) -> None:

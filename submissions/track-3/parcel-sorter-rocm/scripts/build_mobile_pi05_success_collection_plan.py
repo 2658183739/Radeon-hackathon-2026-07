@@ -15,13 +15,19 @@ DESIGN_CELLS_PER_MODE = 8
 TARGET_SUCCESSES_PER_MODE = 500
 DEFAULT_PILOT_ATTEMPTS_PER_MODE = 10
 DEFAULT_BULK_ATTEMPTS_PER_MODE = 960
-COLLECTION_REVISION = 6
+COLLECTION_REVISION = 8
 
 TOP_SUCTION_SIZE_RELATIVE = 0.002
 TOP_SUCTION_MASS_RELATIVE = 0.005
 TOP_SUCTION_FRICTION_RELATIVE = 0.005
 TOP_SUCTION_OFFSET_DELTA_M = 0.00025
 TOP_SUCTION_YAW_DELTA_RAD = 0.0025
+
+CRADLE_SIZE_RELATIVE = 0.0001
+CRADLE_MASS_RELATIVE = 0.0002
+CRADLE_FRICTION_RELATIVE = 0.0001
+CRADLE_OFFSET_DELTA_M = 0.000001
+CRADLE_YAW_DELTA_RAD = 0.000002
 
 
 TOP_SUCTION_ANCHORS: dict[str, tuple[dict[str, Any], ...]] = {
@@ -256,8 +262,17 @@ def _side_suction(
 def _cooperative_cradle(
     index: int, count: int, fractions: list[list[float]]
 ) -> dict[str, Any]:
-    physical, anchor_provenance = _interpolate_anchor_path(
-        CRADLE_ANCHORS, fractions[0][index]
+    anchor_index = (index // 3) % len(CRADLE_ANCHORS)
+    design_cell = index % DESIGN_CELLS_PER_MODE
+    physical, perturbation = _single_factor_perturbation(
+        CRADLE_ANCHORS[anchor_index],
+        design_cell,
+        fractions[0][index],
+        size_relative=CRADLE_SIZE_RELATIVE,
+        mass_relative=CRADLE_MASS_RELATIVE,
+        friction_relative=CRADLE_FRICTION_RELATIVE,
+        offset_delta_m=CRADLE_OFFSET_DELTA_M,
+        yaw_delta_rad=CRADLE_YAW_DELTA_RAD,
     )
     return {
         "profile": "large_rectangular_carton_boundary",
@@ -280,8 +295,11 @@ def _cooperative_cradle(
         "recovery_right_lift_offset_m": physical["recovery_right_lift_offset_m"],
         "recovery_vertical_speed_scale": 1.0,
         "retry_index": 2,
-        "parameter_envelope_revision": "cradle-current-success-anchor-path-v6",
-        "anchor_provenance": anchor_provenance,
+        "parameter_envelope_revision": "cradle-verified-anchor-one-factor-v8",
+        "anchor_provenance": {
+            "anchor_index": anchor_index,
+            **perturbation,
+        },
         "task_text": (
             "Pick up the large rectangular carton with cooperative cradle control "
             "and place it at the marked parcel destination."
@@ -357,7 +375,7 @@ def build_plan(attempts_per_mode: int, seed: int, phase: str) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "collection_id": f"parcel-success-{phase}-v{COLLECTION_REVISION}",
-        "protocol": "pi05-success-current-contract-anchor-place-gated-v6",
+        "protocol": "pi05-success-current-contract-video-backed-v8",
         "seed": seed,
         "phase": phase,
         "attempts_per_mode": attempts_per_mode,

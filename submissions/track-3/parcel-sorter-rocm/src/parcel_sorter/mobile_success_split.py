@@ -96,6 +96,10 @@ def _require_verified_success(result: dict[str, Any]) -> tuple[str, str, str]:
         raise ValueError(f"successful result has a failure stage: {episode_id}")
     if result.get("dataset_saved") is not True or int(result.get("frames", 0)) <= 0:
         raise ValueError(f"successful result has no nonempty dataset: {episode_id}")
+    if result.get("dataset_storage_format") != "video":
+        raise ValueError(f"successful result is not video-backed: {episode_id}")
+    if int(result.get("dataset_bytes", 0)) <= 0:
+        raise ValueError(f"successful result has no stored bytes: {episode_id}")
     if not isinstance(recovery_label, dict) or recovery_label.get("verified_success") is not True:
         raise ValueError(f"successful result lacks independent verification: {episode_id}")
     for field in ("lift_success", "transport_success", "placed_before_release", "released"):
@@ -137,6 +141,21 @@ def build_mobile_success_split(
         raise ValueError("collection success quota does not target 1,500 episodes")
     if int(info.get("total_episodes", -1)) != expected_total:
         raise ValueError("LeRobot metadata does not contain exactly 1,500 episodes")
+    if not info.get("video_path"):
+        raise ValueError("LeRobot dataset is not video-backed")
+    features = info.get("features")
+    if not isinstance(features, dict):
+        raise ValueError("LeRobot metadata lacks feature definitions")
+    visual_features = {
+        name: feature
+        for name, feature in features.items()
+        if name.startswith("observation.images.")
+    }
+    if len(visual_features) != 6 or any(
+        not isinstance(feature, dict) or feature.get("dtype") != "video"
+        for feature in visual_features.values()
+    ):
+        raise ValueError("LeRobot visual features are not six video streams")
 
     results = summary.get("results")
     successful_order = summary.get("successful_episode_order")

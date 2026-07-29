@@ -100,6 +100,10 @@ def main() -> int:
         )
     )
     base_speed = np.linalg.norm(actions[:, :2], axis=1)
+    base_speed_max_by_stage = {
+        name: float(base_speed[stage_ids == index].max())
+        for index, name in enumerate(stage_names)
+    }
     tool_values = sorted(
         set(
             float(value)
@@ -111,33 +115,89 @@ def main() -> int:
         )
     )
 
+    video_backed = bool(info.get("video_path"))
     depth_min = math.inf
     depth_max = -math.inf
     depth_values = []
-    depth_column = table[MOBILE_DEPTH_KEY].combine_chunks()
-    depth_rgb_column = table[MOBILE_DEPTH_RGB_KEY].combine_chunks()
-    depth_rgb_check_stride = max(1, len(depth_column) // 64)
     depth_rgb_checked_frames = 0
     depth_rgb_mismatch_count = 0
-    for frame_index, item in enumerate(depth_column):
-        encoded = item.as_py()["bytes"]
-        depth = np.asarray(Image.open(io.BytesIO(encoded)), dtype=np.float32)
-        if depth.shape != (224, 224) or not np.isfinite(depth).all():
-            raise ValueError("invalid mobile metric depth frame")
-        depth_min = min(depth_min, float(depth.min()))
-        depth_max = max(depth_max, float(depth.max()))
-        depth_values.append(depth.reshape(-1)[::64])
-        if frame_index % depth_rgb_check_stride == 0:
-            encoded_rgb = depth_rgb_column[frame_index].as_py()["bytes"]
-            stored_rgb = np.asarray(Image.open(io.BytesIO(encoded_rgb)), dtype=np.uint8)[..., :3]
-            expected_rgb = metric_depth_to_visual_rgb(depth, np)
-            depth_rgb_checked_frames += 1
-            depth_rgb_mismatch_count += int(
-                stored_rgb.shape != expected_rgb.shape
-                or not np.array_equal(stored_rgb, expected_rgb)
+    depth_rgb_absolute_errors = []
+    if video_backed:
+        from lerobot.datasets.lerobot_dataset import LeRobotDataset
+
+        dataset = LeRobotDataset(
+            "local/mobile-bimanual-parcel-audit",
+            root=root,
+            video_backend="pyav",
+            depth_output_unit="m",
+        )
+        sample_count = min(64, len(dataset))
+        sampled_indices = sorted(
+            set(
+                int(value)
+                for value in np.linspace(0, len(dataset) - 1, sample_count)
             )
+        )
+        depth_pairs = [(MOBILE_DEPTH_KEY, MOBILE_DEPTH_RGB_KEY)]
+        wrist_pair = (
+            "observation.images.left_wrist_depth",
+            "observation.images.left_wrist_depth_rgb",
+        )
+        if all(key in info["features"] for key in wrist_pair):
+            depth_pairs.append(wrist_pair)
+        for frame_index in sampled_indices:
+            sample = dataset[frame_index]
+            for depth_key, depth_rgb_key in depth_pairs:
+                depth = np.asarray(sample[depth_key], dtype=np.float32).squeeze()
+                stored_rgb = np.asarray(sample[depth_rgb_key], dtype=np.float32)
+                stored_rgb = np.rint(
+                    np.moveaxis(stored_rgb, 0, -1) * 255.0
+                ).astype(np.uint8)
+                if depth.shape != (224, 224) or not np.isfinite(depth).all():
+                    raise ValueError("invalid mobile metric depth video frame")
+                expected_rgb = metric_depth_to_visual_rgb(depth, np)
+                absolute_error = np.abs(
+                    stored_rgb.astype(np.int16) - expected_rgb.astype(np.int16)
+                )
+                depth_min = min(depth_min, float(depth.min()))
+                depth_max = max(depth_max, float(depth.max()))
+                depth_values.append(depth.reshape(-1)[::64])
+                depth_rgb_checked_frames += 1
+                depth_rgb_absolute_errors.append(absolute_error.reshape(-1))
+    else:
+        depth_column = table[MOBILE_DEPTH_KEY].combine_chunks()
+        depth_rgb_column = table[MOBILE_DEPTH_RGB_KEY].combine_chunks()
+        depth_rgb_check_stride = max(1, len(depth_column) // 64)
+        for frame_index, item in enumerate(depth_column):
+            encoded = item.as_py()["bytes"]
+            depth = np.asarray(Image.open(io.BytesIO(encoded)), dtype=np.float32)
+            if depth.shape != (224, 224) or not np.isfinite(depth).all():
+                raise ValueError("invalid mobile metric depth frame")
+            depth_min = min(depth_min, float(depth.min()))
+            depth_max = max(depth_max, float(depth.max()))
+            depth_values.append(depth.reshape(-1)[::64])
+            if frame_index % depth_rgb_check_stride == 0:
+                encoded_rgb = depth_rgb_column[frame_index].as_py()["bytes"]
+                stored_rgb = np.asarray(
+                    Image.open(io.BytesIO(encoded_rgb)), dtype=np.uint8
+                )[..., :3]
+                expected_rgb = metric_depth_to_visual_rgb(depth, np)
+                depth_rgb_checked_frames += 1
+                depth_rgb_mismatch_count += int(
+                    stored_rgb.shape != expected_rgb.shape
+                    or not np.array_equal(stored_rgb, expected_rgb)
+                )
     depth_sample = np.concatenate(depth_values)
     depth_percentiles = np.percentile(depth_sample, (1, 50, 99)).tolist()
+    video_depth_rgb_error = (
+        np.concatenate(depth_rgb_absolute_errors)
+        if depth_rgb_absolute_errors
+        else np.zeros(1, dtype=np.int16)
+    )
+    depth_rgb_mean_absolute_error = float(video_depth_rgb_error.mean())
+    depth_rgb_p99_absolute_error = float(
+        np.quantile(video_depth_rgb_error, 0.99)
+    )
 
     expected_frames = int(info["total_frames"])
     errors = []
@@ -169,7 +229,13 @@ def main() -> int:
         ):
             errors.append("timestamp_cadence")
             break
-    if float(base_speed.max()) > (0.020001 if residual_contract else 0.050001):
+    if residual_contract:
+        if float(base_speed.max()) > 0.020001:
+            errors.append("base_speed_limit")
+    elif any(
+        maximum > (0.120001 if stage == "grasp_approach" else 0.050001)
+        for stage, maximum in base_speed_max_by_stage.items()
+    ):
         errors.append("base_speed_limit")
     if quaternion_norm_error > 1e-4:
         errors.append("action_quaternion_norm")
@@ -177,8 +243,22 @@ def main() -> int:
         errors.append("tool_command_domain")
     if not 0.05 < depth_min < depth_max <= 20.001:
         errors.append("metric_depth_range")
-    if depth_rgb_mismatch_count:
+    if depth_rgb_mismatch_count or (
+        video_backed
+        and (
+            depth_rgb_mean_absolute_error > 1.0
+            or depth_rgb_p99_absolute_error > 4.0
+        )
+    ):
         errors.append("derived_depth_rgb_mismatch")
+    if video_backed and (
+        any(
+            info["features"].get(key, {}).get("dtype") != "video"
+            for key in policy_input_features
+            if key.startswith("observation.images.")
+        )
+    ):
+        errors.append("video_visual_contract")
     if any(key not in info["features"] for key in policy_input_features):
         errors.append("missing_policy_input_feature")
     if "observation.privileged_state" in policy_input_features:
@@ -211,6 +291,7 @@ def main() -> int:
         "primitive_progress_min": float(progress.min()) if progress_enabled else None,
         "primitive_progress_max": float(progress.max()) if progress_enabled else None,
         "base_action_speed_max_m_s": float(base_speed.max()),
+        "base_action_speed_max_by_stage_m_s": base_speed_max_by_stage,
         "action_quaternion_norm_error_max": quaternion_norm_error,
         "tool_command_values": tool_values,
         "depth_tiff_unit": "m",
@@ -219,6 +300,10 @@ def main() -> int:
         "depth_percentiles_m": depth_percentiles,
         "depth_rgb_checked_frames": depth_rgb_checked_frames,
         "depth_rgb_mismatch_count": depth_rgb_mismatch_count,
+        "depth_rgb_mean_absolute_error": depth_rgb_mean_absolute_error,
+        "depth_rgb_p99_absolute_error": depth_rgb_p99_absolute_error,
+        "storage_format": "video" if video_backed else "image_parquet",
+        "video_backend": "pyav" if video_backed else None,
         "policy_modality": args.policy_modality,
         "policy_input_features": list(policy_input_features),
         "privileged_state_in_policy": False,

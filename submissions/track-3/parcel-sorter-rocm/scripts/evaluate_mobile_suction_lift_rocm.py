@@ -1255,6 +1255,7 @@ def main() -> int:
             image_size=(args.image_size, args.image_size),
             include_depth=True,
             include_wrist_rgbd=args.wrist_rgbd,
+            use_videos=True,
         )
     pi05_writer = None
     if args.record_pi05_residual_dataset is not None:
@@ -4034,6 +4035,8 @@ def main() -> int:
             "root": str(args.record_dataset) if args.record_dataset is not None else None,
             "frames": recorded_frames if writer is not None else 0,
             "fps": 30,
+            "storage_format": writer.storage_format if writer is not None else None,
+            "bytes": writer.dataset_bytes if dataset_saved and writer is not None else 0,
             "state_dim": 43,
             "action_dim": 19,
             "rgb_shape": [args.image_size, args.image_size, 3],

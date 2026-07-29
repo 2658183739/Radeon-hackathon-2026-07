@@ -40,6 +40,9 @@ def main() -> int:
     parser.add_argument("--scheduler-warmup-steps", type=int, required=True)
     parser.add_argument("--scheduler-decay-steps", type=int, required=True)
     parser.add_argument("--launch-audit", type=Path, required=True)
+    parser.add_argument("--sampling-manifest", type=Path)
+    parser.add_argument("--normalization-stats", type=Path)
+    parser.add_argument("--train-stats-manifest", type=Path)
     parser.add_argument("--state-token", action="store_true")
     parser.add_argument("--mode-head", action="store_true")
     parser.add_argument("--full-action-projections", action="store_true")
@@ -135,6 +138,9 @@ def main() -> int:
         training_launch_audit=json.loads(
             args.launch_audit.read_text(encoding="utf-8")
         ),
+        sampling_manifest_path=args.sampling_manifest,
+        normalization_stats_path=args.normalization_stats,
+        train_stats_manifest_path=args.train_stats_manifest,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     path = args.output_dir / PI05_TRAINING_CONTRACT_FILENAME

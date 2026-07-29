@@ -105,6 +105,47 @@ class MobileDatasetContractTests(unittest.TestCase):
             "observation.images.left_wrist_depth_rgb",
             writer._dataset.frames[0],
         )
+        self.assertTrue(captured["use_videos"])
+        self.assertEqual(captured["video_backend"], "pyav")
+        self.assertEqual(captured["batch_encoding_size"], 1)
+        self.assertEqual(writer.storage_format, "video")
+        visual_features = {
+            key: feature
+            for key, feature in captured["features"].items()
+            if key.startswith("observation.images.")
+        }
+        self.assertEqual(len(visual_features), 6)
+        self.assertTrue(
+            all(feature["dtype"] == "video" for feature in visual_features.values())
+        )
+
+    def test_image_parquet_writer_keeps_image_feature_types(self) -> None:
+        captured = {}
+
+        def factory(**kwargs):
+            captured.update(kwargs)
+            return object()
+
+        writer = MobileBimanualLeRobotWriter(
+            "unused",
+            include_wrist_rgbd=True,
+            use_videos=False,
+            dataset_factory=factory,
+            image_size=(8, 8),
+        )
+
+        visual_features = {
+            key: feature
+            for key, feature in captured["features"].items()
+            if key.startswith("observation.images.")
+        }
+        self.assertEqual(len(visual_features), 6)
+        self.assertTrue(
+            all(feature["dtype"] == "image" for feature in visual_features.values())
+        )
+        self.assertFalse(captured["use_videos"])
+        self.assertIsNone(captured["video_backend"])
+        self.assertEqual(writer.storage_format, "image_parquet")
 
 
 if __name__ == "__main__":

@@ -22,6 +22,8 @@ def _result(mode: str, cell_index: int, index: int) -> dict:
         "success": True,
         "failure_stage": None,
         "dataset_saved": True,
+        "dataset_storage_format": "video",
+        "dataset_bytes": 8_000_000,
         "frames": 594,
         "recovery_label": {"verified_success": True},
         "lift_success": True,
@@ -57,7 +59,30 @@ class MobileSuccessSplitTests(unittest.TestCase):
         info_path = root / "lerobot_dataset" / "meta" / "info.json"
         info_path.parent.mkdir(parents=True)
         summary_path.write_text(json.dumps(summary), encoding="utf-8")
-        info_path.write_text(json.dumps({"total_episodes": 1500}), encoding="utf-8")
+        features = {
+            name: {"dtype": "video"}
+            for name in (
+                "observation.images.overhead_rgb",
+                "observation.images.overhead_depth",
+                "observation.images.overhead_depth_rgb",
+                "observation.images.left_wrist_rgb",
+                "observation.images.left_wrist_depth",
+                "observation.images.left_wrist_depth_rgb",
+            )
+        }
+        info_path.write_text(
+            json.dumps(
+                {
+                    "total_episodes": 1500,
+                    "video_path": (
+                        "videos/{video_key}/chunk-{chunk_index:03d}/"
+                        "file-{file_index:03d}.mp4"
+                    ),
+                    "features": features,
+                }
+            ),
+            encoding="utf-8",
+        )
         return summary_path, info_path
 
     def test_exact_stratified_split_is_deterministic_and_leak_free(self) -> None:

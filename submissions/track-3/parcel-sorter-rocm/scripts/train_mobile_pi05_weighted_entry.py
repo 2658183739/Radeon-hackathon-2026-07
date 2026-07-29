@@ -31,6 +31,38 @@ from parcel_sorter.pi05_mode_head_adapter import (
 
 
 def main() -> int:
+    sampling_manifest = os.environ.get("MOBILE_PI05_SAMPLING_MANIFEST", "").strip()
+    train_stats = os.environ.get("MOBILE_PI05_TRAIN_STATS", "").strip()
+    train_stats_manifest = os.environ.get(
+        "MOBILE_PI05_TRAIN_STATS_MANIFEST", ""
+    ).strip()
+    if bool(train_stats) != bool(train_stats_manifest):
+        raise ValueError("train stats and train-stats manifest must be provided together")
+    if train_stats and not sampling_manifest:
+        raise ValueError("train-only stats require the frozen sampling manifest")
+    sampling_protocol = None
+    sampling_manifest_sha256 = None
+    sampler_class = None
+    train_stats_factory = None
+    if sampling_manifest:
+        from parcel_sorter.mobile_stratified_sampler import (
+            SAMPLING_PROTOCOL,
+            install_stratified_sampler,
+            load_sampling_manifest,
+        )
+
+        sampling_payload = load_sampling_manifest(sampling_manifest)
+        sampler_class = install_stratified_sampler(sampling_manifest)
+        sampling_protocol = SAMPLING_PROTOCOL
+        sampling_manifest_sha256 = sampling_payload["manifest_sha256"]
+    if train_stats:
+        from parcel_sorter.mobile_train_stats import install_train_stats_override
+
+        train_stats_factory = install_train_stats_override(
+            stats_path=train_stats,
+            manifest_path=train_stats_manifest,
+            sampling_manifest_path=sampling_manifest,
+        )
     mode_weight = float(os.environ["MOBILE_PI05_MODE_LOSS_WEIGHT"])
     action_contract = os.environ.get(
         "MOBILE_PI05_ACTION_CONTRACT", "residual_v1"
@@ -118,6 +150,11 @@ def main() -> int:
         json.dumps(
             {
                 "pi05_action_loss_weighting": "enabled",
+                "sampling_manifest": sampling_manifest or None,
+                "sampling_protocol": sampling_protocol,
+                "sampling_manifest_sha256": sampling_manifest_sha256,
+                "train_stats": train_stats or None,
+                "train_stats_manifest": train_stats_manifest or None,
                 "action_contract": action_contract,
                 "mode_channel_start": mode_channel_start,
                 "mode_loss_weight": mode_weight,
@@ -164,9 +201,16 @@ def main() -> int:
         ),
         flush=True,
     )
-    from lerobot.scripts.lerobot_train import main as lerobot_main
+    from lerobot.scripts import lerobot_train
 
-    lerobot_main()
+    if sampler_class is not None and lerobot_train.EpisodeAwareSampler is not sampler_class:
+        raise RuntimeError("parcel stratified sampler was not installed in lerobot_train")
+    if (
+        train_stats_factory is not None
+        and lerobot_train.make_train_eval_datasets is not train_stats_factory
+    ):
+        raise RuntimeError("parcel train-only stats were not installed in lerobot_train")
+    lerobot_train.main()
     return 0
 
 

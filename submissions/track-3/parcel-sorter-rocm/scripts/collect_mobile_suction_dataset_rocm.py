@@ -17,6 +17,9 @@ from typing import Any
 from parcel_sorter.mobile_adaptive_retry import classify_mobile_failure
 
 
+MAX_EXPERT_EPISODE_DATASET_BYTES = 25_000_000
+
+
 def _validate_episode(item: dict[str, Any], seen: set[str]) -> None:
     episode_id = str(item.get("episode_id", ""))
     if not episode_id or episode_id in seen:
@@ -240,6 +243,8 @@ def _verified_collection_success(
         task_success
         and dataset.get("saved") is True
         and int(dataset.get("frames", 0)) > 0
+        and dataset.get("storage_format") == "video"
+        and 0 < int(dataset.get("bytes", 0)) <= MAX_EXPERT_EPISODE_DATASET_BYTES
         and dataset_root.is_dir()
     )
 
@@ -728,6 +733,10 @@ def main() -> int:
             ).get("max_contact_force_n"),
             "frames": summary.get("dataset", {}).get("frames", 0),
             "dataset_saved": bool(summary.get("dataset", {}).get("saved")),
+            "dataset_storage_format": summary.get("dataset", {}).get(
+                "storage_format"
+            ),
+            "dataset_bytes": summary.get("dataset", {}).get("bytes", 0),
             "recovery_label": {
                 "verified_success": success,
                 "contact_offset_m": summary.get("recovery_parameters", {}).get(

@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from .mobile_dataset import infer_mobile_policy_modality, mobile_policy_visual_keys
+from .mobile_stratified_sampler import SAMPLING_PROTOCOL, load_sampling_manifest
+from .mobile_train_stats import (
+    TRAIN_STATS_PROTOCOL,
+    load_train_only_normalization_stats,
+)
 from .mobile_pi05_contract import (
     MOBILE_PI05_ABSOLUTE_ACTION_NAMES,
     MOBILE_PI05_ABSOLUTE_STATE_NAMES,
@@ -53,12 +58,20 @@ def build_pi05_training_contract(
     scheduler_warmup_steps: int | None = None,
     scheduler_decay_steps: int | None = None,
     training_launch_audit: dict[str, Any] | None = None,
+    sampling_manifest_path: str | Path | None = None,
+    normalization_stats_path: str | Path | None = None,
+    train_stats_manifest_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Build a canonical contract tying a checkpoint to data semantics."""
 
     root = Path(dataset_root).resolve()
     info_path = root / "meta" / "info.json"
-    stats_path = root / "meta" / "stats.json"
+    global_stats_path = root / "meta" / "stats.json"
+    stats_path = (
+        Path(normalization_stats_path).resolve()
+        if normalization_stats_path is not None
+        else global_stats_path
+    )
     manifest_paths = [
         path
         for path in (
@@ -70,6 +83,10 @@ def build_pi05_training_contract(
     ]
     if not info_path.is_file() or not stats_path.is_file() or len(manifest_paths) != 1:
         raise ValueError("PI0.5 dataset is missing info, stats, or provenance manifest")
+    if not global_stats_path.is_file():
+        raise ValueError("PI0.5 dataset is missing its global stats provenance")
+    if bool(normalization_stats_path) != bool(train_stats_manifest_path):
+        raise ValueError("custom normalization stats require their provenance manifest")
     manifest_path = manifest_paths[0]
     if chunk_size <= 0 or not 1 <= n_action_steps <= chunk_size:
         raise ValueError("invalid PI0.5 action chunk contract")
@@ -114,6 +131,11 @@ def build_pi05_training_contract(
     fps = int(info.get("fps", 0))
     if fps <= 0:
         raise ValueError("PI0.5 dataset FPS must be positive")
+    dataset_storage_format = "video" if info.get("video_path") else "image_parquet"
+    if dataset_storage_format == "video" and any(
+        features[key].get("dtype") != "video" for key in policy_visual_keys
+    ):
+        raise ValueError("PI0.5 policy visual inputs are not video-backed")
     strict_training_fields = (
         training_role,
         requested_training_steps,
@@ -140,6 +162,52 @@ def build_pi05_training_contract(
     total_frames = int(info.get("total_frames", 0))
     if training_role is not None and total_frames <= 0:
         raise ValueError("strict PI0.5 contract requires a positive dataset frame count")
+    split_path = root / "PARCEL_SUCCESS_SPLIT.json"
+    sampling_path = (
+        Path(sampling_manifest_path).resolve()
+        if sampling_manifest_path is not None
+        else None
+    )
+    train_stats_manifest = (
+        Path(train_stats_manifest_path).resolve()
+        if train_stats_manifest_path is not None
+        else None
+    )
+    sampling = None
+    sampling_source: dict[str, Any] = {}
+    if split_path.is_file() and sampling_path is None:
+        raise ValueError("parcel success training requires a sampling manifest")
+    if split_path.is_file() and train_stats_manifest is None:
+        raise ValueError("parcel success training requires train-only normalization")
+    if sampling_path is not None:
+        if not split_path.is_file():
+            raise ValueError("sampling manifest requires the frozen parcel split")
+        sampling = load_sampling_manifest(sampling_path)
+        sampling_source = sampling.get("source") or {}
+        if sampling_source.get("dataset_info_sha256") != _sha256(info_path):
+            raise ValueError("sampling manifest dataset metadata mismatch")
+        if sampling_source.get("split_manifest_sha256") != _sha256(split_path):
+            raise ValueError("sampling manifest split mismatch")
+    train_stats_payload = None
+    if train_stats_manifest is not None:
+        if sampling_path is None:
+            raise ValueError("train-only normalization requires a sampling manifest")
+        load_train_only_normalization_stats(
+            stats_path=stats_path,
+            manifest_path=train_stats_manifest,
+            sampling_manifest_path=sampling_path,
+        )
+        train_stats_payload = json.loads(
+            train_stats_manifest.read_text(encoding="utf-8")
+        )
+        if train_stats_payload.get("dataset_info_sha256") != _sha256(info_path):
+            raise ValueError("train-only normalization dataset metadata mismatch")
+        if train_stats_payload.get("split_manifest_sha256") != _sha256(split_path):
+            raise ValueError("train-only normalization split mismatch")
+
+    effective_epoch_frames = (
+        int(sampling["samples_per_epoch"]) if sampling is not None else total_frames
+    )
     payload: dict[str, Any] = {
         "schema_version": 1,
         "protocol": "parcel-pi05-training-contract-v1",
@@ -147,6 +215,11 @@ def build_pi05_training_contract(
         "base_revision": str(base_revision),
         "dataset_root": str(root),
         "dataset_fps_hz": fps,
+        "dataset_storage_format": dataset_storage_format,
+        "dataset_video_backend": (
+            "pyav" if dataset_storage_format == "video" else None
+        ),
+        "dataset_depth_output_unit": "m",
         "state_dimension": len(expected_state_names),
         "state_names": list(expected_state_names),
         "state_semantics": PI05_STATE_SEMANTICS,
@@ -160,6 +233,46 @@ def build_pi05_training_contract(
         "executed_action_steps": int(n_action_steps),
         "normalization_semantics": PI05_NORMALIZATION_SEMANTICS,
         "normalization_stats_sha256": _sha256(stats_path),
+        "normalization_stats_source": (
+            "balanced_train_only" if train_stats_payload is not None else "dataset_global"
+        ),
+        "dataset_global_stats_sha256": _sha256(global_stats_path),
+        "train_stats_protocol": (
+            train_stats_payload.get("protocol")
+            if train_stats_payload is not None
+            else None
+        ),
+        "train_stats_manifest_sha256": (
+            train_stats_payload.get("manifest_sha256")
+            if train_stats_payload is not None
+            else None
+        ),
+        "train_stats_manifest_file_sha256": (
+            _sha256(train_stats_manifest) if train_stats_manifest is not None else None
+        ),
+        "normalization_held_out_frame_count": (
+            int(train_stats_payload["held_out_frame_count"])
+            if train_stats_payload is not None
+            else None
+        ),
+        "sampling_protocol": sampling.get("protocol") if sampling is not None else None,
+        "sampling_manifest_sha256": (
+            sampling.get("manifest_sha256") if sampling is not None else None
+        ),
+        "sampling_manifest_file_sha256": (
+            _sha256(sampling_path) if sampling_path is not None else None
+        ),
+        "sampling_samples_per_epoch": (
+            int(sampling["samples_per_epoch"]) if sampling is not None else None
+        ),
+        "sampling_samples_per_design_cell_per_epoch": (
+            int(sampling["samples_per_design_cell_per_epoch"])
+            if sampling is not None
+            else None
+        ),
+        "sampling_probabilities": (
+            sampling.get("sampling_probabilities") if sampling is not None else None
+        ),
         "dataset_manifest_sha256": _sha256(manifest_path),
         "normalization_stats_policy": manifest.get("normalization_stats_policy"),
         "mode_conditioning_policy": manifest.get("mode_conditioning_policy"),
@@ -191,6 +304,13 @@ def build_pi05_training_contract(
         "dataset_total_frames": total_frames if training_role is not None else None,
         "planned_dataset_epochs": (
             float(requested_training_steps) * float(training_batch_size) / total_frames
+            if training_role is not None
+            else None
+        ),
+        "planned_sampling_epochs": (
+            float(requested_training_steps)
+            * float(training_batch_size)
+            / effective_epoch_frames
             if training_role is not None
             else None
         ),
@@ -362,6 +482,21 @@ def validate_pi05_training_contract(
             abs_tol=1e-12,
         ):
             raise ValueError("PI0.5 training contract mismatch: planned_dataset_epochs")
+        sampling_epoch_frames = payload.get("sampling_samples_per_epoch")
+        effective_epoch_frames = (
+            int(sampling_epoch_frames)
+            if sampling_epoch_frames is not None
+            else total_frames
+        )
+        expected_sampling_epochs = steps * batch_size / effective_epoch_frames
+        planned_sampling_epochs = payload.get("planned_sampling_epochs")
+        if planned_sampling_epochs is not None and not math.isclose(
+            float(planned_sampling_epochs),
+            expected_sampling_epochs,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("PI0.5 training contract mismatch: planned_sampling_epochs")
         launch_hash = str(payload.get("training_launch_audit_sha256") or "")
         if len(launch_hash) != 64:
             raise ValueError("PI0.5 training contract lacks a launch-audit fingerprint")
@@ -369,6 +504,54 @@ def validate_pi05_training_contract(
             raise ValueError("tiny-overfit contract lacks a stage panel")
         if role == "candidate" and not payload.get("tiny_overfit_gate_sha256"):
             raise ValueError("candidate contract lacks a tiny-overfit gate")
+    sampling_protocol = payload.get("sampling_protocol")
+    sampling_fields = (
+        payload.get("sampling_manifest_sha256"),
+        payload.get("sampling_manifest_file_sha256"),
+        payload.get("sampling_samples_per_epoch"),
+        payload.get("sampling_samples_per_design_cell_per_epoch"),
+        payload.get("sampling_probabilities"),
+    )
+    if sampling_protocol is None and any(value is not None for value in sampling_fields):
+        raise ValueError("PI0.5 training contract has partial sampling provenance")
+    if sampling_protocol is not None:
+        if sampling_protocol != SAMPLING_PROTOCOL:
+            raise ValueError("PI0.5 training contract sampling protocol mismatch")
+        if any(
+            not isinstance(value, str) or len(value) != 64
+            for value in sampling_fields[:2]
+        ):
+            raise ValueError("PI0.5 training contract sampling hash mismatch")
+        if int(sampling_fields[2] or 0) < 24 or int(sampling_fields[3] or 0) < 1:
+            raise ValueError("PI0.5 training contract sampling size mismatch")
+        probabilities = sampling_fields[4] or {}
+        mode_probabilities = probabilities.get("grasp_mode") or {}
+        if sorted(float(value) for value in mode_probabilities.values()) != [
+            1 / 3,
+            1 / 3,
+            1 / 3,
+        ] or float(probabilities.get("design_cell_within_mode", 0.0)) != 1 / 8:
+            raise ValueError("PI0.5 training contract sampling probabilities mismatch")
+    train_stats_protocol = payload.get("train_stats_protocol")
+    train_stats_fields = (
+        payload.get("train_stats_manifest_sha256"),
+        payload.get("train_stats_manifest_file_sha256"),
+        payload.get("normalization_held_out_frame_count"),
+    )
+    if train_stats_protocol is None and any(
+        value is not None for value in train_stats_fields
+    ):
+        raise ValueError("PI0.5 training contract has partial train-stats provenance")
+    if train_stats_protocol is not None:
+        if train_stats_protocol != TRAIN_STATS_PROTOCOL:
+            raise ValueError("PI0.5 training contract train-stats protocol mismatch")
+        if payload.get("normalization_stats_source") != "balanced_train_only":
+            raise ValueError("PI0.5 training contract normalization source mismatch")
+        if any(
+            not isinstance(value, str) or len(value) != 64
+            for value in train_stats_fields[:2]
+        ) or int(train_stats_fields[2]) != 0:
+            raise ValueError("PI0.5 training contract train-stats provenance mismatch")
     if required_visual_keys is not None:
         # Contracts written before the wrist ablation pre-registration used the
         # fixed overhead RGB-D input but did not yet serialize those two keys.
