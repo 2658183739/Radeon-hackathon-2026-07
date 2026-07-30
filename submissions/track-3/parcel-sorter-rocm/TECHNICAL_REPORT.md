@@ -321,6 +321,9 @@ single isolated model. Its main design choices are:
 - separation of policy state from privileged simulator state;
 - one safety and action contract shared by expert and learned policies;
 - bounded Harness-Lite policy drift and isolated failure-driven promotion;
+- a provider-neutral Harness Agent protocol with separate proposer/verifier
+  identities, non-privileged inputs, quarantined corrections, and deterministic
+  training-admission and checkpoint-authorization gates;
 - short contact-force memory gating for payload-aware residual control;
 - complete audit retention even when failures are excluded from imitation data;
 - disjoint episode-range evaluation to reduce checkpoint-selection bias;
@@ -331,6 +334,15 @@ single isolated model. Its main design choices are:
 This is a system-level PASH-VLA method rather than a claim of a newly trained
 foundation model. The Force-Memory branch remains a development candidate until
 its matched Radeon gate is completed.
+
+The Harness Agent layer is currently an implemented protocol, not a measured
+performance result. It deliberately has no servo authority: the Agent may issue
+only high-level task and recovery intent, PI0.5 remains the learned action
+executor, and the 240 Hz loop and 35 N Harness remain deterministic. Agent
+corrections cannot become positive data until a separately identified verifier
+observes a complete pure-VLA replay with valid video storage and every safety
+gate. A future frozen comparison must separate Harness-only, Harness-Agent, and
+expert-assisted arms before any autonomous self-evolution claim is made.
 
 ## 13. Deliverables
 

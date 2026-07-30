@@ -1,6 +1,6 @@
 # Parcel Sorter ROCm
 
-Latest mobile result: [Harness-Lite and failure-driven self-improvement](docs/MOBILE_HARNESS_SELF_IMPROVEMENT_2026-07-27.md), including a successful SmolVLA base-residual closed loop on one Radeon GPU.
+Latest mobile result: [Harness-Lite and failure-driven self-improvement](docs/MOBILE_HARNESS_SELF_IMPROVEMENT_2026-07-27.md), including a successful SmolVLA base-residual closed loop on one Radeon GPU. The new [Verified Harness Agent](docs/MOBILE_HARNESS_AGENT.md) adds high-level task planning, failure analysis, independently verified correction admission, and a hash-bound checkpoint authorization layer; it is implemented but awaits a frozen Agent-vs-baseline experiment.
 
 Mobile extension: [43-D state / 19-D action SmolVLA status](docs/MOBILE_VLA_STATUS.md).
 The v2 checkpoint was trained for 2,400 steps on six successful expert episodes. Harness-Lite

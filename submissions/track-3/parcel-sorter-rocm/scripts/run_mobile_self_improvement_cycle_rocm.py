@@ -26,6 +26,14 @@ from parcel_sorter.mobile_self_improvement_cycle import (
     write_json,
 )
 from parcel_sorter.checkpoint_registry import activate_promoted_checkpoint
+from parcel_sorter.harness_agent import (
+    HarnessAgentConfig,
+    authorize_agent_checkpoint_promotion,
+    quarantine_correction,
+    sha256_json,
+    training_admission_gate,
+    verify_replayed_correction,
+)
 
 
 BASE_STEP_ORDER = (
@@ -81,6 +89,14 @@ def main() -> int:
         action="store_true",
         help="relabel demonstrations as primitives and train a progress-channel SmolVLA",
     )
+    parser.add_argument(
+        "--harness-agent-cycle",
+        type=Path,
+        help=(
+            "optional verified Harness Agent cycle; when supplied, independently "
+            "admitted corrections become an additional mandatory promotion gate"
+        ),
+    )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--stop-after", choices=tuple(dict.fromkeys((*BASE_STEP_ORDER, *PRIMITIVE_STEP_ORDER))))
@@ -103,6 +119,14 @@ def main() -> int:
 
     source_audit = _read_json(args.source_campaign_audit)
     base_training = _read_json(args.base_training_config)
+    harness_agent_cycle = (
+        _load_harness_agent_cycle(
+            args.harness_agent_cycle,
+            source_audit_sha256=sha256_file(args.source_campaign_audit),
+        )
+        if args.harness_agent_cycle is not None
+        else None
+    )
     replay = build_replay_from_campaign_audit(source_audit)
     curriculum = build_curriculum_config(base_training, replay, cycle_id=args.cycle_id)
     holdout = build_frozen_holdout_config(
@@ -194,7 +218,14 @@ def main() -> int:
     }
     step_order = PRIMITIVE_STEP_ORDER if args.primitive_learning else BASE_STEP_ORDER
     commands = {step: commands[step] for step in step_order if step != "promotion_gate"}
-    state = _load_state(state_path, args, replay_path, curriculum_path, holdout_path, commands)
+    state = _load_state(
+        state_path,
+        args,
+        replay_path,
+        curriculum_path,
+        holdout_path,
+        commands,
+    )
     if args.dry_run:
         state["status"] = "dry_run"
         write_json(state_path, state)
@@ -226,6 +257,7 @@ def main() -> int:
                 args.baseline_checkpoint.resolve(),
                 candidate_checkpoint,
                 args.active_checkpoint_registry.resolve(),
+                harness_agent_cycle,
                 state,
                 state_path,
             )
@@ -294,6 +326,14 @@ def _load_state(
         if registered_registry not in (None, requested_registry):
             raise RuntimeError("resume rejected: active-checkpoint registry changed")
         state.setdefault("inputs", {})["active_checkpoint_registry"] = requested_registry
+        registered_agent_sha = state.get("inputs", {}).get("harness_agent_cycle_sha256")
+        requested_agent_sha = (
+            sha256_file(args.harness_agent_cycle)
+            if args.harness_agent_cycle is not None
+            else None
+        )
+        if registered_agent_sha != requested_agent_sha:
+            raise RuntimeError("resume rejected: Harness Agent cycle changed")
         state["commands"] = commands
         state.setdefault("settings", {})["evaluation_workers"] = args.evaluation_workers
         return state
@@ -313,6 +353,16 @@ def _load_state(
             "base_training_config_sha256": sha256_file(args.base_training_config),
             "baseline_checkpoint": str(args.baseline_checkpoint.resolve()),
             "active_checkpoint_registry": str(args.active_checkpoint_registry.resolve()),
+            "harness_agent_cycle": (
+                str(args.harness_agent_cycle.resolve())
+                if args.harness_agent_cycle is not None
+                else None
+            ),
+            "harness_agent_cycle_sha256": (
+                sha256_file(args.harness_agent_cycle)
+                if args.harness_agent_cycle is not None
+                else None
+            ),
             "replay_sha256": sha256_file(replay),
             "curriculum_sha256": sha256_file(curriculum),
             "holdout_sha256": sha256_file(holdout),
@@ -364,6 +414,7 @@ def _run_promotion_gate(
     baseline_checkpoint: Path,
     checkpoint: Path,
     active_registry: Path,
+    harness_agent_cycle: dict[str, Any] | None,
     state: dict[str, Any],
     state_path: Path,
 ) -> None:
@@ -391,6 +442,19 @@ def _run_promotion_gate(
     )
     result["pairing"] = pairing
     result["candidate_checkpoint"] = str(checkpoint)
+    if harness_agent_cycle is not None:
+        admissions = [
+            record.get("admission")
+            for record in harness_agent_cycle.get("records", ())
+            if isinstance(record, dict) and isinstance(record.get("admission"), dict)
+        ]
+        authorization = authorize_agent_checkpoint_promotion(
+            result,
+            admissions,
+            candidate_checkpoint_sha256=pairing["candidate_checkpoint_sha256"],
+        )
+        result["harness_agent_authorization"] = authorization
+        result["promoted"] = bool(result["promoted"] and authorization["authorized"])
     result_path = cycle_dir / "promotion-gate.json"
     write_json(result_path, result)
     if result["promoted"]:
@@ -432,6 +496,62 @@ def _freeze_prepared_artifact(
 
 def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _load_harness_agent_cycle(
+    path: Path, *, source_audit_sha256: str
+) -> dict[str, Any]:
+    payload = _read_json(path)
+    if payload.get("protocol") != "parcel-harness-agent-cycle-v1":
+        raise ValueError("unsupported Harness Agent cycle protocol")
+    if payload.get("source_campaign_audit_sha256") != source_audit_sha256:
+        raise ValueError("Harness Agent cycle references a different source campaign")
+    registered_sha = str(payload.get("cycle_sha256") or "")
+    unsigned = dict(payload)
+    unsigned.pop("cycle_sha256", None)
+    if registered_sha != sha256_json(unsigned):
+        raise ValueError("Harness Agent cycle hash mismatch")
+    config_path = Path(str(payload.get("config") or ""))
+    if not config_path.is_file() or payload.get("config_sha256") != sha256_file(config_path):
+        raise ValueError("Harness Agent config is missing or its hash changed")
+    config = HarnessAgentConfig.from_dict(_read_json(config_path))
+    records = payload.get("records")
+    if not isinstance(records, list):
+        raise ValueError("Harness Agent cycle records must be a list")
+    for record in records:
+        if not isinstance(record, dict):
+            raise ValueError("Harness Agent cycle records must be objects")
+        packet = record.get("failure_packet")
+        analysis = record.get("analysis")
+        candidate = record.get("candidate")
+        if not all(isinstance(value, dict) for value in (packet, analysis, candidate)):
+            raise ValueError("Harness Agent record is missing proposal evidence")
+        expected_candidate = quarantine_correction(
+            packet, analysis, analyst=config.failure_analyst
+        )
+        if candidate != expected_candidate:
+            raise ValueError("Harness Agent correction candidate was modified")
+        replay = record.get("replay_audit")
+        verification = record.get("verification")
+        admission = record.get("admission")
+        if replay is None:
+            if verification is not None or admission is not None:
+                raise ValueError("unreplayed Agent correction has verification evidence")
+            continue
+        if not isinstance(replay, dict):
+            raise ValueError("Harness Agent replay audit must be an object")
+        expected_verification = verify_replayed_correction(
+            candidate,
+            replay,
+            verifier=config.independent_verifier,
+            config=config,
+        )
+        if verification != expected_verification:
+            raise ValueError("Harness Agent replay verification was modified")
+        expected_admission = training_admission_gate(candidate, verification)
+        if admission != expected_admission:
+            raise ValueError("Harness Agent training admission was modified")
+    return payload
 
 
 if __name__ == "__main__":
