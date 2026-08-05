@@ -2,6 +2,10 @@
 
 ## Local clips
 
+Recommended local showcase clip: `videos/training/v4-overhead-file-000.mp4`
+(42.4 seconds, under the 3-minute limit). It is copied to the package root as
+`DEMO_VIDEO_LOCAL.mp4` for quick review.
+
 - `videos/training/v4-overhead-file-000.mp4` (42.4 s): RGB overhead training
   observation footage from the recorded parcel dataset.
 - `videos/training/cradle-overhead-file-000.mp4` (28.5 s): RGB overhead
