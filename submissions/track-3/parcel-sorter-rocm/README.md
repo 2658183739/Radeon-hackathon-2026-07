@@ -10,9 +10,9 @@ AMD Radeon ROCm simulation for reproducible parcel pick-and-place with Genesis a
 
 面向 AMD Radeon ROCm 的可复现包裹抓取与分拣仿真，基于 Genesis 与 Franka Panda。本项目提供的是仿真证据，不是现实机器人证据。
 
-**Status / 状态:** deterministic expert/reference development recorded; strict pure VLA is **0/3 and not passed**. The reviewable repository MP4 is public at [blob](https://github.com/2658183739/Radeon-hackathon-2026-07/blob/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4) and [raw](https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4). [PR #119](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119) is **Open** against `main`; Bilibili/YouTube is not published.
+**Status / 状态:** a deterministic scripted expert agent produced **8/10** successful development trajectories; strict pure VLA is **0/3 and not passed**. The reviewable repository MP4 is public at [blob](https://github.com/2658183739/Radeon-hackathon-2026-07/blob/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4) and [raw](https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4). [PR #119](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119) is **Open** against `main`; Bilibili/YouTube is not published.
 
-确定性专家/参考开发已记录；严格纯 VLA 为 **0/3，未通过**。仓库 MP4 可通过 [blob](https://github.com/2658183739/Radeon-hackathon-2026-07/blob/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4) 和 [raw](https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4) 直接审查；[PR #119](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119) 为针对 `main` 的 **Open** PR；未发布 Bilibili/YouTube。
+确定性脚本专家 agent 生成的开发轨迹为 **8/10 成功**；严格纯 VLA 为 **0/3，未通过**。仓库 MP4 可通过 [blob](https://github.com/2658183739/Radeon-hackathon-2026-07/blob/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4) 和 [raw](https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4) 直接审查；[PR #119](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119) 为针对 `main` 的 **Open** PR；未发布 Bilibili/YouTube。
 
 **Contents / 目录**
 
@@ -27,13 +27,13 @@ AMD Radeon ROCm simulation for reproducible parcel pick-and-place with Genesis a
 
 ### English
 
-Parcel Sorter ROCm is a simulation-first Physical AI project for picking a parcel and placing it in a requested left or right bin. It runs one AMD Radeon GPU through ROCm, uses Genesis 1.2.3 rigid-body simulation and a Franka Panda MJCF model, and evaluates deterministic expert/reference control separately from learned-policy experiments.
+Parcel Sorter ROCm is a simulation-first Physical AI project for picking a parcel and placing it in a requested left or right bin. It runs one AMD Radeon GPU through ROCm, uses Genesis 1.2.3 rigid-body simulation and a Franka Panda MJCF model, and evaluates a deterministic scripted expert agent separately from learned-policy experiments.
 
 The working policy contract uses overhead RGB plus a 43-D state, and a 20-D action when primitive progress is enabled. Physics, control, and camera rates are 240 Hz, 30 Hz, and 10 Hz. The verified evidence runtime is AMD Radeon Graphics (`gfx1100`), ROCm 7.2.1, PyTorch 2.9.1 ROCm, Genesis 1.2.3, LeRobot 0.6.1, and Python 3.12. `cuda:0` means the HIP/ROCm device in this repository, not NVIDIA CUDA.
 
 ### 中文
 
-Parcel Sorter ROCm 是一个以仿真为先的具身智能项目：抓取包裹并放入指定左/右格口。它在单张 AMD Radeon GPU 上通过 ROCm 运行，使用 Genesis 1.2.3 刚体仿真和 Franka Panda MJCF 模型，并将确定性专家/参考控制与学习策略实验分开评估。
+Parcel Sorter ROCm 是一个以仿真为先的具身智能项目：抓取包裹并放入指定左/右格口。它在单张 AMD Radeon GPU 上通过 ROCm 运行，使用 Genesis 1.2.3 刚体仿真和 Franka Panda MJCF 模型，并将确定性脚本专家 agent 与学习策略实验分开评估。
 
 当前策略合约使用俯视 RGB 与 43 维状态；启用 primitive progress 时使用 20 维动作。物理、控制和相机频率分别为 240 Hz、30 Hz 和 10 Hz。已核验证据运行环境为 AMD Radeon Graphics（`gfx1100`）、ROCm 7.2.1、PyTorch 2.9.1 ROCm、Genesis 1.2.3、LeRobot 0.6.1 和 Python 3.12。仓库中的 `cuda:0` 表示 HIP/ROCm 设备，不表示 NVIDIA CUDA。
 
@@ -41,9 +41,12 @@ Parcel Sorter ROCm 是一个以仿真为先的具身智能项目：抓取包裹�
 
 | Evidence track / 证据轨道 | Recorded result / 记录结果 | What it means / 含义 |
 | --- | --- | --- |
-| Deterministic expert/reference / 确定性专家参考 | **8/10** successful trajectories / 成功轨迹 | Demonstration provenance only; not VLA credit / 仅示范来源，不计入 VLA |
+| Deterministic scripted expert agent / 确定性脚本专家 agent | **8/10** successful trajectories / 成功轨迹 | Uses privileged simulator state; demonstration provenance only; no VLA credit / 使用仿真特权状态；仅为示范来源，不计入 VLA |
 | Offline action ablation / 离线动作消融 | 42 episode-stage samples / 42 个样本 | Action-contract measurement; not task success / 动作合约指标，不是任务成功 |
 | Strict pure VLA / 严格纯 VLA | **0/3, not passed / 未通过** | Must not be presented as a VLA success / 不得表述为 VLA 成功 |
+
+See [Result Attribution / 结果归因](docs/RESULT_ATTRIBUTION.md) for the exact
+controller, success condition, and evidence boundary behind each number.
 
 The audited primitive dataset contains **7 independent episodes** and **4,557 frames** at 30 fps. It has RGB observations, a 43-D non-privileged state, 20-D actions, and primitive progress. Details: [data contract](data/README.md), [dataset audit](evidence/training/pash-primitive-dataset-v2-audit.json), and [training evidence](docs/TRAINING_EVIDENCE.md).
 
@@ -54,7 +57,7 @@ The audited primitive dataset contains **7 independent episodes** and **4,557 fr
 
 ### English
 
-**Key decisions.** We selected a fixed Panda workcell to isolate manipulation, locked the Radeon runtime and upstream revisions, retained deterministic expert/reference rollouts for data provenance, and made attribution fail closed. Learned actions are checked against finite-value, Cartesian, tool-command, IK, and force boundaries before execution.
+**Key decisions.** We selected a fixed Panda workcell to isolate manipulation, locked the Radeon runtime and upstream revisions, retained rollouts from a deterministic scripted expert agent for data provenance, and made attribution fail closed. This agent reads privileged simulator state and uses a finite-state task supervisor; it is not a learned VLA. Learned actions are checked against finite-value, Cartesian, tool-command, IK, and force boundaries before execution.
 
 **Difficulties and resolutions.** Stock finger geometry could make side/oblique contacts unreliable. The project uses structured XML generation from the locked Panda MJCF to create versioned parcel-adapter variants while preserving the upstream source meshes. A second issue was that raw policy actions exceeded the audited action envelope. The offline ablation shows raw VLA passing 0/42 envelope checks, while safety-clipped VLA and Harness-Lite each pass 42/42. This is a safety-contract finding, not a task-success claim.
 
@@ -62,7 +65,7 @@ The audited primitive dataset contains **7 independent episodes** and **4,557 fr
 
 ### 中文
 
-**关键决策。** 项目选择固定 Panda 工作单元以隔离操作问题，锁定 Radeon 运行环境和上游版本，保留确定性专家/参考 rollout 作为数据来源，并以 fail-closed 方式处理归因。学习策略动作在执行前要通过有限值、笛卡尔步长、工具指令、IK 和力边界检查。
+**关键决策。** 项目选择固定 Panda 工作单元以隔离操作问题，锁定 Radeon 运行环境和上游版本，保留确定性脚本专家 agent 的 rollout 作为数据来源，并以 fail-closed 方式处理归因。该 agent 读取仿真特权状态并使用有限状态任务监督器，不是学习得到的 VLA。学习策略动作在执行前要通过有限值、笛卡尔步长、工具指令、IK 和力边界检查。
 
 **困难与解决。** 原始手指几何会使侧向/斜向接触不稳定。项目从锁定的 Panda MJCF 使用结构化 XML 生成版本化的包裹适配器变体，同时保留上游源 mesh。另一个问题是原始策略动作超出经审计的动作包络：离线消融中，原始 VLA 为 0/42，安全裁剪 VLA 与 Harness-Lite 均为 42/42。此结论仅说明安全动作合约，不表示任务成功。
 
@@ -89,7 +92,7 @@ The source is [the ablation JSON](evidence/training/pash-primitive-smolvla-2800s
 | Genesis | `Genesis-Embodied-AI/genesis-world`, locked revision `ec0efcc0...`, Apache-2.0 | Rigid-body simulation and asset loading. The project configures the parcel scene, sensing, deterministic control, logging, and validation around it. |
 | LeRobot | `huggingface/lerobot`, locked revision `73dbb6f...`, Apache-2.0 | Local dataset and policy-training interfaces. The project uses a locally audited training path and does not claim a hosted dataset. |
 | Franka Panda MJCF | Official Franka Panda MJCF as distributed by Genesis 1.2.3, `xml/franka_emika_panda/panda.xml`, Apache-2.0 | The source asset remains traceable to the locked Genesis runtime. Project code can generate versioned parcel-finger adapter or tri-suction derivatives from structured XML; it does not replace the attribution of the upstream asset. |
-| Original project work | `src/parcel_sorter/`, `scripts/`, `configs/`, `evidence/` | Parcel task, data audit, deterministic expert/reference controller, safety gates, evidence schema, ROCm scripts, and offline-ablation tooling. |
+| Original project work | `src/parcel_sorter/`, `scripts/`, `configs/`, `evidence/` | Parcel task, data audit, deterministic scripted expert agent, safety gates, evidence schema, ROCm scripts, and offline-ablation tooling. |
 
 Exact revisions and license data are recorded in [UPSTREAM_LOCK.json](UPSTREAM_LOCK.json) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). No third-party source is represented as original project work.
 
@@ -100,7 +103,7 @@ Exact revisions and license data are recorded in [UPSTREAM_LOCK.json](UPSTREAM_L
 | Genesis | `Genesis-Embodied-AI/genesis-world`，锁定版本 `ec0efcc0...`，Apache-2.0 | 用于刚体仿真和资产加载；本项目围绕其配置包裹场景、传感、确定性控制、日志和验证。 |
 | LeRobot | `huggingface/lerobot`，锁定版本 `73dbb6f...`，Apache-2.0 | 用于本地数据集与策略训练接口；本项目使用本地审计训练路径，不主张托管数据集。 |
 | Franka Panda MJCF | Genesis 1.2.3 分发的官方 Franka Panda MJCF，`xml/franka_emika_panda/panda.xml`，Apache-2.0 | 上游资产可追溯到锁定的 Genesis 运行时。本项目可由结构化 XML 生成版本化的手指适配器或三吸盘派生资产，但不改变上游资产归属。 |
-| 项目原创部分 | `src/parcel_sorter/`、`scripts/`、`configs/`、`evidence/` | 包裹任务、数据审计、确定性专家/参考控制器、安全门、证据模式、ROCm 脚本和离线消融工具。 |
+| 项目原创部分 | `src/parcel_sorter/`、`scripts/`、`configs/`、`evidence/` | 包裹任务、数据审计、确定性脚本专家 agent、安全门、证据模式、ROCm 脚本和离线消融工具。 |
 
 精确版本与许可证记录在 [UPSTREAM_LOCK.json](UPSTREAM_LOCK.json) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。不将任何第三方来源表述为项目原创。
 
@@ -146,7 +149,7 @@ MOBILE_SMOLVLA_PROGRESS_CHANNEL=1 MOBILE_SMOLVLA_STEPS=2800 \
   "$PWD/outputs/train/mobile-smolvla-primitive-progress"
 ```
 
-**Reproduce the expert/reference screen and both camera views.** The first
+**Reproduce the scripted expert-agent screen and both camera views.** The first
 command records overview and wrist sidecars for all 10 fixed-seed episodes.
 The second keeps only the eight episodes whose `success` field is true and
 fails closed if a required source or wrist video is missing.
@@ -187,7 +190,7 @@ export PYTHONPATH="$PWD/src"
 bash scripts/preflight_radeon.sh
 ```
 
-**复现专家/参考筛选与双视角。** 第一条命令对 10 个固定种子回合同时录制全景和腕部视频；第二条命令只保留 `success=true` 的 8 个回合，任何必要源视频或腕部视频缺失时都会停止。
+**复现脚本专家 agent 筛选与双视角。** 第一条命令对 10 个固定种子回合同时录制全景和腕部视频；第二条命令只保留 `success=true` 的 8 个回合，任何必要源视频或腕部视频缺失时都会停止。
 
 ```bash
 python3 scripts/run_expert.py \

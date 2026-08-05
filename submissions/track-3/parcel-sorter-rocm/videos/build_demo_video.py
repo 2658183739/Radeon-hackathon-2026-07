@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the eight-success deterministic expert demonstration package.
+"""Render the eight-success deterministic scripted expert-agent package.
 
 Inputs remain in the supplied evidence locations. This script writes only to
 the output directory passed on the command line and records source/output
@@ -98,7 +98,7 @@ def episode_canvas(overview: Image.Image, wrist: Image.Image | None, episode: in
     draw.rectangle((0, 0, WIDTH, 86), fill=(20, 28, 36))
     draw.rectangle((0, 86, 10, 932), fill=(237, 28, 36))
     text(draw, (34, 30), "GENESIS PARCEL SORTER", fonts["header"])
-    text(draw, (34, 62), "确定性专家参考演示 / Deterministic expert reference demo", fonts["small"], fill=(184, 205, 218))
+    text(draw, (34, 62), "确定性脚本专家 Agent / Deterministic scripted expert agent", fonts["small"], fill=(184, 205, 218))
     rounded(draw, (1570, 20, 1878, 66), (26, 81, 76), radius=8)
     text(draw, (1724, 43), "SUCCESS TRUE / 成功", fonts["badge"], anchor="mm")
 
@@ -156,7 +156,7 @@ def final_canvas(thumbs: list[Image.Image], fonts: dict[str, ImageFont.FreeTypeF
         text(draw, (xy[0] + 71, xy[1] + 31), f"EP {SUCCESS_IDS[index]:02d}", fonts["tiny"], anchor="mm")
     draw.rectangle((0, 605, WIDTH, HEIGHT), fill=(19, 28, 36))
     text(draw, (960, 678), "8 / 10 DEVELOPMENT SCREENING", fonts["final"], anchor="ma", fill=(103, 220, 179))
-    text(draw, (960, 735), "八个成功的确定性专家参考回合", fonts["subtitle"], anchor="ma")
+    text(draw, (960, 735), "八个成功的确定性脚本专家 Agent 回合", fonts["subtitle"], anchor="ma")
     text(draw, (960, 786), "AMD Radeon + ROCm | Genesis 1.2.3 | Official Franka Panda", fonts["caption"], anchor="ma", fill=(201, 215, 223))
     text(draw, (960, 843), "github.com/2658183739/Radeon-hackathon-2026-07", fonts["url"], anchor="ma", fill=(245, 248, 250))
     text(draw, (960, 892), "TEAM / ACCOUNT 2658183739", fonts["caption"], anchor="ma", fill=(237, 28, 36))
@@ -266,7 +266,7 @@ def main() -> None:
     subtitles = {
         0: ("机械臂完成抓取、运输与释放，包裹稳定进入目标箱。", "The arm grasps, transports, and releases the parcel into the target bin."),
         1: ("不同扰动下的成功回合：全程保持稳定接触与目标对齐。", "Successful under a different perturbation: stable contact and target alignment."),
-        2: ("专家参考动作在仿真环境中完成端到端分拣。", "The expert reference action completes end-to-end sorting in simulation."),
+        2: ("脚本专家 Agent 在仿真环境中完成端到端分拣。", "The scripted expert agent completes end-to-end sorting in simulation."),
         4: ("包裹从工作台提起后被平稳放入指定位置。", "The parcel is lifted from the work surface and placed smoothly at the destination."),
         6: ("固定种子下的开发筛选：该回合记录为成功。", "Development screening under a fixed seed records this episode as successful."),
         7: ("腕部视角同步显示末端执行器的抓取与释放过程。", "The synchronized wrist view shows the end-effector through grasp and release."),
@@ -310,7 +310,7 @@ def main() -> None:
                        duration=200, loop=0, optimize=True, disposal=2)
     output_audit = decode_output(video_path)
     metadata = {
-        "title": "Genesis Panda deterministic expert/reference demo: 8 successful episodes",
+        "title": "Genesis Panda deterministic scripted expert-agent demo: 8 successful episodes",
         "required_episode_ids": list(SUCCESS_IDS), "source_validation_passed": True,
         "source_audit": source_audit, "output": output_audit,
         "gif": {"path": str(out / "hook_5_seconds.gif"), "bytes": (out / "hook_5_seconds.gif").stat().st_size,
@@ -321,7 +321,7 @@ def main() -> None:
                    "resolution_1920x1080": output_audit["resolution"] == [1920, 1080],
                    "output_decodable_nonblank": output_audit["decodable"],
                    "gif_at_most_8mb": (out / "hook_5_seconds.gif").stat().st_size <= 8 * 1024 * 1024},
-        "attribution": "AMD Radeon + ROCm; Genesis 1.2.3; official Franka Panda; deterministic expert/reference demo; development screening 8/10",
+        "attribution": "AMD Radeon + ROCm; Genesis 1.2.3; official Franka Panda; deterministic scripted expert agent using privileged simulator state; development screening 8/10; strict pure VLA 0/3",
         "final_card": "https://github.com/2658183739/Radeon-hackathon-2026-07 | TEAM / ACCOUNT 2658183739",
     }
     (out / "video_metadata_decode.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8")

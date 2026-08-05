@@ -1,5 +1,5 @@
 {
-  "title": "Genesis Panda deterministic expert/reference demo: 8 successful episodes",
+  "title": "Genesis Panda deterministic scripted expert-agent demo: 8 successful episodes",
   "required_episode_ids": [
     0,
     1,
@@ -278,6 +278,6 @@
     "output_decodable_nonblank": true,
     "gif_at_most_8mb": true
   },
-  "attribution": "AMD Radeon + ROCm; Genesis 1.2.3; official Franka Panda; deterministic expert/reference demo; development screening 8/10",
+  "attribution": "AMD Radeon + ROCm; Genesis 1.2.3; official Franka Panda; deterministic scripted expert agent using privileged simulator state; development screening 8/10; strict pure VLA 0/3",
   "final_card": "https://github.com/2658183739/Radeon-hackathon-2026-07 | TEAM / ACCOUNT 2658183739"
 }

@@ -10,5 +10,5 @@
   "demo_video_raw_url": "https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4",
   "demo_video_platform": "GitHub repository",
   "status": "public_review_links_recorded_strict_pure_vla_not_passed",
-  "notes": "PR #119 is open against main. The GitHub repository video is a 59-second deterministic expert/reference simulation demo with eight successful development-screen episodes; it is not a pure-VLA or real-robot result. The strict V20 PI0.5 campaign scored 0/3. No Bilibili upload is claimed."
+  "notes": "PR #119 is open against main. The GitHub repository video is a 59-second deterministic scripted expert-agent simulation demo with eight successful development-screen episodes. The agent reads privileged simulator state; the video is not a pure-VLA or real-robot result. The strict V20 PI0.5 campaign scored 0/3. No Bilibili upload is claimed."
 }
