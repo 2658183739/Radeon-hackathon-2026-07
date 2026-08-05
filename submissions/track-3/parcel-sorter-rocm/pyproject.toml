@@ -9,7 +9,7 @@ description = "Robust parcel picking and sorting on AMD Radeon GPUs"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Parcel Sorter ROCm Contributors" }]
+authors = [{ name = "2658183739 / Parcel Sorter ROCm Contributors" }]
 dependencies = []
 
 [tool.setuptools.packages.find]

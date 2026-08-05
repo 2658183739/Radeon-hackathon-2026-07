@@ -22,10 +22,21 @@ from parcel_sorter.genesis_env import (
     genesis_depth_to_meters,
     resolve_geometry_grasp_planning_active,
     scaled_robot_gains,
+    wrist_camera_pose,
 )
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+class WristCameraPoseTests(unittest.TestCase):
+    def test_tracks_panda_hand_frame(self) -> None:
+        position, lookat, up = wrist_camera_pose(
+            (1.0, 2.0, 3.0), (1.0, 0.0, 0.0, 0.0), np
+        )
+        np.testing.assert_allclose(position, (1.0, 2.02, 2.955))
+        np.testing.assert_allclose(lookat, (1.0, 2.0, 3.18))
+        np.testing.assert_allclose(up, (0.0, 1.0, 0.0))
 
 
 class ParcelGripperAssetTests(unittest.TestCase):

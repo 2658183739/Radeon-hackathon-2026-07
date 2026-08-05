@@ -1,0 +1,283 @@
+{
+  "title": "Genesis Panda deterministic expert/reference demo: 8 successful episodes",
+  "required_episode_ids": [
+    0,
+    1,
+    2,
+    4,
+    6,
+    7,
+    8,
+    9
+  ],
+  "source_validation_passed": true,
+  "source_audit": [
+    {
+      "path": "/workspace/persistence/parcel-sorter-opt-v1/deliveries/success-video-pack-20260805/expert/videos/episode_000000.mp4",
+      "bytes": 189943,
+      "sha256": "731655564684c1fd534c476073aad772d4219f51cdb355582df6a6fd1a63a844",
+      "resolution": [
+        224,
+        224
+      ],
+      "fps": 10.0,
+      "frame_count_decoded": 83,
+      "sample_frames_nonblank": [
+        true,
+        true,
+        true
+      ],
+      "decode_complete": true,
+      "episode_index": 0,
+      "summary_success": true,
+      "terminal_stage": "complete"
+    },
+    {
+      "path": "/workspace/persistence/parcel-sorter-opt-v1/deliveries/expert-two-view-20260805/episode-000000/expert/videos/episode_000000-wrist.mp4",
+      "bytes": 114432,
+      "sha256": "ee7c20c362538caeb7d9a427a7043459c58f74e134a7057dab3b269ea45d7134",
+      "resolution": [
+        224,
+        224
+      ],
+      "fps": 10.0,
+      "frame_count_decoded": 83,
+      "sample_frames_nonblank": [
+        true,
+        true,
+        true
+      ],
+      "decode_complete": true,
+      "episode_index": 0,
+      "role": "synchronized_wrist"
+    },
+    {
+      "path": "/workspace/persistence/parcel-sorter-opt-v1/deliveries/success-video-pack-20260805/expert/videos/episode_000001.mp4",
+      "bytes": 120239,
+      "sha256": "048552920043f78d6808d36088b26d0aacb440c911fa06f607530894df748e5d",
+      "resolution": [
+        224,
+        224
+      ],
+      "fps": 10.0,
+      "frame_count_decoded": 51,
+      "sample_frames_nonblank": [
+        true,
+        true,
+        true
+      ],
+      "decode_complete": true,
+      "episode_index": 1,
+      "summary_success": true,
+      "terminal_stage": "complete"
+    },
+    {
+      "path": "/workspace/persistence/parcel-sorter-opt-v1/deliveries/success-video-pack-20260805/expert/videos/episode_000002.mp4",
+      "bytes": 116046,
+      "sha256": "30b65c7f9aa0f12e05ce15bdeed2a2ed2455d6d4bd6758eaab8ef605e4f9edd8",
+      "resolution": [
+        224,
+        224
+      ],
+      "fps": 10.0,
+      "frame_count_decoded": 50,
+      "sample_frames_nonblank": [
+        true,
+        true,
+        true
+      ],
+      "decode_complete": true,
+      "episode_index": 2,
+      "summary_success": true,
+      "terminal_stage": "complete"
+    },
+    {
+      "path": "/workspace/persistence/parcel-sorter-opt-v1/deliveries/success-video-pack-20260805/expert/videos/episode_000004.mp4",
+      "bytes": 89627,
+      "sha256": "7f22219680d6482b80344ad992da39c8bca50eeb1c6b75c3b4fc05125ff926c9",
+      "resolution": [
+        224,
+        224
+      ],
+      "fps": 10.0,
+      "frame_count_decoded": 39,
+      "sample_frames_nonblank": [
+        true,
+        true,
+        true
+      ],
+      "decode_complete": true,
+      "episode_index": 4,
+      "summary_success": true,
+      "terminal_stage": "complete"
+    },
+    {
+      "path": "/workspace/persistence/parcel-sorter-opt-v1/deliveries/success-video-pack-20260805/expert/videos/episode_000006.mp4",
+      "bytes": 149282,
+      "sha256": "f0956ea541581b4eb09c174590f95e14aa63843802ec4698f2bba63b75ead15a",
+      "resolution": [
+        224,
+        224
+      ],
+      "fps": 10.0,
+      "frame_count_decoded": 65,
+      "sample_frames_nonblank": [
+        true,
+        true,
+        true
+      ],
+      "decode_complete": true,
+      "episode_index": 6,
+      "summary_success": true,
+      "terminal_stage": "complete"
+    },
+    {
+      "path": "/workspace/persistence/parcel-sorter-opt-v1/deliveries/success-video-pack-20260805/expert/videos/episode_000007.mp4",
+      "bytes": 181021,
+      "sha256": "d573061a718c687070a457fba3fb37a3162d12494f73889c32f5bb277e618263",
+      "resolution": [
+        224,
+        224
+      ],
+      "fps": 10.0,
+      "frame_count_decoded": 80,
+      "sample_frames_nonblank": [
+        true,
+        true,
+        true
+      ],
+      "decode_complete": true,
+      "episode_index": 7,
+      "summary_success": true,
+      "terminal_stage": "complete"
+    },
+    {
+      "path": "/workspace/persistence/parcel-sorter-opt-v1/deliveries/expert-two-view-20260805/episode-000007/expert/videos/episode_000007-wrist.mp4",
+      "bytes": 103687,
+      "sha256": "a024fa6958c0319c15e14365e0269e1ecb9c3937e03d377d374e916c038b9dfa",
+      "resolution": [
+        224,
+        224
+      ],
+      "fps": 10.0,
+      "frame_count_decoded": 80,
+      "sample_frames_nonblank": [
+        true,
+        true,
+        true
+      ],
+      "decode_complete": true,
+      "episode_index": 7,
+      "role": "synchronized_wrist"
+    },
+    {
+      "path": "/workspace/persistence/parcel-sorter-opt-v1/deliveries/success-video-pack-20260805/expert/videos/episode_000008.mp4",
+      "bytes": 116734,
+      "sha256": "851a455efd277d53f3f58db206bdeff5d855e09a9dfc0eba32c236755e39f008",
+      "resolution": [
+        224,
+        224
+      ],
+      "fps": 10.0,
+      "frame_count_decoded": 51,
+      "sample_frames_nonblank": [
+        true,
+        true,
+        true
+      ],
+      "decode_complete": true,
+      "episode_index": 8,
+      "summary_success": true,
+      "terminal_stage": "complete"
+    },
+    {
+      "path": "/workspace/persistence/parcel-sorter-opt-v1/deliveries/success-video-pack-20260805/expert/videos/episode_000009.mp4",
+      "bytes": 87336,
+      "sha256": "ccccd71d2e87e13cab934d2aa1609e5790329c8826f707fe853ecb949a9977f0",
+      "resolution": [
+        224,
+        224
+      ],
+      "fps": 10.0,
+      "frame_count_decoded": 37,
+      "sample_frames_nonblank": [
+        true,
+        true,
+        true
+      ],
+      "decode_complete": true,
+      "episode_index": 9,
+      "summary_success": true,
+      "terminal_stage": "complete"
+    }
+  ],
+  "output": {
+    "path": "/tmp/terra-final-video/output/genesis_panda_8_success_reference_demo.mp4",
+    "bytes": 3585992,
+    "sha256": "1730c090a22a3e6a79840f508d176c56f073e62ab95bda9f772dc540293fe7aa",
+    "codec": "h264",
+    "resolution": [
+      1920,
+      1080
+    ],
+    "fps": 10.0,
+    "frame_count_decoded": 590,
+    "duration_seconds": 59.0,
+    "sample_frames": [
+      {
+        "frame": 0,
+        "nonblank": true
+      },
+      {
+        "frame": 25,
+        "nonblank": true
+      },
+      {
+        "frame": 50,
+        "nonblank": true
+      },
+      {
+        "frame": 100,
+        "nonblank": true
+      },
+      {
+        "frame": 200,
+        "nonblank": true
+      },
+      {
+        "frame": 300,
+        "nonblank": true
+      },
+      {
+        "frame": 400,
+        "nonblank": true
+      },
+      {
+        "frame": 500,
+        "nonblank": true
+      }
+    ],
+    "decodable": true
+  },
+  "gif": {
+    "path": "/tmp/terra-final-video/output/hook_5_seconds.gif",
+    "bytes": 856234,
+    "duration_seconds": 5.0
+  },
+  "thumbnail": {
+    "path": "/tmp/terra-final-video/output/thumbnail_1280x720.png",
+    "bytes": 293083,
+    "resolution": [
+      1280,
+      720
+    ]
+  },
+  "checks": {
+    "duration_under_180_seconds": true,
+    "resolution_1920x1080": true,
+    "output_decodable_nonblank": true,
+    "gif_at_most_8mb": true
+  },
+  "attribution": "AMD Radeon + ROCm; Genesis 1.2.3; official Franka Panda; deterministic expert/reference demo; development screening 8/10",
+  "final_card": "https://github.com/2658183739/Radeon-hackathon-2026-07 | TEAM / ACCOUNT 2658183739"
+}

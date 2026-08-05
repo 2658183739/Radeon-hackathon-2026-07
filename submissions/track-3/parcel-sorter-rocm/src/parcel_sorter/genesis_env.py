@@ -47,6 +47,34 @@ from .suction import (
 _INITIALIZED_BACKEND: str | None = None
 
 
+def wrist_camera_pose(
+    hand_position: tuple[float, float, float],
+    hand_quaternion: tuple[float, float, float, float],
+    np: Any,
+) -> tuple[
+    tuple[float, float, float],
+    tuple[float, float, float],
+    tuple[float, float, float],
+]:
+    """Return a close wrist-camera pose aligned with the Panda hand frame."""
+    position = np.asarray(hand_position, dtype=np.float64)
+    forward = np.asarray(
+        rotate_vector(hand_quaternion, (0.0, 0.0, 1.0)), dtype=np.float64
+    )
+    up = np.asarray(
+        rotate_vector(hand_quaternion, (0.0, 1.0, 0.0)), dtype=np.float64
+    )
+    forward /= np.linalg.norm(forward)
+    up /= np.linalg.norm(up)
+    camera_position = position - forward * 0.045 + up * 0.020
+    lookat = position + forward * 0.180
+    return (
+        tuple(camera_position.tolist()),
+        tuple(lookat.tolist()),
+        tuple(up.tolist()),
+    )
+
+
 def combine_rigid_body_with_box_inertia(
     base_mass_kg: float,
     base_center_m: tuple[float, float, float],
@@ -934,6 +962,11 @@ class GenesisParcelEnv:
         self._latest_rgb: Any | None = None
         self._latest_depth: Any | None = None
         self._video_path = Path(video_path) if video_path else None
+        self._wrist_video_path = (
+            self._video_path.with_name(f"{self._video_path.stem}-wrist.mp4")
+            if self._video_path is not None
+            else None
+        )
         self._action_queue: deque[CartesianAction | None] = deque(
             [None] * sample.action_delay_steps
         )
@@ -1093,6 +1126,15 @@ class GenesisParcelEnv:
                 fov=52,
                 GUI=show_viewer,
             )
+        self.wrist_camera = None
+        if self._wrist_video_path is not None:
+            self.wrist_camera = self.scene.add_camera(
+                res=(config.sensors.image_width, config.sensors.image_height),
+                pos=(0.45, 0.0, 0.55),
+                lookat=(0.55, 0.0, 0.05),
+                fov=72,
+                GUI=False,
+            )
 
         self.scene.build()
         self._configure_robot()
@@ -1133,6 +1175,9 @@ class GenesisParcelEnv:
         if self.camera is not None and self._video_path is not None:
             self._video_path.parent.mkdir(parents=True, exist_ok=True)
             self.camera.start_recording()
+        if self.wrist_camera is not None and self._wrist_video_path is not None:
+            self._wrist_video_path.parent.mkdir(parents=True, exist_ok=True)
+            self.wrist_camera.start_recording()
 
         if not defer_initialization_settle:
             for _ in range(self.initialization_settle_steps):
@@ -2047,6 +2092,11 @@ class GenesisParcelEnv:
             if self.camera is not None and self._video_path is not None:
                 self.camera.stop_recording(
                     save_to_filename=str(self._video_path),
+                    fps=self.config.simulation.camera_hz,
+                )
+            if self.wrist_camera is not None and self._wrist_video_path is not None:
+                self.wrist_camera.stop_recording(
+                    save_to_filename=str(self._wrist_video_path),
                     fps=self.config.simulation.camera_hz,
                 )
         finally:
@@ -3040,6 +3090,14 @@ class GenesisParcelEnv:
             self._latest_rgb = self.np.asarray(rgb)[..., :3]
         if depth is not None:
             self._latest_depth = genesis_depth_to_meters(depth, self.np)
+        if self.wrist_camera is not None:
+            hand_position = self._flat_tuple(self.end_effector.get_pos())
+            hand_quaternion = self._flat_tuple(self.end_effector.get_quat())
+            position, lookat, up = wrist_camera_pose(
+                hand_position, hand_quaternion, self.np
+            )
+            self.wrist_camera.set_pose(pos=position, lookat=lookat, up=up)
+            self.wrist_camera.render(rgb=True, depth=False)
 
     @staticmethod
     def _distance(left: tuple[float, ...], right: tuple[float, ...]) -> float:

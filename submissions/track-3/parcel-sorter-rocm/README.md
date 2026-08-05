@@ -1,728 +1,203 @@
-# Parcel Sorter ROCm
+# Parcel Sorter ROCm / ROCm 包裹分拣
 
-## Competition Submission / 比赛提交入口
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![ROCm 7.2.1](https://img.shields.io/badge/ROCm-7.2.1-red.svg)
+![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)
 
-**English.** This repository is a reproducible Physical AI parcel-sorting
-pipeline for a single AMD Radeon GPU. The competition path fine-tunes a
-PI0.5-style policy from verified RGB-D teacher trajectories, evaluates the
-unchanged frozen observation/action contract, and refuses to claim a result
-unless strict pure-VLA attribution, safety, and media gates pass. The final
-candidate package is generated only by
-`scripts/build_competition_mvp_delivery.py` and verified by its packaged
-`VERIFY_DELIVERY.py`.
+![Local five-second simulation demonstration](docs/assets/hook_5_seconds.gif)
 
-**中文。** 本仓库是面向单张 AMD Radeon GPU 的可复现实物智能包裹分拣
-流水线。比赛路径使用经过验证的 RGB-D 教师轨迹校准 PI0.5 风格策略，在不改变
-冻结观测/动作契约的前提下运行评测；只有严格纯 VLA 归因、安全和视频门全部通过，
-才允许生成比赛交付包。最终候选必须由
-`scripts/build_competition_mvp_delivery.py` 构建，并通过包内
-`VERIFY_DELIVERY.py` 验证。
+AMD Radeon ROCm simulation for reproducible parcel pick-and-place with Genesis and Franka Panda. This is simulation evidence, not real-robot evidence.
 
-### Reproduce / 复现
+面向 AMD Radeon ROCm 的可复现包裹抓取与分拣仿真，基于 Genesis 与 Franka Panda。本项目提供的是仿真证据，不是现实机器人证据。
 
-```bash
-# AMD Radeon / ROCm
-source scripts/activate_radeon_env.sh
-export PYTHONPATH="$PWD/src"
-python scripts/preflight_mobile_pi05_rocm.py
-# Use the exact competition command recorded in the delivered package:
-./exact_train_command.sh
-```
+**Status / 状态:** deterministic expert/reference development recorded; strict pure VLA is **0/3 and not passed**. A directly reviewable repository MP4 is included; Bilibili/YouTube and pull-request URLs are **pending**.
 
-The fixed competition contract is training seed `11`, runtime seed
-`2026080206`, inference seeds `20260727/20260728/20260729`, the frozen
-12-observation panel, and the pre-registered action/safety thresholds. Do not
-change these values when reproducing a delivery candidate. Expert trajectories
-are training provenance only and receive zero pure-VLA credit.
+确定性专家/参考开发已记录；严格纯 VLA 为 **0/3，未通过**。仓库已包含可直接审查的 MP4；Bilibili/YouTube 和 PR URL：**pending**。
 
-固定比赛契约为训练 seed `11`、运行 seed `2026080206`、推理 seeds
-`20260727/20260728/20260729`、冻结 12-observation panel，以及预注册的动作和
-安全阈值。复现交付候选时不得修改这些值。专家轨迹只能作为训练来源，纯 VLA
-成功计数固定为零。
+**Contents / 目录**
 
-### Submission materials / 提交材料
+- [1. Project Overview / 项目简介](#overview)
+- [2. Development Process / 开发过程](#development)
+- [3. Source Attribution / 代码来源说明](#attribution)
+- [4. Team Roles / 团队分工](#team)
+- [5. Install and Run / 安装与运行](#install)
 
-The delivery directory contains the checkpoint, exact commands, raw gate
-evidence, three independently recorded episode videos, `RESULTS.json`,
-`DEMO_VIDEOS.json`, a bilingual project description, and a self-verifying
-archive. A public video URL and the public fork URL are recorded in
-`submission_links.json` after the account owner publishes them; the local MP4
-files and their decoded-content fingerprints are always verified before that
-step.
+<a id="overview"></a>
+## 1. Project Overview / 项目简介
 
-交付目录包含 checkpoint、精确命令、原始门控证据、三段独立 episode 视频、
-`RESULTS.json`、`DEMO_VIDEOS.json`、中英双语项目说明和可自验证压缩包。账号所有者
-完成发布后，公开视频 URL 和公开 fork URL 会写入 `submission_links.json`；在此
-之前也必须先完成本地 MP4 解码和内容指纹验证。
+### English
 
-See [the English technical report](TECHNICAL_REPORT.md), [the Chinese
-technical report](TECHNICAL_REPORT_CN.md), and [the competition delivery
-contract](docs/COMPETITION_MVP_DELIVERY_CN.md).
+Parcel Sorter ROCm is a simulation-first Physical AI project for picking a parcel and placing it in a requested left or right bin. It runs one AMD Radeon GPU through ROCm, uses Genesis 1.2.3 rigid-body simulation and a Franka Panda MJCF model, and evaluates deterministic expert/reference control separately from learned-policy experiments.
 
-The competition-score and publication protocols are separated in
-[Competition and Publication Dual Track](docs/COMPETITION_AND_PUBLICATION_DUAL_TRACK_2026.md).
-The corresponding Radeon inference treatments are frozen in
-`configs/mobile_pi05_rocm_inference_optimization_v2.json`; all treatments are
-opt-in and the eager runtime remains the default until every paired gate passes.
+The working policy contract uses overhead RGB plus a 43-D state, and a 20-D action when primitive progress is enabled. Physics, control, and camera rates are 240 Hz, 30 Hz, and 10 Hz. The verified evidence runtime is AMD Radeon Graphics (`gfx1100`), ROCm 7.2.1, PyTorch 2.9.1 ROCm, Genesis 1.2.3, LeRobot 0.6.1, and Python 3.12. `cuda:0` means the HIP/ROCm device in this repository, not NVIDIA CUDA.
 
-Latest mobile result: [Harness-Lite and failure-driven self-improvement](docs/MOBILE_HARNESS_SELF_IMPROVEMENT_2026-07-27.md), including a successful SmolVLA base-residual closed loop on one Radeon GPU. The new [Verified Harness Agent](docs/MOBILE_HARNESS_AGENT.md) adds high-level task planning, failure analysis, independently verified correction admission, a durable conditional Graph Agent runtime, and a hash-bound checkpoint authorization layer. Its [four-arm orchestration ablation](docs/MOBILE_AGENT_ORCHESTRATION_ABLATION.md) freezes Ordinary Agent, Agent Loop, Deterministic Harness, and Graph Agent definitions plus a paired 60-case/240-rollout schedule; execution remains blocked until the final PI0.5 checkpoint and processor are hash-bound.
+### 中文
 
-Mobile extension: [43-D state / 19-D action SmolVLA status](docs/MOBILE_VLA_STATUS.md).
-The v2 checkpoint was trained for 2,400 steps on six successful expert episodes. Harness-Lite
-passed a 36-sample action-envelope ablation and controls bounded base residuals during grasp
-approach and 30 cm transport. The early five-run gate achieved 4/5; a later independent
-100-run baseline achieved 96/100 and was audited by the self-improvement cycle below. Broad
-unseen-geometry generalization remains unverified.
-The [resumable self-improvement cycle](docs/MOBILE_SELF_IMPROVEMENT_CYCLE.md) now connects
-failure curriculum, Radeon retraining, paired 100-run frozen evaluation, and isolated
-promotion; a candidate cannot replace the checkpoint without the 80%, safety, and ROCm gates.
-The cycle has now completed: v2 scored 96/100 and bridge-trained v3 scored 91/100. v3 placed
-successful parcels more precisely but failed Wilson non-inferiority, so it was isolated and
-did not replace v2.
-The [paired RGB-D ablation](docs/MOBILE_RGBD_ABLATION.md) verifies two-image SmolVLA training and
-online control on ROCm. RGB-D completed one development task but regressed paired Harness MAE by
-1.35% and added 9.65% offline latency, so the gate retained RGB and blocked a 100-trial campaign.
-The [paired left-arm residual ablation](docs/MOBILE_ARM_RESIDUAL_ABLATION.md) executed bounded
-SmolVLA arm-position residuals during transport. Baseline and candidate both scored 94/100 with
-zero force violations and 2,306/0 accepted/rejected candidate IK updates, but mean placement
-error increased from 1.40 cm to 2.45 cm. The preregistered gate rejected the mode, so v2 remains
-base-residual only.
-The [tri-suction/V-cradle cooperative ablation](docs/MOBILE_COOPERATIVE_CRADLE_ABLATION.md)
-completed dual-arm lift, 30 cm transport, placement, and release of a 1.44 m rigid carton on one
-Radeon. SmolVLA v2 materially actuated 647 physics steps before a load-aware deadline gate made a
-one-way expert handoff; final error was 2.16 cm and peak cradle force was 30.65 N. This is one
-deterministic mechanism case, not a success-rate or unseen-geometry claim, and it does not replace
-the 96/100 formal baseline.
-The resulting method is documented as [PASH-VLA](docs/PASH_VLA_METHOD.md): a payload-aware
-Force-Memory Harness candidate layered over SmolVLA, with failure replay and isolated promotion.
-The force-memory branch is an explicit development candidate and is not silently substituted for
-the frozen v2 checkpoint before its matched Radeon gate.
-The corresponding [paper blueprint](docs/PASH_VLA_PAPER_BLUEPRINT.md) fixes the research questions,
-equations, ablation table, figure plan, evidence boundaries, and publication-integrity checklist.
-The new [PASH adaptive-retry loop](docs/PASH_ADAPTIVE_RETRY.md) adds primitive-gap diagnosis,
-task/global strategy memory, at most three audited attempts, and an isolated primitive-acquisition
-writeback path. Version 2 replayed a registered lift failure from the frozen 100-trial campaign,
-selected `pash_base@gentle_lift` after the failed first attempt, succeeded on the second attempt,
-and saved 673 audited RGB-D/state/action frames. This is paired mechanism evidence, not a recovery rate.
-The [PASH primitive-learning extension](docs/PASH_PRIMITIVE_LEARNING.md) now converts audited
-demonstrations into six primitive instructions plus a progress channel. A 4,557-frame dataset
-audit, 2,800-step Radeon training run, 42-sample offline Harness ablation, and frozen 100-trial
-evaluation passed. The candidate scored 94/100 with zero force violations and passed paired
-non-inferiority against the 96/100 baseline. `configs/active_mobile_smolvla.json` now activates it
-only after verifying both the model artifact and promotion-evidence hashes. Future improvement
-cycles compare the ordered baseline/candidate physics exactly and update this registry atomically;
-a rejected candidate cannot replace the deployed checkpoint.
-The [PASH dual-arm geometry Harness](docs/PASH_DUAL_ARM_DEPTH.md) now projects both SmolVLA arm
-proposals into a rigid-object-consistent common motion, uses metric depth as a deterministic risk
-sidecar, and fades learned authority before placement. In one Radeon mechanism case, both arms
-received 24 material updates over 2,356 physics steps while tool separation remained unchanged;
-the 1.44 m carton completed the task at 3.19 cm placement error with zero suction breaks and no
-35 N violation. This remains one fixed case, not a generalization rate.
+Parcel Sorter ROCm 是一个以仿真为先的具身智能项目：抓取包裹并放入指定左/右格口。它在单张 AMD Radeon GPU 上通过 ROCm 运行，使用 Genesis 1.2.3 刚体仿真和 Franka Panda MJCF 模型，并将确定性专家/参考控制与学习策略实验分开评估。
 
-Parcel Sorter ROCm is an open-source Physical AI pipeline for small-parcel
-picking and two-bin sorting on a single AMD Radeon GPU. It combines Genesis
-rigid-body simulation, a Franka Panda manipulator, aligned RGB-D sensing,
-closed-loop safety supervision, expert demonstration collection, LeRobot ACT
-training, model-driven evaluation, video capture, and ROCm performance
-measurement.
+当前策略合约使用俯视 RGB 与 43 维状态；启用 primitive progress 时使用 20 维动作。物理、控制和相机频率分别为 240 Hz、30 Hz 和 10 Hz。已核验证据运行环境为 AMD Radeon Graphics（`gfx1100`）、ROCm 7.2.1、PyTorch 2.9.1 ROCm、Genesis 1.2.3、LeRobot 0.6.1 和 Python 3.12。仓库中的 `cuda:0` 表示 HIP/ROCm 设备，不表示 NVIDIA CUDA。
 
-The latest contact/goal correction removes the non-colliding stock Panda finger
-visuals from the suction arm, reduces commanded contact overlap from 3.0 mm to
-0.5 mm, and requires 12 consecutive physical contact steps before latching.
-Parcels and their requested stations now share a visible profile color and the
-43-D state encodes the mobile-base goal in the correct world frame. A new
-2,800-step SmolVLA candidate was trained on 2,723 audited RGB-D frames. In a
-four-profile development gate it completed 4/4 tasks with zero 35 N violations,
-zero transport direction mismatches, zero transport expert fallbacks, verified
-VLA arrival claims, and 0.60--0.92 cm placement error. This is a selected
-small-sample development result, not a frozen success-rate or open-world
-multi-station classification claim.
-The hashes and compact metrics are recorded in
-[`evidence/mobile_bimanual/goal_marker_vla_v1/result.json`](evidence/mobile_bimanual/goal_marker_vla_v1/result.json).
+### Result Boundary / 结果边界
 
-This directory is the Track 3 source submission. The primary reproduction path
-uses AMD Radeon and ROCm. An NVIDIA development path is included for local
-iteration, but CUDA results do not satisfy the competition execution
-requirement.
-
-## Verified system
-
-The complete pipeline was executed on one Radeon device with the following
-runtime:
-
-| Component | Verified value |
-| --- | --- |
-| GPU target | AMD Radeon Graphics, `gfx1100` |
-| VRAM | 47.98 GiB |
-| Operating system | Ubuntu 24.04 |
-| ROCm | 7.2.1 |
-| PyTorch | 2.9.1 ROCm build |
-| Genesis | 1.2.3 at the revision in `UPSTREAM_LOCK.json` |
-| LeRobot | 0.6.1 at the revision in `UPSTREAM_LOCK.json` |
-| Python | 3.12 |
-
-PyTorch exposes a ROCm device through its CUDA-compatible Python API. For this
-reason, `cuda:0` in the source denotes the single HIP/ROCm device and does not
-mean that CUDA is used on the Radeon execution path. The preflight script
-rejects a non-HIP PyTorch build.
-
-## Implemented workflow
-
-1. Genesis creates a randomized parcel-sorting scene with a Franka Panda,
-   rigid parcels, two destination bins, an overhead RGB-D camera, joint state,
-   end-effector pose, and gripper contact force.
-2. A deterministic IK expert and a closed-loop state machine generate safe
-   demonstrations. The supervisor verifies grasp contact, retries failed
-   grasps, checks release and bin placement, and stops on excessive force.
-3. Successful demonstrations are written as a LeRobotDataset. Every attempt,
-   including failures, is retained as JSONL for audit and failure analysis.
-4. A 52M-parameter ACT policy is trained from RGB and a 20-dimensional robot
-   state. Ground-truth parcel pose is deliberately excluded from policy input.
-5. ACT actions pass through finite-value, quaternion-normalization, Cartesian
-   step-limit, gripper, IK, PD, and force-safety boundaries before execution.
-6. The same Radeon runs physics, rendering, model training, model inference,
-   and performance benchmarks.
-
-The catalog v1 adds seven weighted training profiles, while catalog v2 expands
-this to twelve balanced training strata and nine evaluation-only industry-size
-boundary profiles (four existing profiles plus five newly sourced boundaries).
-Both use Box/Cylinder geometry, stable profile-specific
-episode IDs, and a stratified evaluator. Training ranges are explicitly marked
-as Panda-aperture engineering strata; carrier dimensions carry official source
-URLs and remain evaluation-only when the current gripper cannot grasp them.
-
-See [TECHNICAL_REPORT.md](TECHNICAL_REPORT.md) for the design rationale,
-results, limitations, and competition mapping.
-
-Chinese versions and engineering-learning material are maintained alongside the
-English submission documents:
-
-- [README_CN.md](README_CN.md) and [TECHNICAL_REPORT_CN.md](TECHNICAL_REPORT_CN.md)
-- [Optimization roadmap](docs/OPTIMIZATION_ROADMAP.md) / [中文](docs/OPTIMIZATION_ROADMAP_CN.md)
-- [Engineering decision log](docs/ENGINEERING_DECISION_LOG.md) / [中文](docs/ENGINEERING_DECISION_LOG_CN.md)
-- [Development journal](docs/DEVELOPMENT_JOURNAL.md) / [中文](docs/DEVELOPMENT_JOURNAL_CN.md)
-- [Engineering playbook](docs/ENGINEERING_PLAYBOOK.md) / [中文](docs/ENGINEERING_PLAYBOOK_CN.md)
-- [Implementation and optimization learning record](docs/IMPLEMENTATION_AND_OPTIMIZATION_RECORD.md) / [中文](docs/IMPLEMENTATION_AND_OPTIMIZATION_RECORD_CN.md)
-- [Latest evidence-driven optimization session](docs/OPTIMIZATION_SESSION_2026-07-25.md) / [中文](docs/OPTIMIZATION_SESSION_2026-07-25_CN.md)
-- [Model selection](docs/MODEL_SELECTION.md) / [中文](docs/MODEL_SELECTION_CN.md)
-- [Research and open-model matrix](docs/RESEARCH_AND_MODEL_MATRIX.md) / [中文](docs/RESEARCH_AND_MODEL_MATRIX_CN.md)
-- [RGB-D optimization record](docs/MULTIMODAL_OPTIMIZATION_2026-07-25.md) / [中文](docs/MULTIMODAL_OPTIMIZATION_2026-07-25_CN.md)
-- [End-effector capability contract](docs/END_EFFECTOR_CAPABILITY.md) / [中文](docs/END_EFFECTOR_CAPABILITY_CN.md)
-- [Project status and reproduction protocol](docs/PROJECT_STATUS.md) / [中文](docs/PROJECT_STATUS_CN.md)
-
-- [Geometry-aware grasp-planning result](docs/GEOMETRY_AWARE_GRASP_PLANNING.md) / [Chinese](docs/GEOMETRY_AWARE_GRASP_PLANNING_CN.md)
-- [Open-source parcel gripper adapter](docs/PARCEL_GRIPPER_ADAPTER.md) / [中文](docs/PARCEL_GRIPPER_ADAPTER_CN.md)
-
-## Repository layout
-
-```text
-configs/                 Task, simulation, sensor, and randomization settings
-docs/                    Architecture and supplementary documentation
-scripts/                 Bootstrap, training, evaluation, video, and benchmarks
-src/parcel_sorter/       Simulator integration and Physical AI application code
-tests/                   Deterministic unit tests
-Dockerfile.rocm          Pinned clean-build ROCm container definition
-UPSTREAM_LOCK.json       Exact Genesis and LeRobot source revisions
-TECHNICAL_REPORT.md      Track 3 technical report
-TECHNICAL_REPORT_CN.md   Chinese technical report
-docs/                    Paired architecture, optimization, and learning notes
-```
-
-Generated datasets, checkpoints, videos, and logs are intentionally excluded
-from Git. They can be reproduced by the commands below and are recorded with
-configuration and runtime provenance in their output directories.
-
-## 1. Bare-metal ROCm setup
-
-The host must expose exactly one supported Radeon device to the process and
-provide a working ROCm PyTorch installation. On the competition image, the
-ROCm PyTorch wheels may already be installed system-wide.
-
-```bash
-git clone <this-fork-url>
-cd Radeon-hackathon-2026-07/submissions/track-3/parcel-sorter-rocm
-
-bash scripts/preflight_radeon.sh
-ROCM_PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
-INSTALL_LEROBOT=1 bash scripts/bootstrap_radeon.sh
-source scripts/activate_radeon_env.sh
-```
-
-The bootstrap downloads only the revisions listed in `UPSTREAM_LOCK.json`,
-installs this project, runs ROCm and Genesis smoke tests, and executes the unit
-test suite.
-
-## 2. Deterministic end-to-end smoke run
-
-```bash
-bash scripts/run_pipeline_radeon.sh outputs/radeon-run
-```
-
-This executes the ROCm smoke test, three expert episodes, the robustness suite,
-a parallel Genesis benchmark, and a generated report draft. For an individual
-expert run with video:
-
-```bash
-python scripts/run_expert.py \
-  --backend rocm \
-  --episodes 10 \
-  --record-video \
-  --output outputs/expert-eval
-```
-
-The summary is written to
-`outputs/expert-eval/expert/summary.json`; MP4 files are stored under its
-`videos/` directory.
-
-Compare a control change against the same episode indices:
-
-```bash
-python scripts/compare_expert_runs.py \
-  --baseline evidence/expert/randomized-120-summary.json \
-  --candidate outputs/expert-candidate/expert/summary.json \
-  --output outputs/expert-candidate/comparison.json
-```
-
-The comparison rejects mismatched episode sets and reports recovered failures,
-regressions, force-abort changes, throughput retention, and acceptance gates.
-
-For a reset-pose diagnostic, keep the baseline configuration and override only
-the nine-joint home pose. The override is copied into `summary.json`, so the
-run remains auditable. Candidate poses are not accepted until a matched Radeon
-experiment passes the task, safety, and throughput gates:
-
-```bash
-python scripts/run_expert.py \\
-  --config configs/catalog_v2.toml --backend rocm \\
-  --episodes 20 --start-episode 0 --profile large_narrow_carton \\
-  --reset-qpos -1.0124 1.0 1.4 -1.6878 -1.5799 1.7757 1.4602 0.04 0.04 \\
-  --output outputs/diagnostics/large-narrow-home-c
-```
-
-The fixed 20-episode Radeon acceptance protocol is also available as one
-command. It refuses to reuse an output root, runs the baseline and pose-C
-candidate with the same profile and randomization, compares both summaries,
-and writes `SHA256SUMS`:
-
-```bash
-bash scripts/run_reset_pose_ab_rocm.sh \
-  configs/catalog_v2.toml outputs/radeon-reset-ab-v1
-```
-
-Run one deterministic episode for every training parcel profile:
-
-```bash
-python scripts/evaluate_catalog.py \
-  --backend rocm \
-  --episodes-per-profile 1 \
-  --output outputs/catalog-v1-smoke
-```
-
-Repeat `--profile <id>` to select strata. Evaluation-only carrier dimensions
-require `--include-evaluation-only` and must not be mixed into training success.
-
-Collect a targeted hard-example shard with catalog v2. Here `--episodes` means
-episodes per selected profile, and each profile receives a separate episode
-namespace. Use a new output directory for each shard:
-
-```bash
-python scripts/run_expert.py \
-  --config configs/catalog_v2.toml \
-  --backend rocm \
-  --episodes 20 \
-  --start-episode 1000 \
-  --profile micro_box \
-  --profile upright_canister \
-  --record-sensors --lerobot \
-  --output outputs/catalog-v2-hard-shard
-```
-
-The audit writer refuses to overwrite an existing episode file. This makes
-repeated collection explicit rather than silently corrupting provenance. Both
-expert and learned-policy summaries include `profile_summaries` for matched
-success, force, drop, latency, and throughput comparisons.
-
-## 3. Collect an RGB-D LeRobotDataset
-
-```bash
-python scripts/run_expert.py \
-  --backend rocm \
-  --episodes 120 \
-  --record-sensors \
-  --lerobot \
-  --output outputs/radeon-dataset-120
-```
-
-The policy dataset contains:
-
-| Feature | Shape | Meaning |
+| Evidence track / 证据轨道 | Recorded result / 记录结果 | What it means / 含义 |
 | --- | --- | --- |
-| `observation.images.overhead_rgb` | `3 x 224 x 224` | Overhead RGB image |
-| `observation.images.overhead_depth` | `1 x 224 x 224` | Metric depth in metres |
-| `observation.images.overhead_depth_rgb` | `3 x 224 x 224` | Fixed-range depth view for standard visual backbones |
-| `observation.state` | `20` | Joints, end-effector pose, target, contact force |
-| `observation.privileged_state` | `7` | Parcel pose for audit only; not used by ACT |
-| `action` | `8` | Cartesian position, quaternion, gripper command |
+| Deterministic expert/reference / 确定性专家参考 | **8/10** successful trajectories / 成功轨迹 | Demonstration provenance only; not VLA credit / 仅示范来源，不计入 VLA |
+| Offline action ablation / 离线动作消融 | 42 episode-stage samples / 42 个样本 | Action-contract measurement; not task success / 动作合约指标，不是任务成功 |
+| Strict pure VLA / 严格纯 VLA | **0/3, not passed / 未通过** | Must not be presented as a VLA success / 不得表述为 VLA 成功 |
 
-Only successful episodes enter the LeRobot training dataset. Failed attempts
-remain available in the JSONL audit data to support error analysis and future
-hard-example collection.
+The audited primitive dataset contains **7 independent episodes** and **4,557 frames** at 30 fps. It has RGB observations, a 43-D non-privileged state, 20-D actions, and primitive progress. Details: [data contract](data/README.md), [dataset audit](evidence/training/pash-primitive-dataset-v2-audit.json), and [training evidence](docs/TRAINING_EVIDENCE.md).
 
-Run the metadata gate before training. Historical `radeon-dataset-120-v1`
-depth was accidentally scaled by `0.001`; it remains valid for the committed
-RGB ACT baseline but must not be used for RGB-D. Newly collected shards include
-the corrected metric depth and derived three-channel view.
+经审计的 primitive 数据集包含 **7 个独立 episode** 与 **4,557 帧**，采样率为 30 fps；包含 RGB 观测、43 维非特权状态、20 维动作和 primitive progress。详情见 [数据合约](data/README.md)、[数据集审计](evidence/training/pash-primitive-dataset-v2-audit.json) 和 [训练证据](docs/TRAINING_EVIDENCE.md)。
 
-```bash
-python scripts/audit_dataset.py --dataset-root <lerobot_dataset>
-python scripts/audit_dataset.py --dataset-root <lerobot_dataset> --require-depth-rgb
-```
+<a id="development"></a>
+## 2. Development Process / 开发过程
 
-After collection is complete, freeze the train/validation/held-out split before
-starting model comparison:
+### English
 
-```bash
-python scripts/build_dataset_split.py \
-  --audit-root outputs/radeon-dataset-400-v2/expert/audit_dataset \
-  --dataset-root outputs/radeon-dataset-400-v2/expert/lerobot_dataset \
-  --output outputs/radeon-dataset-400-v2/dataset-split.json \
-  --seed 20260725
-```
+**Key decisions.** We selected a fixed Panda workcell to isolate manipulation, locked the Radeon runtime and upstream revisions, retained deterministic expert/reference rollouts for data provenance, and made attribution fail closed. Learned actions are checked against finite-value, Cartesian, tool-command, IK, and force boundaries before execution.
 
-The manifest stratifies by parcel profile, records original and LeRobot episode
-IDs, and excludes held-out episodes from training. Pass the same manifest to
-every matched run:
+**Difficulties and resolutions.** Stock finger geometry could make side/oblique contacts unreliable. The project uses structured XML generation from the locked Panda MJCF to create versioned parcel-adapter variants while preserving the upstream source meshes. A second issue was that raw policy actions exceeded the audited action envelope. The offline ablation shows raw VLA passing 0/42 envelope checks, while safety-clipped VLA and Harness-Lite each pass 42/42. This is a safety-contract finding, not a task-success claim.
 
-```bash
-DATASET_SPLIT_MANIFEST=outputs/radeon-dataset-400-v2/dataset-split.json \
-ACT_SEED=11 ACT_STEPS=30000 ACT_USE_AMP=true \
-bash scripts/train_act_rocm.sh \
-  outputs/radeon-dataset-400-v2/expert/lerobot_dataset \
-  outputs/train/act-rgb-seed11
-```
+**Next steps.** Repeat strict closed-loop VLA evaluation with an auditable protocol, retain failures, and publish only after all attribution gates pass. TensorBoard export, a public dataset URL, public video URL, PR URL, Sim-to-Real protocol, and real-robot validation remain **pending**.
 
-The Diffusion entry uses the same `DATASET_SPLIT_MANIFEST`. Do not regenerate
-the manifest between seeds or between RGB and RGB-D comparisons.
+### 中文
 
-## Reproducible model sweep
+**关键决策。** 项目选择固定 Panda 工作单元以隔离操作问题，锁定 Radeon 运行环境和上游版本，保留确定性专家/参考 rollout 作为数据来源，并以 fail-closed 方式处理归因。学习策略动作在执行前要通过有限值、笛卡尔步长、工具指令、IK 和力边界检查。
 
-Run ACT first and keep models sequential on the single GPU:
+**困难与解决。** 原始手指几何会使侧向/斜向接触不稳定。项目从锁定的 Panda MJCF 使用结构化 XML 生成版本化的包裹适配器变体，同时保留上游源 mesh。另一个问题是原始策略动作超出经审计的动作包络：离线消融中，原始 VLA 为 0/42，安全裁剪 VLA 与 Harness-Lite 均为 42/42。此结论仅说明安全动作合约，不表示任务成功。
 
-    MODEL_SWEEP_MODELS=act MODEL_SWEEP_SEEDS=11,22,33 \
-    bash scripts/run_model_sweep_rocm.sh \
-      outputs/radeon-dataset-400-v2/expert/lerobot_dataset \
-      outputs/radeon-dataset-400-v2/dataset-split.json \
-      outputs/model-sweep/act
+**下一步。** 使用可审计协议重复严格闭环 VLA 评测并保留失败样本，只有全部归因门通过后才发布。TensorBoard 导出、公开数据集 URL、公开视频 URL、PR URL、Sim-to-Real 协议和真实机器人验证均为 **pending**。
 
-After the ACT gate passes, set MODEL_SWEEP_MODELS=act,diffusion to add the
-compact Diffusion RGB/RGB-D comparison. The sweep records one CSV row and one
-log per model/modality/seed; failed runs are retained and do not silently
-alter later conditions.
+### Offline Ablation / 离线消融
 
-On a cloud instance, the same sequence can be left as one auditable job:
+| Treatment / 处理方式 | Mean MAE | Mean MSE | Envelope passes / 包络通过 |
+| --- | ---: | ---: | ---: |
+| Expert executor / 专家执行器 | 0.00447 | 0.000422 | 42/42 |
+| Raw VLA / 原始 VLA | 0.00656 | 0.000972 | 0/42 |
+| Safety-clipped VLA / 安全裁剪 VLA | 0.00569 | 0.000434 | 42/42 |
+| Harness-Lite | 0.00527 | 0.000427 | 42/42 |
 
-    nohup bash scripts/watch_and_train_rocm.sh outputs/radeon-dataset-400-v2 \
-      > outputs/radeon-dataset-400-v2/watch-and-train.log 2>&1 &
+The source is [the ablation JSON](evidence/training/pash-primitive-smolvla-2800step-offline-ablation-v1.json), the [local curve](docs/assets/pash-primitive-smolvla-2800step-training-curve-v1.png), and [training log](evidence/training/pash-primitive-smolvla-rocm-2800step-v1.log). See [ablation notes](docs/ABLATION_RESULTS.md). 证据来源为上述 JSON、本地曲线与训练日志；详见 [消融说明](docs/ABLATION_RESULTS.md)。
 
-## 4. Train ACT on one Radeon
+<a id="attribution"></a>
+## 3. Source Attribution / 代码来源说明
 
-```bash
-ACT_STEPS=5000 \
-ACT_BATCH_SIZE=32 \
-ACT_NUM_WORKERS=4 \
-ACT_SAVE_FREQ=1000 \
-ACT_USE_AMP=true \
-ACT_IMAGE_TRANSFORMS=false \
-bash scripts/train_act_rocm.sh \
-  outputs/radeon-dataset-120/expert/lerobot_dataset \
-  outputs/train/act-radeon-5000
-```
+### English
 
-The script validates ROCm and dataset metadata before training, keeps weights local, disables cloud
-logging, reserves 10% of episodes for evaluation, and saves periodic
-checkpoints. The default trains ACT from RGB and non-privileged robot state.
-For a matched RGB-D experiment on a newly collected valid shard, add
-`ACT_USE_DEPTH=true`; the checkpoint then consumes both RGB and the derived
-depth view, and the generic evaluator discovers the second input automatically.
+| Component | Source and license | Use and project changes |
+| --- | --- | --- |
+| Genesis | `Genesis-Embodied-AI/genesis-world`, locked revision `ec0efcc0...`, Apache-2.0 | Rigid-body simulation and asset loading. The project configures the parcel scene, sensing, deterministic control, logging, and validation around it. |
+| LeRobot | `huggingface/lerobot`, locked revision `73dbb6f...`, Apache-2.0 | Local dataset and policy-training interfaces. The project uses a locally audited training path and does not claim a hosted dataset. |
+| Franka Panda MJCF | Official Franka Panda MJCF as distributed by Genesis 1.2.3, `xml/franka_emika_panda/panda.xml`, Apache-2.0 | The source asset remains traceable to the locked Genesis runtime. Project code can generate versioned parcel-finger adapter or tri-suction derivatives from structured XML; it does not replace the attribution of the upstream asset. |
+| Original project work | `src/parcel_sorter/`, `scripts/`, `configs/`, `evidence/` | Parcel task, data audit, deterministic expert/reference controller, safety gates, evidence schema, ROCm scripts, and offline-ablation tooling. |
 
-Generic image transforms default to off because synthetic manipulation labels
-depend on precise geometry. Set `ACT_IMAGE_TRANSFORMS=true` only as a controlled
-ablation with otherwise identical data, seeds, and checkpoint steps. The
-committed 5,000-step evidence predates this change and was trained with generic
-transforms enabled; no result is attributed to the new default yet.
+Exact revisions and license data are recorded in [UPSTREAM_LOCK.json](UPSTREAM_LOCK.json) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). No third-party source is represented as original project work.
 
-To compare training precision and batch size on the target card:
+### 中文
+
+| 组件 | 来源与许可证 | 使用方式与本项目修改 |
+| --- | --- | --- |
+| Genesis | `Genesis-Embodied-AI/genesis-world`，锁定版本 `ec0efcc0...`，Apache-2.0 | 用于刚体仿真和资产加载；本项目围绕其配置包裹场景、传感、确定性控制、日志和验证。 |
+| LeRobot | `huggingface/lerobot`，锁定版本 `73dbb6f...`，Apache-2.0 | 用于本地数据集与策略训练接口；本项目使用本地审计训练路径，不主张托管数据集。 |
+| Franka Panda MJCF | Genesis 1.2.3 分发的官方 Franka Panda MJCF，`xml/franka_emika_panda/panda.xml`，Apache-2.0 | 上游资产可追溯到锁定的 Genesis 运行时。本项目可由结构化 XML 生成版本化的手指适配器或三吸盘派生资产，但不改变上游资产归属。 |
+| 项目原创部分 | `src/parcel_sorter/`、`scripts/`、`configs/`、`evidence/` | 包裹任务、数据审计、确定性专家/参考控制器、安全门、证据模式、ROCm 脚本和离线消融工具。 |
+
+精确版本与许可证记录在 [UPSTREAM_LOCK.json](UPSTREAM_LOCK.json) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。不将任何第三方来源表述为项目原创。
+
+<a id="team"></a>
+## 4. Team Roles / 团队分工
+
+### English
+
+**2658183739 is the sole submitter.** The submitter is responsible for system design, implementation, experiment execution, evidence review, and the final submission decision. AI tools may assist with drafting, code navigation, and repetitive engineering tasks, but the submitter reviews the resulting code, evidence, claims, and release contents before submission.
+
+### 中文
+
+**2658183739 是唯一提交者。** 提交者负责系统设计、实现、实验执行、证据审核和最终提交决策。AI 工具可辅助文档起草、代码定位和重复性工程工作，但提交前的代码、证据、结论和发布内容均由提交者审核。
+
+<a id="install"></a>
+## 5. Install and Run / 安装与运行
+
+### English
+
+The recorded environment is Linux, ROCm 7.2.1, Python 3.12, and one visible Radeon GPU. Local audited data and the audited local backbone are prerequisites; no public dataset or backbone download URL is claimed.
+
+**Docker one-command reproduction.** This builds the pinned container and executes the ROCm authority check. It requires Linux Docker access to `/dev/kfd` and `/dev/dri`.
 
 ```bash
-bash scripts/benchmark_act_training_rocm.sh
+docker build -f Dockerfile.rocm --build-arg INSTALL_LEROBOT=1 -t parcel-sorter-rocm . && \
+docker run --rm --device=/dev/kfd --device=/dev/dri --group-add video \
+  parcel-sorter-rocm bash scripts/preflight_radeon.sh
 ```
 
-## 5. Closed-loop learned-policy evaluation
-
-For a fast, human-readable mobile VLA check, run the frozen four-profile parcel
-suite. It executes three trials per profile (12 total), writes per-class success
-rates and safety counts to `REPORT.md`, and records one 640x480 MP4 and PNG per
-profile. These episodes are evaluation-only and are never added to training.
+**Native installation and training.** Install a HIP-enabled PyTorch 2.9.1 ROCm 7.2.1 build using the approved Radeon environment before this step. `requirements.txt` deliberately does not install a generic PyPI `torch`, which could select a non-ROCm build.
 
 ```bash
-PYTHONPATH=src:. /workspace/rdna/bin/python scripts/run_mobile_quick_eval_rocm.py \
-  --output outputs/mobile-quick-eval-12-v1 \
-  --workers 4
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -e . -r requirements.txt
+export PYTHONPATH="$PWD/src"
+bash scripts/preflight_radeon.sh
+
+MOBILE_SMOLVLA_PROGRESS_CHANNEL=1 MOBILE_SMOLVLA_STEPS=2800 \
+  bash scripts/train_mobile_smolvla_rocm.sh \
+  /path/to/local/mobile-primitive-dataset-v2 \
+  "$PWD/outputs/train/mobile-smolvla-primitive-progress"
 ```
 
-Use `--max-episodes 4` for a one-trial-per-profile visual preview. The policy
-still receives the frozen 224x224 RGB observation; a separate camera produces
-the higher-resolution demonstration media, so recording does not change the
-model input contract.
+**Reproduce the expert/reference screen and both camera views.** The first
+command records overview and wrist sidecars for all 10 fixed-seed episodes.
+The second keeps only the eight episodes whose `success` field is true and
+fails closed if a required source or wrist video is missing.
 
 ```bash
-python scripts/evaluate_policy.py \
-  --checkpoint outputs/train/act-radeon-5000/checkpoints/004000/pretrained_model \
-  --backend rocm \
-  --episodes 10 \
-  --start-episode 10 \
-  --record-video \
-  --output outputs/eval-act-4000-e10
+python3 scripts/run_expert.py \
+  --config configs/baseline.toml --backend rocm --episodes 10 \
+  --record-video --output outputs/reproduce-expert
+
+python3 videos/build_demo_video.py \
+  --source-root outputs/reproduce-expert/expert \
+  --font /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc \
+  --out outputs/final-video
 ```
 
-`--start-episode` selects a deterministic, non-overlapping randomization range.
-Use it to avoid evaluating every checkpoint only on episode zero. The summary
-records the exact start, end, and count of evaluated episodes.
+**Verification.** A successful preflight reports one HIP-visible GPU. Inspect data, training, testing, and delivery boundaries through [data/README.md](data/README.md), [docs/TRAINING_EVIDENCE.md](docs/TRAINING_EVIDENCE.md), [docs/TEST_REPORT.md](docs/TEST_REPORT.md), [videos/README.md](videos/README.md), and [docs/SUBMISSION_CHECKLIST.md](docs/SUBMISSION_CHECKLIST.md). The strict VLA result remains 0/3 and not passed.
 
-Rank multiple checkpoint summaries by closed-loop task performance:
+### 中文
+
+记录的环境为 Linux、ROCm 7.2.1、Python 3.12 和一张可见 Radeon GPU。本地审计数据与审计过的本地骨干模型是前提；本仓库不主张公开数据集或骨干下载 URL。
+
+**Docker 一键复现。** 以下命令构建锁定容器并执行 ROCm 权威检查。Linux Docker 必须可访问 `/dev/kfd` 和 `/dev/dri`。
 
 ```bash
-python scripts/summarize_act_evaluations.py \
-  outputs/eval-act-sweep \
-  --output outputs/act-checkpoint-ranking.json
+docker build -f Dockerfile.rocm --build-arg INSTALL_LEROBOT=1 -t parcel-sorter-rocm . && \
+docker run --rm --device=/dev/kfd --device=/dev/dri --group-add video \
+  parcel-sorter-rocm bash scripts/preflight_radeon.sh
 ```
 
-The tool rejects duplicate episode indices and ranks success before latency.
-
-ACT is the verified learned baseline. Diffusion is the next controlled Radeon
-comparison:
+**原生安装与训练。** 在此之前，应通过批准的 Radeon 环境安装支持 HIP 的 PyTorch 2.9.1 ROCm 7.2.1。`requirements.txt` 有意不安装通用 PyPI `torch`，以避免误装非 ROCm 构建。
 
 ```bash
-bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-radeon
-
-# Compact one-step smoke or later controlled ablation:
-DIFFUSION_DOWN_DIMS=256,512,1024 DIFFUSION_HORIZON=32 \
-DIFFUSION_N_ACTION_STEPS=8 DIFFUSION_INFERENCE_STEPS=10 \
-bash scripts/train_diffusion_rocm.sh <lerobot_dataset> outputs/train/diffusion-compact
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -e . -r requirements.txt
+export PYTHONPATH="$PWD/src"
+bash scripts/preflight_radeon.sh
 ```
 
-Diffusion is an implemented training path, not a measured capability claim. The
-compact smoke is recorded in
-`evidence/training/diffusion-compact-1step-rocm.md`; it reduced the model to
-76.6M parameters and completed one Radeon step, but has not been selected by
-closed-loop success. VLA-Adapter 0.5B remains an unintegrated comparison
-candidate. The active VLA path uses LeRobot SmolVLA code (Apache-2.0)
-initialized from `HuggingFaceTB/SmolVLM2-500M-Video-Instruct` revision
-`7b375e1b73b11138ff12fe22c8f2822d8fe03467` (Apache-2.0). The submitted 10k
-checkpoint is trained locally on project-generated trajectories on one Radeon;
-its trainer-generated `license` metadata is null, so the source manifest and
-derived-checkpoint provenance must accompany any separately distributed
-weights. The evaluator keeps it behind the same Genesis supervisor and 35 N
-force boundary.
-
-## 6. GPU simulation benchmark
+**复现专家/参考筛选与双视角。** 第一条命令对 10 个固定种子回合同时录制全景和腕部视频；第二条命令只保留 `success=true` 的 8 个回合，任何必要源视频或腕部视频缺失时都会停止。
 
 ```bash
-python scripts/benchmark_parallel.py \
-  --backend rocm \
-  --env-counts 1,16,64,128 \
-  --output outputs/benchmarks/parallel.json
+python3 scripts/run_expert.py \
+  --config configs/baseline.toml --backend rocm --episodes 10 \
+  --record-video --output outputs/reproduce-expert
+
+python3 videos/build_demo_video.py \
+  --source-root outputs/reproduce-expert/expert \
+  --font /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc \
+  --out outputs/final-video
 ```
 
-For supporting evidence, capture `rocm-smi` alongside the benchmark and retain
-the raw JSON, training log, and config used for each reported result.
-
-## 7. Container build
-
-The container pins ROCm 7.2.1, Ubuntu 24.04, Python 3.12, PyTorch 2.9.1, and
-the two upstream source revisions. It does not depend on an untracked local
-`third_party` directory.
-
-```bash
-docker build \
-  -f Dockerfile.rocm \
-  --build-arg INSTALL_LEROBOT=1 \
-  -t parcel-sorter-rocm:rocm7.2.1 .
-
-docker run --rm \
-  --device=/dev/kfd \
-  --device=/dev/dri \
-  --group-add video \
-  --ipc=host \
-  --shm-size=16g \
-  --security-opt seccomp=unconfined \
-  parcel-sorter-rocm:rocm7.2.1
-```
-
-Nested Docker is not required on the competition cloud instance; the
-bare-metal setup above is the validated primary path.
-
-## Verified results and interpretation
-
-| Measurement | Result |
-| --- | ---: |
-| Randomized expert evaluation | 96 / 120 successful episodes (80.0%) |
-| Historical RGB/state demonstrations | 96 episodes, 11,753 frames; depth invalid for RGB-D |
-| Fixed 10-seed expert baseline | 90.0% success, 0% drop rate |
-| Fixed-seed expert throughput | 727 successful parcels/hour |
-| ACT training | 5,000 steps, AMP, batch size 32 |
-| ACT final evaluation loss | 0.1384 |
-| ACT checkpoint 4,000, episodes 10-19 | 30.0% closed-loop success |
-| ACT checkpoint 4,000 inference | 2.05 ms mean, 8.00 ms P95 |
-| ACT checkpoint 5,000, episodes 10-19 | 10.0% closed-loop success |
-| Parallel Genesis, 128 environments | 46,582 environment-steps/s |
-| Peak observed GPU utilization | 83% |
-| ACT training throughput, AMP batch 32 | 80 samples/s |
-| Parcel-catalog regression smoke | 4 of 7 one-episode profiles complete; not a success rate |
-| Contact-correct goal-conditioned VLA development gate | 4/4 profiles; 0.5 mm contact target, 12-step seal, VLA arrival verified, 0 force violations |
-| Deterministic unit suite | 71 passing tests on Radeon |
-
-The 120-episode expert result is the primary capability measurement. The ACT
-result proves that training, checkpoint reload, visual inference, and Genesis
-closed-loop execution all run on ROCm, but the learned policy is not yet
-converged. On the same episode range, the 4,000-step checkpoint outperformed
-the 5,000-step checkpoint, so checkpoint selection must use task success rather
-than offline loss alone. The principal current failure mode is excessive
-contact force during fast approach; 22 of 24 failed expert episodes ended at
-the configured safety boundary. These limitations are reported rather than
-hidden. Raw summaries and logs are indexed in [evidence/README.md](evidence/README.md).
-
-A matched 120-episode experiment with a fixed 0.01 m final-approach step was
-rejected: success fell from 80.0% to 75.0%, force aborts rose from 22 to 25,
-and throughput retention was 73.6%. The default therefore remains 0.04 m. The
-separate setting is retained only as an experiment parameter; the next control
-experiment will combine distance- and force-aware velocity shaping instead of
-assuming that a fixed slowdown is sufficient.
-
-The catalog's 0.01 m setting is not that rejected isolated candidate. It applies
-only after a separate XY gate and latched descent, together with geometry-aware
-pregrasp tolerance and lift-transfer-descend motion. In the final one-episode
-smoke, four box profiles completed while the micro box and both cylinder
-profiles remained explicit hard cases.
-
-## Reproducibility and tests
-
-The frozen experiment contract is `configs/campaign_v1.toml`. Validate it before
-any remote run:
-
-```bash
-python scripts/validate_campaign.py configs/campaign_v1.toml
-```
-
-The contract fixes the ROCm device, one-GPU rule, 35 N safety limit, catalog
-hash, evaluation episode IDs, seeds, training budgets, open-source declarations,
-and acceptance gates. It intentionally leaves future dataset and split hashes
-as `PENDING` until balanced RGB-D collection is complete.
-
-`run_model_sweep_rocm.sh` validates this contract automatically before it starts
-any ACT or Diffusion cell. Set `CAMPAIGN_PATH` only when replaying a new,
-separately committed campaign version.
-
-To aggregate an existing expert or policy summary by physical category:
-
-```bash
-python scripts/summarize_categories.py outputs/.../summary.json
-```
-
-```bash
-source scripts/activate_radeon_env.sh
-python -m unittest discover -s tests -q
-```
-
-The verified suite contains 56 tests covering configuration validation, domain
-randomization, state-machine transitions, dataset contracts, metrics, runner
-behaviour, parcel catalog scheduling and geometry, expert hysteresis and safe
-transfer, safety limits, evaluation aggregation, and matched run comparison.
-GPU tests and end-to-end
-simulation are intentionally separate because they require Genesis assets and
-a supported GPU runtime.
-
-## Mobile bimanual development baseline
-
-The current expansion target is a holonomic wheeled base with two Franka Panda
-arms. `mobile_bimanual.py` transforms Genesis' Apache-2.0 Bi-Franka MJCF at
-runtime, adds original planar `x/y/yaw` joints, a physical chassis, wheel
-visuals, bounded navigation commands, deterministic dual-arm task allocation,
-and semantic parcel routing. The upstream asset is not copied into this
-repository.
-
-On the competition Radeon, the generated 21-DoF robot compiled under Genesis
-1.2.3 and moved 0.13047 m in a 240-step smoke while the simulator reported
-roughly 494-516 FPS. A closed-loop obstacle route then reached its destination
-in 321 control steps with 4.39 cm final error. A synchronized 14-arm-DoF IK
-smoke reached both pregrasp targets within 1.60 cm, introduced no collision,
-held base drift to 1.35 mm, and ran at 405 simulation FPS. Physical parcel
-pickup and navigation-to-manipulation success are still pending and are not
-claimed.
-
-The hybrid-tool asset mounts three physical compliant suction cups on the left
-arm and a two-rail collision V cradle on the right arm. Two sealed cups plus 24
-consecutive cradle-contact physics steps gate cooperative lift. Independent
-incremental IK for both arms and a 24-step placement-confirmation gate completed
-one 1.44 m rigid-carton development case: 8.53 cm lift, 30 cm transport, active
-release, 2.16 cm final error, zero suction breaks, and 30.65 N peak cradle force.
-SmolVLA v2 executed bounded base residuals for 647 physics steps; a calibrated
-deadline gate then handed the remaining transport to the expert. This closes
-the mechanism/integration case only; multi-parameter cooperative generalization
-and sim-to-real remain open.
-
-`mobile_task.py` fixes the retraining contract at 19 actions: three bounded
-base velocities and two eight-dimensional Cartesian/gripper commands. The
-same module provides the fail-closed navigation, bilateral-contact, lift,
-transport, placement, recovery, and force-abort state machine shared by the
-future expert collector and SmolVLA policy.
-
-```bash
-python scripts/smoke_mobile_bimanual_rocm.py \
-  --backend rocm --steps 240 --speed-m-s 0.20 \
-  --output outputs/mobile-bimanual-smoke-v3
-python scripts/smoke_mobile_bimanual_arms_rocm.py \
-  --backend rocm --output outputs/mobile-bimanual-arms-v2
-python scripts/smoke_mobile_bimanual_rocm.py --backend rocm --hybrid-tools \
-  --output outputs/mobile-bimanual-hybrid-tools-v1
-```
-
-The raw result is tracked in
-`evidence/mobile_bimanual/mobile-bimanual-smoke-v3.json`,
-`mobile-navigation-v1.json`, `mobile-bimanual-arms-v2.json`,
-`mobile-bimanual-hybrid-tools-v1.json`, and the retained
-`mobile-bimanual-pick-v3-failure.json` negative result. The first successful physical suction lift
-is `mobile-suction-lift-v40-success.json`. The cooperative v19-v24 comparison and remote summary
-hashes are under `evidence/mobile_bimanual/cooperative_cradle_v1/`.
-
-## Development process
-
-Development follows a fail-closed experiment loop: freeze episode IDs and
-safety thresholds, record the baseline, change one causal mechanism, execute
-matched Radeon runs, retain rejected candidates, and promote only after the
-independent holdout gate. Current original changes include the parcel state
-machine, geometry-aware planning, tri-cup suction physics, Harness-Lite
-generator/verifier, failure-replay quarantine and promotion logic, parcel
-classification, and the mobile bimanual embodiment. Detailed decisions and
-failed experiments are retained under `docs/` and `evidence/`; successful and
-unsuccessful results are both reported.
-
-## Code provenance
-
-Project-authored code is under `src/parcel_sorter`, `scripts`, and `tests` and
-is MIT licensed. Runtime dependencies are fetched at locked revisions and are
-not vendored. Genesis World and its Bi-Franka asset, LeRobot/SmolVLA code, and
-the SmolVLM2 base checkpoint are Apache-2.0; exact repositories, revisions and
-roles are listed in `THIRD_PARTY_NOTICES.md` and `UPSTREAM_LOCK.json`. The
-mobile base, Harness-Lite rules, suction attachment, routing logic, experiment
-orchestration, and generated datasets are project modifications, not an
-unchanged upstream fork. Model weights are not committed to this repository.
-
-## Licensing
-
-Original project code is licensed under the MIT License. See
-`THIRD_PARTY_NOTICES.md` and `UPSTREAM_LOCK.json` for dependency licenses,
-source repositories, and exact revisions. No third-party source or model weight
-is committed in this submission directory.
-
-The Chinese operator guide is available in [README_CN.md](README_CN.md).
+**验证。** 成功的 preflight 会报告一张 HIP 可见 GPU。数据、训练、测试和交付边界见 [data/README.md](data/README.md)、[docs/TRAINING_EVIDENCE.md](docs/TRAINING_EVIDENCE.md)、[docs/TEST_REPORT.md](docs/TEST_REPORT.md)、[videos/README.md](videos/README.md) 和 [docs/SUBMISSION_CHECKLIST.md](docs/SUBMISSION_CHECKLIST.md)。严格 VLA 结果仍为 0/3，未通过。
