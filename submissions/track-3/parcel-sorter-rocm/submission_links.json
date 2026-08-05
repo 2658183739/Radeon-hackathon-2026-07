@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "github_fork_url": "https://github.com/2658183739/Radeon-hackathon-2026-07",
+  "github_pull_request_url": null,
+  "demo_video_url": null,
+  "demo_video_platform": null,
+  "status": "local_package_ready_not_passed",
+  "notes": "The GitHub fork URL was verified through the public GitHub API. The strict V20 PI0.5 campaign scored 0/3, so no passing competition MVP package or public demo-video URL is claimed. Publish the local demo clips only with the result boundary shown in submission_materials/DEMO_VIDEO_README.md."
+}

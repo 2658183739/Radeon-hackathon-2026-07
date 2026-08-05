@@ -1,6 +1,71 @@
 # Parcel Sorter ROCm
 
-Latest mobile result: [Harness-Lite and failure-driven self-improvement](docs/MOBILE_HARNESS_SELF_IMPROVEMENT_2026-07-27.md), including a successful SmolVLA base-residual closed loop on one Radeon GPU. The new [Verified Harness Agent](docs/MOBILE_HARNESS_AGENT.md) adds high-level task planning, failure analysis, independently verified correction admission, and a hash-bound checkpoint authorization layer; it is implemented but awaits a frozen Agent-vs-baseline experiment.
+## Competition Submission / 比赛提交入口
+
+**English.** This repository is a reproducible Physical AI parcel-sorting
+pipeline for a single AMD Radeon GPU. The competition path fine-tunes a
+PI0.5-style policy from verified RGB-D teacher trajectories, evaluates the
+unchanged frozen observation/action contract, and refuses to claim a result
+unless strict pure-VLA attribution, safety, and media gates pass. The final
+candidate package is generated only by
+`scripts/build_competition_mvp_delivery.py` and verified by its packaged
+`VERIFY_DELIVERY.py`.
+
+**中文。** 本仓库是面向单张 AMD Radeon GPU 的可复现实物智能包裹分拣
+流水线。比赛路径使用经过验证的 RGB-D 教师轨迹校准 PI0.5 风格策略，在不改变
+冻结观测/动作契约的前提下运行评测；只有严格纯 VLA 归因、安全和视频门全部通过，
+才允许生成比赛交付包。最终候选必须由
+`scripts/build_competition_mvp_delivery.py` 构建，并通过包内
+`VERIFY_DELIVERY.py` 验证。
+
+### Reproduce / 复现
+
+```bash
+# AMD Radeon / ROCm
+source scripts/activate_radeon_env.sh
+export PYTHONPATH="$PWD/src"
+python scripts/preflight_mobile_pi05_rocm.py
+# Use the exact competition command recorded in the delivered package:
+./exact_train_command.sh
+```
+
+The fixed competition contract is training seed `11`, runtime seed
+`2026080206`, inference seeds `20260727/20260728/20260729`, the frozen
+12-observation panel, and the pre-registered action/safety thresholds. Do not
+change these values when reproducing a delivery candidate. Expert trajectories
+are training provenance only and receive zero pure-VLA credit.
+
+固定比赛契约为训练 seed `11`、运行 seed `2026080206`、推理 seeds
+`20260727/20260728/20260729`、冻结 12-observation panel，以及预注册的动作和
+安全阈值。复现交付候选时不得修改这些值。专家轨迹只能作为训练来源，纯 VLA
+成功计数固定为零。
+
+### Submission materials / 提交材料
+
+The delivery directory contains the checkpoint, exact commands, raw gate
+evidence, three independently recorded episode videos, `RESULTS.json`,
+`DEMO_VIDEOS.json`, a bilingual project description, and a self-verifying
+archive. A public video URL and the public fork URL are recorded in
+`submission_links.json` after the account owner publishes them; the local MP4
+files and their decoded-content fingerprints are always verified before that
+step.
+
+交付目录包含 checkpoint、精确命令、原始门控证据、三段独立 episode 视频、
+`RESULTS.json`、`DEMO_VIDEOS.json`、中英双语项目说明和可自验证压缩包。账号所有者
+完成发布后，公开视频 URL 和公开 fork URL 会写入 `submission_links.json`；在此
+之前也必须先完成本地 MP4 解码和内容指纹验证。
+
+See [the English technical report](TECHNICAL_REPORT.md), [the Chinese
+technical report](TECHNICAL_REPORT_CN.md), and [the competition delivery
+contract](docs/COMPETITION_MVP_DELIVERY_CN.md).
+
+The competition-score and publication protocols are separated in
+[Competition and Publication Dual Track](docs/COMPETITION_AND_PUBLICATION_DUAL_TRACK_2026.md).
+The corresponding Radeon inference treatments are frozen in
+`configs/mobile_pi05_rocm_inference_optimization_v2.json`; all treatments are
+opt-in and the eager runtime remains the default until every paired gate passes.
+
+Latest mobile result: [Harness-Lite and failure-driven self-improvement](docs/MOBILE_HARNESS_SELF_IMPROVEMENT_2026-07-27.md), including a successful SmolVLA base-residual closed loop on one Radeon GPU. The new [Verified Harness Agent](docs/MOBILE_HARNESS_AGENT.md) adds high-level task planning, failure analysis, independently verified correction admission, a durable conditional Graph Agent runtime, and a hash-bound checkpoint authorization layer. Its [four-arm orchestration ablation](docs/MOBILE_AGENT_ORCHESTRATION_ABLATION.md) freezes Ordinary Agent, Agent Loop, Deterministic Harness, and Graph Agent definitions plus a paired 60-case/240-rollout schedule; execution remains blocked until the final PI0.5 checkpoint and processor are hash-bound.
 
 Mobile extension: [43-D state / 19-D action SmolVLA status](docs/MOBILE_VLA_STATUS.md).
 The v2 checkpoint was trained for 2,400 steps on six successful expert episodes. Harness-Lite
