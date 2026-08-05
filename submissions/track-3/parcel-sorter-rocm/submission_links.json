@@ -1,10 +1,14 @@
 {
   "schema_version": 1,
   "github_fork_url": "https://github.com/2658183739/Radeon-hackathon-2026-07",
-  "github_branch_url": "https://github.com/2658183739/Radeon-hackathon-2026-07/tree/track3-parcel-sorter-rocm/submissions/track-3/parcel-sorter-rocm",
-  "github_pull_request_url": null,
-  "demo_video_url": null,
-  "demo_video_platform": null,
-  "status": "local_package_ready_not_passed",
-  "notes": "The GitHub fork URL was verified through the public GitHub API. The strict V20 PI0.5 campaign scored 0/3, so no passing competition MVP package or public demo-video URL is claimed. Publish the local demo clips only with the result boundary shown in submission_materials/DEMO_VIDEO_README.md."
+  "github_branch_url": "https://github.com/2658183739/Radeon-hackathon-2026-07/tree/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm",
+  "github_pull_request_url": "https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119",
+  "pull_request_state": "open",
+  "pull_request_base": "main",
+  "pull_request_confirmation_screenshot": "docs/assets/pr-119-confirmation.png",
+  "demo_video_url": "https://github.com/2658183739/Radeon-hackathon-2026-07/blob/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4",
+  "demo_video_raw_url": "https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4",
+  "demo_video_platform": "GitHub repository",
+  "status": "public_review_links_recorded_strict_pure_vla_not_passed",
+  "notes": "PR #119 is open against main. The GitHub repository video is a 59-second deterministic expert/reference simulation demo with eight successful development-screen episodes; it is not a pure-VLA or real-robot result. The strict V20 PI0.5 campaign scored 0/3. No Bilibili upload is claimed."
 }

@@ -10,9 +10,9 @@ AMD Radeon ROCm simulation for reproducible parcel pick-and-place with Genesis a
 
 面向 AMD Radeon ROCm 的可复现包裹抓取与分拣仿真，基于 Genesis 与 Franka Panda。本项目提供的是仿真证据，不是现实机器人证据。
 
-**Status / 状态:** deterministic expert/reference development recorded; strict pure VLA is **0/3 and not passed**. A directly reviewable repository MP4 is included; Bilibili/YouTube and pull-request URLs are **pending**.
+**Status / 状态:** deterministic expert/reference development recorded; strict pure VLA is **0/3 and not passed**. The reviewable repository MP4 is public at [blob](https://github.com/2658183739/Radeon-hackathon-2026-07/blob/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4) and [raw](https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4). [PR #119](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119) is **Open** against `main`; Bilibili/YouTube is not published.
 
-确定性专家/参考开发已记录；严格纯 VLA 为 **0/3，未通过**。仓库已包含可直接审查的 MP4；Bilibili/YouTube 和 PR URL：**pending**。
+确定性专家/参考开发已记录；严格纯 VLA 为 **0/3，未通过**。仓库 MP4 可通过 [blob](https://github.com/2658183739/Radeon-hackathon-2026-07/blob/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4) 和 [raw](https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4) 直接审查；[PR #119](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119) 为针对 `main` 的 **Open** PR；未发布 Bilibili/YouTube。
 
 **Contents / 目录**
 
@@ -58,7 +58,7 @@ The audited primitive dataset contains **7 independent episodes** and **4,557 fr
 
 **Difficulties and resolutions.** Stock finger geometry could make side/oblique contacts unreliable. The project uses structured XML generation from the locked Panda MJCF to create versioned parcel-adapter variants while preserving the upstream source meshes. A second issue was that raw policy actions exceeded the audited action envelope. The offline ablation shows raw VLA passing 0/42 envelope checks, while safety-clipped VLA and Harness-Lite each pass 42/42. This is a safety-contract finding, not a task-success claim.
 
-**Next steps.** Repeat strict closed-loop VLA evaluation with an auditable protocol, retain failures, and publish only after all attribution gates pass. TensorBoard export, a public dataset URL, public video URL, PR URL, Sim-to-Real protocol, and real-robot validation remain **pending**.
+**Next steps.** Repeat strict closed-loop VLA evaluation with an auditable protocol, retain failures, and publish only after all attribution gates pass. TensorBoard export, a public dataset URL, Sim-to-Real protocol, and real-robot validation remain **pending**. The repository video and PR links above are publication records only, not pure-VLA or real-robot claims.
 
 ### 中文
 
@@ -66,7 +66,7 @@ The audited primitive dataset contains **7 independent episodes** and **4,557 fr
 
 **困难与解决。** 原始手指几何会使侧向/斜向接触不稳定。项目从锁定的 Panda MJCF 使用结构化 XML 生成版本化的包裹适配器变体，同时保留上游源 mesh。另一个问题是原始策略动作超出经审计的动作包络：离线消融中，原始 VLA 为 0/42，安全裁剪 VLA 与 Harness-Lite 均为 42/42。此结论仅说明安全动作合约，不表示任务成功。
 
-**下一步。** 使用可审计协议重复严格闭环 VLA 评测并保留失败样本，只有全部归因门通过后才发布。TensorBoard 导出、公开数据集 URL、公开视频 URL、PR URL、Sim-to-Real 协议和真实机器人验证均为 **pending**。
+**下一步。** 使用可审计协议重复严格闭环 VLA 评测并保留失败样本，只有全部归因门通过后才发布。TensorBoard 导出、公开数据集 URL、Sim-to-Real 协议和真实机器人验证仍为 **pending**。上方仓库视频和 PR 链接仅是发布记录，不构成纯 VLA 或真实机器人主张。
 
 ### Offline Ablation / 离线消融
 

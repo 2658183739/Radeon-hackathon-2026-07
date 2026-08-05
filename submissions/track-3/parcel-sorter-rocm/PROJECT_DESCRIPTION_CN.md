@@ -16,4 +16,6 @@ Parcel Sorter ROCm 是一个以仿真为先的具身智能参赛项目：在单�
 
 经审计的 primitive 数据集包含 7 个独立 episode 和 4,557 帧，包含 RGB、43 维非特权状态，以及带 primitive progress 的 20 维动作合约。本地证据包括数据集审计、训练日志、消融 JSON 和 PNG 曲线，具体路径见 `docs/TRAINING_EVIDENCE.md`。
 
-本仓库不主张 Sim-to-Real 迁移、真实机器人视频、TensorBoard 导出、公开数据集托管、公开视频 URL 或 PR URL；这些外部发布项目均为 pending。证据边界见 `docs/SIM_TO_REAL_STATUS.md`。
+评审链接：[PR #119（Open，base 为 `main`）](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119)；[仓库演示视频](https://github.com/2658183739/Radeon-hackathon-2026-07/blob/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4)；[raw MP4](https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4)。该视频仅展示确定性专家/参考仿真开发，不改变严格纯 VLA 0/3 的结果。
+
+本仓库不主张 Sim-to-Real 迁移、真实机器人视频、TensorBoard 导出或公开数据集托管。证据边界见 `docs/SIM_TO_REAL_STATUS.md`。未主张上传 Bilibili。

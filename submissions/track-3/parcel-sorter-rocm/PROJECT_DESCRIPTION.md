@@ -16,4 +16,6 @@ The work has three intentionally separate evidence tracks:
 
 The audited primitive dataset has 7 independent episodes and 4,557 frames. It provides RGB plus a 43-D non-privileged state and a 20-D action contract with primitive progress. The source evidence is local: dataset audit, training log, ablation JSON, and PNG curve are named in `docs/TRAINING_EVIDENCE.md`.
 
-The repository does not claim Sim-to-Real transfer, real-robot footage, a TensorBoard export, public dataset hosting, a public demo-video URL, or a pull-request URL. Each external publication item is pending. See `docs/SIM_TO_REAL_STATUS.md` for the boundary.
+Review links: [PR #119 (Open, base `main`)](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119); [repository demo video](https://github.com/2658183739/Radeon-hackathon-2026-07/blob/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4); [raw MP4](https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4). The video shows deterministic expert/reference simulation development only and does not alter the strict pure-VLA 0/3 result.
+
+The repository does not claim Sim-to-Real transfer, real-robot footage, a TensorBoard export, or public dataset hosting. See `docs/SIM_TO_REAL_STATUS.md` for the boundary. No Bilibili upload is claimed.
