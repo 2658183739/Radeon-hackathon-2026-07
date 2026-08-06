@@ -1,65 +1,52 @@
-# Dataset Card: Parcel Sorter RGB-D Demonstrations
+# Dataset Card / 数据集卡
 
-## Summary
+## Current Candidate / 当前候选
 
-The dataset is generated entirely in the Genesis parcel-sorting simulation by
-the deterministic IK expert. The formal collection contains 120 randomized
-attempts; 96 successful episodes and 11,753 frames form the imitation dataset.
-All 120 attempts remain in JSONL audit traces.
+**English.** The current SmolVLA training candidate is a Genesis-derived local
+LeRobot dataset at the recorded remote path
+`/workspace/parcel-sorter-opt-v1/outputs/mobile-primitive-dataset-v2`. Its
+audit passed with 7 independent episodes, 4,557 frames at 30 fps, 43-D state,
+20-D action (including `primitive_progress`), and 24 task texts. Policy inputs
+are overhead RGB plus state; privileged state is excluded.
 
-## Features
+**中文。** 当前 SmolVLA 训练候选是 Genesis 派生的本地 LeRobot 数据集，记录的远端路径为
+`/workspace/parcel-sorter-opt-v1/outputs/mobile-primitive-dataset-v2`。审计通过：7 个独立
+episode、4,557 帧、30 fps、43 维状态、20 维动作（含 `primitive_progress`）和 24 个任务文本。策略输入为俯视 RGB 加状态；特权状态被排除。
 
-| Feature | Shape | Unit / meaning | ACT use |
-| --- | --- | --- | --- |
-| `observation.images.overhead_rgb` | `3 x 224 x 224` | uint8 RGB | Yes |
-| `observation.images.overhead_depth` | `1 x 224 x 224` | float depth, metres | New corrected shards only |
-| `observation.images.overhead_depth_rgb` | `3 x 224 x 224` | fixed-range depth view | Optional RGB-D policy input |
-| `observation.state` | `20` | joints, EE pose, target, contact force | Yes |
-| `observation.privileged_state` | `7` | simulator parcel pose | No |
-| `action` | `8` | position, quaternion, gripper | Target |
+| Field / 字段 | Audited value / 审计值 |
+| --- | --- |
+| Episodes / episode | 7 (`0` through `6`) |
+| Frames / 帧 | 4,557 |
+| Rate / 频率 | 30 fps |
+| State / 状态 | 43-D |
+| Action / 动作 | 20-D |
+| Task texts / 任务文本 | 24 |
+| RGB/depth audit / RGB-深度审计 | 65 checked frames, 0 mismatches |
 
-Physics runs at 240 Hz, control at 30 Hz, and camera rendering at 10 Hz. The
-latest camera frame is held between camera updates.
+## Availability and Boundary / 可用性与边界
 
-## Randomization
+**English.** This repository contains only the audit, manifest, and recorded
+hashes. The Parquet, MP4, and metadata payload are absent from this checkout;
+therefore it is **not currently a complete uploadable dataset** and has no
+public Hugging Face URL. Do not substitute a local 9-episode dataset.
 
-Parcel size, mass, friction, XY position, yaw, destination, camera position, and
-action delay are deterministic functions of seed and episode index. The baseline
-ACT data uses `configs/baseline.toml`; the catalog generator uses
-`configs/catalog_v1.toml` with seven weighted training profiles; catalog v2
-has twelve balanced training profiles and nine evaluation-only industry-size
-profiles. Genesis creates Box and Cylinder
-geometry explicitly, and the catalog evaluator keeps stable profile episode IDs.
+**中文。** 本仓库只有审计、manifest 和记录的哈希；Parquet、MP4 和 metadata 二进制不在本地 checkout。因此它**当前不是可完整上传的数据集**，也没有公开 Hugging Face URL。不得用本地 9-episode 数据集替代。
 
-## Inclusion policy
+The relevant records are `evidence/training/pash-primitive-dataset-v2-audit.json`
+and `evidence/training/pash-primitive-dataset-v2-manifest.json`. The manifest
+contains seven output-Parquet SHA-256 values, which must match recovered files.
 
-Only successful expert episodes enter behaviour-cloning data. Failed attempts
-remain in audit traces and should be used for failure analysis, hard-example
-selection, recovery learning, or preference learning with an explicit method.
+## Legacy Data / 历史数据
 
-## Intended use
+**English.** The 96-episode / 11,753-frame ACT data is **legacy historical
+data** for an ACT baseline. It is not this SmolVLA candidate, must not be
+combined with these counts, and must not be uploaded under this candidate's
+manifest.
 
-- ACT or other imitation-policy training for this simulated workcell;
-- RGB/RGB-D/state ablation;
-- reproducibility and robotics teaching;
-- hard-example and safety analysis.
+**中文。** 96 episode / 11,753 帧 ACT 数据是 ACT baseline 的**历史 legacy 数据**。它不是本次 SmolVLA 候选，不能与上述数量合并，也不能按本候选 manifest 上传。
 
-## Limitations
+## Intended Use / 预期用途
 
-- Simulation-only and no real sensor calibration;
-- successful-only imitation targets create selection bias;
-- the formal 120-episode set is concentrated on rigid parcels feasible for the
-  current parallel gripper; cylinders and industry-size boundaries need separate
-  collection/evaluation;
-- 96 episodes are insufficient for broad semantic generalization;
-- the historical 96-episode shard has a 1,000x depth-scale defect and is valid
-  only for RGB/state training; it must not be used for RGB-D;
-- corrected RGB-D has been verified on a one-episode sensor/training smoke, not
-  on a statistically meaningful task evaluation.
-
-## Release requirements
-
-Before external release, publish the episode manifest, feature metadata, exact
-Git commit, upstream revisions, generation config, and SHA-256. Review the
-license implications of simulator-provided assets and declare a dataset license
-explicitly; do not infer it automatically from the source-code MIT License.
+Use only after recovery and verification for simulated SmolVLA reproduction.
+It is not pure-VLA success evidence, real-robot data, or a general public
+dataset claim. Release steps are in [the upload guide](../data/HUGGINGFACE_UPLOAD_GUIDE_EN_CN.md).

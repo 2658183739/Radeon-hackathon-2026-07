@@ -1,50 +1,44 @@
-# Final Submission Audit / 最终提交审查
+# Final Submission Audit / 最终提交审计
 
-Checked against the Feishu **作品提交指南** on 2026-08-06.
+## Status / 状态
 
-## Must Complete Before 23:59 / 截止前必须完成
+**English.** This audit is a repository review entry, not proof of external publication or registration. The final reviewer must recheck every external URL, account state, and deadline requirement.
 
-| Action | Current state | What to do |
+**中文。** 本审计是仓库审阅入口，不是外部发布或注册的证明。最终提交者必须重新检查全部外部链接、账户状态和截止要求。
+
+## Verified In Repository / 仓库内已核对
+
+| English | 中文 | Evidence boundary / 证据边界 |
 | --- | --- | --- |
-| AMD AI Developer Program registration | Cannot be verified from the repository | Confirm that every team member has registered at <https://www.amd.com/zh-cn/developer.html>. |
-| Push the final local commits | Local branch is ahead of the public branch | Push `track3-parcel-sorter-final` before the deadline, then reopen the public README and video links. |
-| PR title format | Current PR title is `Track 3, 2658183739, Parcel Sorter ROCm` | Rename it to `[Physical AI] 2658183739 - Parcel Sorter ROCm`. |
-| Public video platform | Local and repository MP4 are ready; Bilibili/YouTube is pending | Upload `videos/genesis_panda_8_success_reference_demo.mp4`, make it public, and add the URL to README and PR description. |
-| Final external-link check | Pending after upload and push | Open the fork, PR, raw MP4 and Bilibili/YouTube URL in a signed-out browser. |
+| README has five bilingual submission sections and install instructions. | README 包含五个双语提交章节和安装说明。 | Documentation only. |
+| The demo is a 59-second 1920x1080 H.264 Genesis simulation artifact. | 演示为 59 秒、1920x1080 H.264 的 Genesis 仿真工件。 | Not real-robot footage. |
+| `ScriptedPickPlaceExpert + ClosedLoopSupervisor` produced the 8/10 development-screen demo clips. | `ScriptedPickPlaceExpert + ClosedLoopSupervisor` 产生 8/10 开发筛选视频片段。 | Deterministic expert/reference only. |
+| Strict pure VLA is 0/3. | 严格纯 VLA 为 0/3。 | Not passed; never combine it with expert or hybrid results. |
+| The audited primitive dataset has 7 independent episodes and 4,557 frames. | 经审计的 primitive 数据集有 7 个独立 episode、4,557 帧。 | Dataset/training scope, not a 96-episode claim. |
+| GPT-5.6 Luna is documented as development/orchestration only. | GPT-5.6 Luna 被记录为仅用于研发/编排。 | Not a robot policy or video controller. |
 
-## Ready / 已完成
+## Bonus-Item Status / 加分项状态
 
-- Public fork and official PR #119 exist.
-- README contains exactly the five required bilingual sections.
-- MIT license, `requirements.txt`, `src/`, `configs/`, `data/`, `docs/` and
-  `videos/` are present.
-- README includes ROCm/License/Python badges and a five-second GIF.
-- Demo is 59 seconds, 1920x1080 H.264, with burned-in Chinese and English text,
-  an opening success hook, overview plus wrist views, and a final repository
-  card.
-- The video now labels the controller as a scripted agent and explicitly says
-  it is not pure VLA.
-- Training log, training curve, dataset audit and offline ablation are included.
-- Agent, model, API and system architecture are documented.
-- Focused secret scan found no credential-shaped value; no file exceeds 100 MB.
-- PR confirmation screenshot is stored at `docs/assets/pr-119-confirmation.png`.
+| Item / 加分项 | Status / 状态 | Evidence / 证据 |
+| --- | --- | --- |
+| Training log and visual / 训练日志与图片 | Ready / 已就绪 | 2,800-step raw log, curve, 1920x1080 evidence board; single run `n=1` / 原始日志、曲线与证据板；单次运行 `n=1` |
+| Expanded ablation / 扩展消融 | Ready / 已就绪 | 42-sample raw, clipped, Harness-Lite and expert comparison with latency and safety counts / 含误差、延迟与安全计数 |
+| Dataset release package / 数据集发布包 | Pending payload recovery / 待恢复数据 | Current checkout lacks Parquet, MP4 and metadata; do not upload the unrelated 9-episode set / 当前缺二进制载荷，不得上传无关 9 回合集 |
+| Sim-to-Real / 仿真到真机 | Protocol ready; result not performed / 协议已就绪，结果未执行 | Randomized paired protocol and pending result table; no real-robot claim / 随机配对协议与待测结果表，不宣称真机 |
+| Technical communication / 技术传播 | Ready to publish / 文案已就绪 | Bilingual blog and social copy / 中英博客与社交文案 |
+| Code review / 代码审查 | Ready / 已就绪 | Local links, JSON, secrets, file sizes, figures, video metadata and diff checks / 本地链接、JSON、敏感信息、文件大小、图片、视频元数据与 diff 检查 |
 
-## Optional Additions / 可选加分项
+## External Checks Before Submission / 提交前外部检查
 
-| Item | Recommendation |
-| --- | --- |
-| TensorBoard screenshot | Do not fabricate one. The repository has a real training log and curve; add TensorBoard only if the original event file can be exported before the deadline. |
-| Public dataset | Optional. Seven independent episodes are too small to advertise as a general-purpose dataset; publish only with the existing limitations and hashes. |
-| Sim-to-Real | Not required by the guide. Keep the honest simulation-only boundary. |
-| Technical blog or post | Useful only after the repository and video URLs are final. A short post about why decreasing loss did not produce closed-loop success would be more credible than a generic project announcement. |
+- **English:** Confirm AMD program registration, repository visibility, PR state, public-video availability, and any required upload fields in a signed-out browser. Do not mark an unverified external item as complete.
+- **中文：** 在退出登录的浏览器中确认 AMD 项目注册、仓库可见性、PR 状态、公开视频可用性和必填上传字段。未核验的外部项目不得标为完成。
 
-## Code Review Result / 代码审查结论
+## Review Risks / 审阅风险
 
-One release-blocking container issue was fixed: `activate_radeon_env.sh` now
-recognizes the ROCm Python environment already active in the base image through
-`sys.prefix`. Previously, the image `CMD` could exit before preflight because it
-looked only for the project `.venv` and `/workspace/rdna`.
+- **English:** Historical documents contain additional development results, including 96/100 frozen-holdout material. They are historical/internal evidence and must not replace the submission dataset statement of 7 episodes / 4,557 frames or the strict pure-VLA result of 0/3.
+- **中文：** 历史文档包含其他开发结果，包括 96/100 的 frozen-holdout 材料。它们属于历史/内部证据，不得替代本提交的 7 episode / 4,557 帧数据集表述或严格纯 VLA 0/3 结果。
 
-The remaining broad-suite failures documented in `docs/TEST_REPORT.md` are
-unchanged baseline hash/dependency issues in the non-ROCm Windows environment.
-They should not be described as a fully green suite.
+- **English:** Hybrid VLA offline envelope results (0/42 raw, 42/42 bounded variants) are not closed-loop task-success rates.
+- **中文：** 混合 VLA 的离线动作包络结果（原始 0/42、受限版本 42/42）不是闭环任务成功率。
+
+See [the Markdown review index](MD_REVIEW_INDEX_EN_CN.md) for the document map and [result attribution](RESULT_ATTRIBUTION.md) for controller-specific boundaries.

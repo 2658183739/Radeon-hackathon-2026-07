@@ -35,7 +35,17 @@ and scored **0/3**.
 [Demo MP4](videos/genesis_panda_8_success_reference_demo.mp4) ·
 [PR #119](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119) ·
 [Agent/model/API architecture](docs/AGENT_MODEL_ARCHITECTURE.md) ·
-[Training evidence](docs/TRAINING_EVIDENCE.md)
+[Training evidence](docs/TRAINING_EVIDENCE.md) ·
+[Markdown review index / Markdown 审阅索引](docs/MD_REVIEW_INDEX_EN_CN.md)
+
+**Evidence and release / 证据与发布：**
+[Ablation / 消融](docs/ABLATION_RESULTS.md) ·
+[Dataset card / 数据卡](docs/DATASET_CARD.md) ·
+[Hugging Face upload guide / 上传指南](data/HUGGINGFACE_UPLOAD_GUIDE_EN_CN.md) ·
+[Sim-to-Real status and protocol / 状态与协议](docs/SIM_TO_REAL_STATUS.md) ·
+[Technical blog and social copy / 技术博客与社交文案](docs/TECHNICAL_BLOG_AND_SOCIAL_EN_CN.md)
+
+![Training and offline ablation evidence / 训练与离线消融证据](docs/assets/training_evidence_board_1920x1080.png)
 
 **Contents / 目录**
 
@@ -179,8 +189,15 @@ and [test report](docs/TEST_REPORT.md).
 
 The next useful experiment is not a larger model. It is a larger, more diverse
 set of independently successful demonstrations, followed by a paired strict
-closed-loop evaluation. TensorBoard export, public dataset hosting,
-Sim-to-Real and real-robot validation are not claimed in this submission.
+closed-loop evaluation. The repository includes a log-derived training figure,
+an expanded offline ablation and a preregistered Sim-to-Real protocol. It does
+not claim a TensorBoard export, public dataset hosting, a completed Sim-to-Real
+experiment or real-robot validation.
+
+下一步最有价值的工作不是直接换更大模型，而是采集更多彼此独立、布局更多样的
+成功示范，再按冻结协议进行配对闭环评测。仓库已提供由训练日志生成的曲线、扩展
+离线消融和预注册 Sim-to-Real 协议；不宣称已有 TensorBoard 导出、公开数据集、
+已完成的 Sim-to-Real 实验或真机验证。
 
 <a id="attribution"></a>
 ## 3. Source Attribution / 代码来源说明

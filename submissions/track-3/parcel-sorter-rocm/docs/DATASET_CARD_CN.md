@@ -1,54 +1,41 @@
-# 数据集卡：Parcel Sorter RGB-D 专家演示
+# 数据集卡 / Dataset Card
 
-## 摘要
+## 当前候选
 
-数据完全由 Genesis 快递分拣仿真和确定性 IK 专家生成。正式采集包含 120 次随机尝试，
-其中 96 个成功回合、11,753 帧进入模仿学习数据；全部 120 次尝试保留 JSONL 审计轨迹。
+当前 SmolVLA 训练候选是 Genesis 派生的本地 LeRobot 数据集，记录的远端路径为
+`/workspace/parcel-sorter-opt-v1/outputs/mobile-primitive-dataset-v2`。审计通过：7 个独立
+episode（`0` 至 `6`）、4,557 帧、30 fps、43 维状态、20 维动作（含
+`primitive_progress`）和 24 个任务文本。策略输入为俯视 RGB 加
+`observation.state`；特权 parcel 状态被排除。
 
-## 字段
+| 字段 | 审计值 |
+| --- | --- |
+| Episodes / episode | 7（`0` 至 `6`） |
+| Frames / 帧 | 4,557 |
+| Rate / 频率 | 30 fps |
+| State / 状态 | 43-D |
+| Action / 动作 | 20-D（含 `primitive_progress`） |
+| Task texts / 任务文本 | 24 |
+| RGB/depth audit / RGB-深度审计 | 检查 65 帧，0 次不匹配 |
 
-| 字段 | 形状 | 单位/含义 | ACT 是否使用 |
-| --- | --- | --- | --- |
-| `observation.images.overhead_rgb` | `3 x 224 x 224` | uint8 RGB | 是 |
-| `observation.images.overhead_depth` | `1 x 224 x 224` | float 米制深度 | 仅修正后的新 shard 有效 |
-| `observation.images.overhead_depth_rgb` | `3 x 224 x 224` | 固定量程深度视图 | 可选 RGB-D 输入 |
-| `observation.state` | `20` | 关节、末端、目标、接触力 | 是 |
-| `observation.privileged_state` | `7` | 仿真包裹真值位姿 | 否 |
-| `action` | `8` | 位置、四元数、夹爪 | 训练目标 |
+## 可用性与边界
 
-物理 240 Hz、控制 30 Hz、相机 10 Hz；两个相机更新之间保持最近一帧。
+本仓库只有审计、manifest 和记录的哈希；Parquet、MP4 以及 metadata 二进制 payload
+不在本地 checkout。因此它**当前不是可完整上传的数据集**，也没有公开 Hugging Face
+URL。不得用本地 9-episode 数据集替代。
 
-## 随机化
+相关记录为
+`evidence/training/pash-primitive-dataset-v2-audit.json` 和
+`evidence/training/pash-primitive-dataset-v2-manifest.json`。manifest 包含 7 个输出
+Parquet 文件的 SHA-256 值；恢复文件后必须逐一匹配。
 
-包裹尺寸、质量、摩擦、XY、yaw、目标、相机位置和动作延迟由 seed 与 episode 索引确定。
-基础 ACT 数据使用 `configs/baseline.toml`；catalog v1 包含 7 类带权训练 profile，catalog v2
-包含 12 类均衡训练 profile 和 9 类仅评测行业尺寸 profile。Box 与 Cylinder 按实际几何
-创建，目录 evaluator 维持稳定的 profile episode 编号。
+## 历史数据
 
-## 纳入规则
+96 episode / 11,753 帧的 ACT 数据是 ACT baseline 的**历史 legacy 数据**。它不是本次
+SmolVLA 候选，不能与上述数量合并，也不能按本候选 manifest 上传。
 
-只有成功专家回合进入行为克隆数据。失败尝试保留在审计轨迹中，未来可用于困难样本、
-恢复学习或偏好学习，但必须使用明确方法，不能直接当正确动作标签。
+## 预期用途
 
-## 适用范围
-
-- 本仿真工位的 ACT/模仿策略训练；
-- RGB、RGB-D 和状态消融；
-- 可复现教学；
-- 困难样本与安全分析。
-
-## 限制
-
-- 只有仿真，没有真机标定；
-- 成功样本训练存在选择偏差；
-- 正式 120 回合数据仍主要覆盖当前平行夹爪可处理的刚性包裹；圆筒和行业尺寸边界需要
-  单独采集/评测；
-- 96 回合不足以支持广泛语义泛化；
-- 历史 96 回合 shard 存在 1,000 倍深度尺度错误，只可用于 RGB/状态训练，不可用于 RGB-D；
-- 修正 RGB-D 已完成一回合传感器/训练链路烟雾，尚无统计意义上的任务效果结论。
-
-## 发布要求
-
-对外发布前应提供 episode manifest、特征 metadata、准确 Git commit、上游版本、生成配置
-和 SHA-256。必须审查模拟器资产的许可证影响并明确声明数据集许可证，不能直接把源码的
-MIT 许可证自动套用到数据集。
+仅可在恢复并完成验证后，用于模拟环境中的 SmolVLA 复现。它不是纯 VLA 成功证据、真实
+机器人数据，也不是面向公众的通用数据集声明。发布步骤见
+[Hugging Face 恢复与上传指南](../data/HUGGINGFACE_UPLOAD_GUIDE_EN_CN.md)。

@@ -1,50 +1,7 @@
-# 模型卡：Parcel Sorter ACT 基线
+# 模型卡（中文入口）/ Model Card Chinese Entry
 
-## 模型
+完整中英双语模型卡见 [`MODEL_CARD.md`](MODEL_CARD.md)。该卡记录当前 SmolVLA 候选的输入输出、参数量、2,800-step Radeon 训练、离线消融、严格纯 VLA 0/3 结果、证据链接和发布限制。
 
-基线为固定 LeRobot 版本实现的 52M 参数 ACT。输入顶视 RGB 和 20 维非特权状态，按
-action chunk 输出 8 维末端/夹爪动作。
+See the complete bilingual model card in [`MODEL_CARD.md`](MODEL_CARD.md). It covers the current SmolVLA candidate's I/O contract, parameter counts, 2,800-update Radeon run, offline ablation, strict pure-VLA 0/3 result, evidence links and release limits.
 
-## 训练
-
-- 数据：96 个成功仿真专家回合，11,753 帧 RGB/状态；
-- 输入：RGB + 状态，基线未使用深度；
-- 正式训练：5000 步、batch 32、AMP、10% 评估切分；
-- 每 1000 步保存检查点；
-- 硬件：单张 `gfx1100` Radeon、ROCm 7.2.1、PyTorch 2.9.1。
-
-通用图像增强现默认关闭；开启增强的模型必须作为单独匹配实验报告。
-
-## 评估
-
-| 检查点 | episode | 成功率 | 平均/P95 推理 |
-| --- | --- | ---: | ---: |
-| 4000 | 10-19 | 30% | 2.05/8.00 ms |
-| 5000 | 10-19 | 10% | 1.94/7.99 ms |
-
-当前选择 4000 步，因为闭环成功率优先于最终 loss 或很小的延迟差异。10 回合仍不足以
-形成最终模型结论。
-
-## 安全边界
-
-ACT 不能发送原始力矩。输出需要通过形状/有限数检查、四元数归一化、末端限幅、确定性
-状态机、IK、PD、夹爪语义、重试预算和硬接触力中止。
-
-## 适用范围
-
-- 证明 ACT 在 ROCm 上的完整训练与推理链；
-- 在提交仿真器中进行策略和模态消融；
-- 教学与研究，不用于无人值守真机部署。
-
-## 限制
-
-- 闭环成功率低，尚未收敛；
-- 数据少、只有仿真和一个任务指令；
-- 该历史检查点没有有效深度输入、真机评估、标定或 sim-to-real 证据；
-- 离线 loss 改善时任务成功率仍可能退化；
-- 安全监督器降低风险，但不等于真机安全认证。
-
-## 发布要求
-
-发布权重时应同时给出准确代码/配置 commit、数据哈希、检查点步数、训练日志、模型配置、
-上游许可证和 SHA-256。确定最终权重许可证前还需审查预训练视觉骨干的条款。
+历史 96 episode / 11,753 帧 ACT baseline 与当前 7 episode / 4,557 帧 SmolVLA 训练证据严格分离。/ The historical 96-episode / 11,753-frame ACT baseline remains strictly separate from the current 7-episode / 4,557-frame SmolVLA evidence.
