@@ -1,62 +1,45 @@
-# Architecture and Experiment Plan
+# Architecture / 架构
 
-## Competition mapping
+The runtime has one common action boundary and three ways to reach it. Genesis
+provides physics, rendering, and the Panda MJCF. The project builds
+`PolicyContext`, invokes a controller, validates `CartesianAction`, then steps
+the simulator.
 
-| Competition area | Baseline implementation | Measured evidence |
-| --- | --- | --- |
-| Simulation | Genesis rigid-body scene with a Franka arm, parcels, bins, RGB-D, and contact sensors | simulation steps/s and parallel environments |
-| Learning | Scripted IK demonstrations followed by ACT or behavior cloning | training curves and task success |
-| Robustness | Domain randomization over parcel, camera pose, friction, and action delay | held-out success and drop rate |
-| Closed loop | Grasp verification, force safety, retry, and abort supervisor | first-attempt and recovery success |
-| GPU optimization | ROCm simulation, batched environments, mixed-precision visual policy, reduced transfers | latency, throughput, VRAM, utilization |
-| Multimodal | RGB, depth, proprioception, gripper state, and contact force | modality ablation |
+运行时只有一个动作边界和三条到达它的路径。Genesis 提供物理、渲染和 Panda MJCF；项目构建 `PolicyContext`，调用控制器，验证 `CartesianAction`，再推进仿真。
 
-## Delivery gates
+```text
+RGB + state + task -> PolicyContext -> controller -> safety checks -> Genesis
+```
 
-### Gate 1: ROCm smoke test
+1. `ScriptedPickPlaceExpert + ClosedLoopSupervisor` reads privileged state and
+   produces the 8/10 video trajectories.
+2. SmolVLA or PI0.5 produces learned actions or residuals. In hybrid use,
+   Harness-Lite bounds candidates against Cartesian, force, IK, and tool limits.
+3. Strict pure VLA gives the learned policy responsibility for all declared task
+   actions; the recorded result is 0/3.
 
-- Verify one visible Radeon GPU and a non-null `torch.version.hip`.
-- Install the pinned Genesis revision without replacing ROCm PyTorch.
-- Run a headless rigid-body and robot-control example.
-- Record device, software versions, and a screenshot or log.
+1. `ScriptedPickPlaceExpert + ClosedLoopSupervisor` 读取特权状态，产生 8/10 视频轨迹。
+2. SmolVLA 或 PI0.5 产生学习动作或残差；混合使用时，Harness-Lite 按笛卡尔、力、IK 和工具边界限制候选动作。
+3. 严格纯 VLA 由学习策略负责全部声明任务动作；记录结果为 0/3。
 
-### Gate 2: deterministic closed-loop MVP
+GPT-5.6 Luna/Codex Runtime belongs to development and review work, not this
+runtime control diagram. The implementation entry points are
+`src/parcel_sorter/genesis_env.py`, `src/parcel_sorter/runner.py`, and
+`scripts/run_expert.py`.
 
-- Spawn one parcel at a known pose.
-- Move to pregrasp with IK.
-- Close the gripper and verify contact.
-- Lift and place into one destination bin.
-- Retry after a deliberately failed grasp.
+## Concrete executable interfaces / 可执行接口
 
-This gate has been validated on the competition Radeon instance. The remaining
-control work is focused on lowering approach force in randomized heavy-parcel
-episodes.
+The exact Python policy contract is
+`ActionPolicy.predict(context: PolicyContext) -> CartesianAction`.
+`PolicyContext` contains the supervisor decision, `RobotState`, task text, and
+optional RGB/depth frames. `CartesianAction` contains the target position,
+target quaternion, gripper value, and command label; `GenesisParcelEnv.step`
+is the simulator execution boundary for that action.
 
-### Gate 3: parallel data generation
-
-- Run randomized scenes in parallel.
-- Use the deterministic controller as an expert.
-- Save RGB/depth frames, robot state, actions, and outcomes.
-- Write successful RGB-D episodes directly to LeRobotDataset and retain every audit trace as JSONL.
-
-### Gate 4: learned visual policy
-
-- Start with behavior cloning or a small ACT policy.
-- Predict end-effector deltas and gripper commands, not raw torques.
-- Keep IK, PD control, safety checks, and retries outside the model.
-
-### Gate 5: robustness and optimization
-
-- Evaluate unseen parcel dimensions, masses, friction, and poses.
-- Compare state-only, RGB, and RGB-D plus state policies.
-- Compare open-loop execution with closed-loop retry.
-- Sweep environment count and inference precision on the same GPU.
-
-## Profiling rules
-
-- Keep physics and control numerics in FP32 for the first stable baseline.
-- Render cameras less frequently than physics steps.
-- Keep observations on the GPU whenever the backend permits it.
-- Use `rocm-smi`, PyTorch Profiler, and `rocprofv3` for evidence.
-- Report median and P95 inference latency, not only averages.
-- Preserve raw logs and the exact config used for every reported result.
+`scripts/run_demo.sh` fixes episode 0 and calls `scripts/run_expert.py`, so it
+uses `ScriptedExpertPolicy` without a checkpoint. It is a scripted-agent
+simulation demo and does not load a learned policy. The
+separate `mobile_vla_service` is a local AF_UNIX persistent-policy service
+with its own `mobile-pi05-persistent-policy-service-v1` protocol. It is not
+used by the demo and is not a Codex Responses API or another cloud
+robot-control API.

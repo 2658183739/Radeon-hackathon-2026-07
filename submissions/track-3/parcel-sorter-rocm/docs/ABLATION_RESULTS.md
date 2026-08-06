@@ -6,11 +6,11 @@ This is a frozen offline action-contract comparison over **42 episode-stage samp
 
 这是在 **42 个 episode-stage 样本**上进行的冻结离线动作合约比较：从 7 个回合的 6 个阶段各取中间帧，每个样本前重置策略队列。同一回合内样本存在相关性，因此本表仅作描述，不宣称统计显著性，也不等同于闭环任务成功。
 
-![Offline action-envelope ablation / 离线动作包络消融](assets/ablation_comparison.png)
+![Offline action-envelope ablation / 离线动作包络消融](assets/offline_ablation.png)
 
 ## Primary Comparison / 主要对比
 
-| Treatment / 方案 | Mean MAE | Mean MSE | Action envelope / 动作边界 | What changed / 改动 |
+| Treatment / 方案 | 19-D control MAE | Mean MSE | Action envelope / 动作边界 | What changed / 改动 |
 | --- | ---: | ---: | ---: | --- |
 | Expert executor / 专家执行器 | 0.004468 | 0.000422 | 42/42 | Reference executor / 参考执行器 |
 | Raw VLA / 原始 VLA | 0.006563 | 0.000972 | **0/42** | Unmodified learned action / 未修改学习动作 |
@@ -32,9 +32,18 @@ This is a frozen offline action-contract comparison over **42 episode-stage samp
 
 ## What the Ablation Shows / 消融说明了什么
 
-Raw learned actions violated at least one frozen execution limit for every selected sample. Applying the fixed safety envelope restored action validity for all 42 samples, and Harness-Lite slightly reduced mean action error relative to safety clipping alone. This supports the engineering choice to keep learned actions behind a supervisor.
+Raw learned actions violated at least one frozen execution limit for every selected sample. Applying the fixed safety envelope restored action validity for all 42 samples, and Harness-Lite slightly reduced the mixed-component diagnostic relative to safety clipping alone. This supports the engineering choice to keep learned actions behind a supervisor.
 
-原始学习动作在全部 42 个样本上都至少违反一项固定执行边界。加入固定安全包络后，42 个样本全部恢复动作合法性；Harness-Lite 相比单纯安全裁剪又略微降低平均动作误差。这支持“学习动作必须经过监督器”的工程选择。
+The MAE/MSE columns cover the first 19 control outputs; the 20th auxiliary
+progress output is reported separately. They average heterogeneous action
+components and therefore have no single physical unit. They are diagnostic
+comparisons, not end-effector accuracy or task-success measurements.
+
+MAE/MSE 两列覆盖前 19 个控制输出，第 20 个辅助阶段进度输出单独报告。它们混合
+平均了不同类型的动作分量，因此没有统一物理单位，只用于离线诊断比较，不代表
+末端执行器精度或任务成功率。
+
+原始学习动作在全部 42 个样本上都至少违反一项固定执行边界。加入固定安全包络后，42 个样本全部恢复动作合法性；Harness-Lite 相比单纯安全裁剪略微降低混合分量诊断值。这支持“学习动作必须经过监督器”的工程选择。
 
 ## What It Does Not Show / 消融不能说明什么
 

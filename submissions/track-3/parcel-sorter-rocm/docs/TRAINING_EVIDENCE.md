@@ -1,8 +1,8 @@
 # Training Evidence / 训练证据
 
-This page records one completed, auditable SmolVLA training run on one AMD Radeon GPU. It does not claim repeated-run statistics, TensorBoard tracking, closed-loop VLA success, or Sim-to-Real transfer.
+This page records one completed, auditable SmolVLA training run on one AMD Radeon GPU. The evidence is limited to the saved training log, checkpoint metadata, and offline action evaluation.
 
-本页记录一次在单张 AMD Radeon GPU 上完成且可审计的 SmolVLA 训练。它不代表多次重复实验、TensorBoard 跟踪、VLA 闭环成功或 Sim-to-Real 迁移结果。
+本页记录一次在单张 AMD Radeon GPU 上完成且可审计的 SmolVLA 训练。证据范围仅包括训练日志、检查点元数据和离线动作评估。
 
 ## Evidence Map / 证据索引
 
@@ -17,7 +17,7 @@ This page records one completed, auditable SmolVLA training run on one AMD Radeo
 
 ## Recorded Run / 已记录训练
 
-![Training evidence board / 训练证据看板](assets/training_evidence_board_1920x1080.png)
+![SmolVLA training loss / SmolVLA 训练损失](assets/training_loss.png)
 
 | Metric / 指标 | Value / 数值 |
 | --- | ---: |
@@ -44,7 +44,7 @@ Loss 下降证明训练确实执行并拟合了提交的数据分布，但**不�
 
 ## Input Contract / 输入合约
 
-The policy uses `observation.state` and `observation.images.overhead_rgb`. The state is 43-D, the action is 20-D, and privileged simulator state is excluded from policy input. The dataset contains 24 primitive task texts. Dataset binaries and the checkpoint remain on the remote training workspace; their public URLs are pending.
+The policy uses `observation.state` and `observation.images.overhead_rgb`. The state is 43-D, the action is 20-D, and privileged simulator state is excluded from policy input. The training manifest records 24 primitive task texts. The repository publishes the evidence needed to audit this run without bundling the checkpoint or the original training payload.
 
 策略输入为 `observation.state` 与 `observation.images.overhead_rgb`，状态 43 维、动作 20 维，策略不读取仿真特权状态。数据集含 24 条 primitive 任务文本。数据集二进制和 checkpoint 目前仍在远程训练工作区，公开链接待上传后回填。
 
@@ -55,9 +55,7 @@ The repository provides a log-derived training curve and an evidence board, not 
 仓库提供由日志生成的训练曲线和证据板，不冒充 TensorBoard 截图。本次运行未把 TensorBoard 作为权威记录工具，因此不会伪造 TensorBoard 页面；图中每个数值都能由上面的 JSON 摘要与完整日志复核。
 
 ```bash
-python3 docs/assets/generate_training_evidence_figures.py \
-  --repo-root . \
-  --font /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
+python3 docs/assets/generate_training_evidence_figures.py --repo-root .
 ```
 
 ## Limitations / 局限

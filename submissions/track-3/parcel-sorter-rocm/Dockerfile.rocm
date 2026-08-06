@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/parcel-sorter-rocm
-COPY pyproject.toml README.md README_CN.md TECHNICAL_REPORT.md TECHNICAL_REPORT_CN.md ./
+COPY pyproject.toml requirements.txt requirements-lock.txt README.md README_CN.md TECHNICAL_REPORT.md TECHNICAL_REPORT_CN.md ./
 COPY SUBMISSION_CHECKLIST.md SUBMISSION_CHECKLIST_CN.md ./
 COPY LICENSE UPSTREAM_LOCK.json THIRD_PARTY_NOTICES.md THIRD_PARTY_NOTICES_CN.md ./
 COPY src src
@@ -32,10 +32,11 @@ RUN mkdir -p third_party \
          git clone https://github.com/huggingface/lerobot.git third_party/lerobot \
          && git -C third_party/lerobot checkout --detach "${LEROBOT_SHA}"; \
        fi \
-    && python -m pip install --no-cache-dir -e third_party/genesis-world \
-    && python -m pip install --no-cache-dir -e . \
+    && python -m pip install --no-cache-dir -c requirements-lock.txt -e third_party/genesis-world \
+    && python -m pip install --no-cache-dir -c requirements-lock.txt -r requirements.txt \
+    && python -m pip install --no-cache-dir --no-deps -e . \
     && if [ "${INSTALL_LEROBOT}" = "1" ]; then \
-         python -m pip install --no-cache-dir -e 'third_party/lerobot[training]'; \
+         python -m pip install --no-cache-dir -c requirements-lock.txt -e 'third_party/lerobot[training]'; \
        fi
 
-CMD ["bash", "scripts/run_pipeline_radeon.sh"]
+CMD ["bash", "scripts/run_demo.sh"]

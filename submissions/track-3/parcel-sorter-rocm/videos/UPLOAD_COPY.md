@@ -1,24 +1,20 @@
-# Video Upload Copy / 视频上传文案
+# Upload copy / 上传文案
 
-## Title / 标题
+## 中文
 
-AMD Physical AI | Parcel Sorter ROCm：脚本 Agent 与 VLA 安全框架
+Parcel Sorter ROCm 在 AMD Radeon GPU 与 ROCm 上运行 Genesis 包裹分拣仿真。
+本视频按原顺序展示 8 个成功脚本专家回合，控制器为
+`ScriptedPickPlaceExpert + ClosedLoopSupervisor`。仓库同时提供 SmolVLA/PI0.5
+训练、离线 Agent+VLA 动作约束实验和严格纯 VLA 评测，三类结果分别统计。
 
-## Description / 简介
+Repository: https://github.com/2658183739/Radeon-hackathon-2026-07
 
-Parcel Sorter ROCm 在单张 AMD Radeon GPU 上通过 ROCm 运行 Genesis + Franka
-Panda 包裹抓取与分拣。
+## English
 
-本视频展示 10 个固定种子开发回合中筛选出的 8 个成功脚本 agent 回合，包含全景、
-腕部视角和中英双语字幕。项目同时实现了 SmolVLA/PI0.5 路径以及 agent 引导的
-Harness-Lite 安全框架；混合路径当前证据为离线动作包络 42/42，严格纯 VLA 闭环
-结果为 0/3。
+Parcel Sorter ROCm runs a Genesis parcel-sorting simulation on AMD Radeon and
+ROCm. This video shows eight successful scripted-expert episodes in their
+original order, controlled by `ScriptedPickPlaceExpert + ClosedLoopSupervisor`.
+The repository separately reports SmolVLA/PI0.5 training, an offline Agent+VLA
+action-bounding study, and strict pure-VLA evaluation.
 
-运行环境：AMD Radeon + ROCm 7.2.1、Genesis 1.2.3、PyTorch 2.9.1 ROCm、
-LeRobot 0.6.1。
-
-GitHub: https://github.com/2658183739/Radeon-hackathon-2026-07
-
-## Suggested Tags / 建议标签
-
-`AMD` `ROCm` `Physical AI` `Robotics` `Genesis` `Franka Panda` `VLA`
+Repository: https://github.com/2658183739/Radeon-hackathon-2026-07

@@ -14,7 +14,7 @@ Linux ROCm container.
 | Final video source audit | 8 required successes, 8 overview streams, 2 wrist streams; passed |
 | Final MP4 decode | 1920x1080 H.264, 59.0 s, sampled frames nonblank; passed |
 | Final MP4 SHA-256 | `8327326166624e4de0c8dcea80703f6ebd4535b360768cb0416111d831aa56fd` |
-| Video builder compilation | `videos/build_demo_video.py`; passed |
+| Video concat manifest | 8 sources and output fully decoded; frame count and duration matched |
 | Radeon activation script syntax | `scripts/activate_radeon_env.sh`; passed with Git Bash `bash -n` |
 | File-size audit | no file over 100 MB |
 | Focused credential-pattern scan | no credential-shaped secret found |
