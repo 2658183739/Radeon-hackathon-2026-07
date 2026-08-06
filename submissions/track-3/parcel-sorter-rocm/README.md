@@ -14,9 +14,9 @@ English: [Overview](#overview) | [Development](#development) | [Sources](#source
 
 ![5-second scripted-expert preview / 5 秒脚本专家预览](docs/assets/demo_hook_5s.gif)
 
-Parcel Sorter ROCm is a small, reproducible Genesis parcel-picking workcell for one AMD Radeon GPU with ROCm 7.2.1. It separates three things that are often conflated: a deterministic scripted reference controller, a bounded hybrid Agent+VLA action path, and a strict pure-VLA evaluation.
+Parcel Sorter ROCm is a small, reproducible Genesis parcel-picking workcell for one AMD Radeon GPU with ROCm 7.2.1. It separates three things that are often conflated: a deterministic scripted reference controller, a bounded scripted-controller+VLA action path, and a strict pure-VLA evaluation.
 
-这是一个面向单张 AMD Radeon GPU 与 ROCm 7.2.1 的 Genesis 包裹抓取和分拣工位。项目刻意把三条路线拆开记录：确定性的脚本专家参考控制器、带执行约束的 Agent+VLA 路线，以及严格纯 VLA 闭环评测。
+这是一个面向单张 AMD Radeon GPU 与 ROCm 7.2.1 的 Genesis 包裹抓取和分拣工位。项目刻意把三条路线拆开记录：确定性的脚本专家参考控制器、带执行约束的脚本控制器+VLA 路线，以及严格纯 VLA 闭环评测。
 
 [本地成功视频](videos/genesis_panda_8_success_reference_demo.mp4) · [结果与科研图](docs/RESULTS.md) · [运行架构](docs/ARCHITECTURE.md) · [数据说明](data/README.md) · [提交材料](submission_materials/README.md)
 
@@ -73,7 +73,7 @@ No dataset payload or learned weights are committed. The scripted demo is checkp
 
 最早的问题不是 loss 不下降，而是原始 VLA 动作数值看起来接近专家动作，实际却会超出笛卡尔步长、力、IK 或工具指令边界。项目没有删除这些失败样本，而是把安全裁剪和 Harness-Lite 放在候选动作之后，并单独报告它们对离线动作合约的影响。
 
-The Agent+VLA route is deliberately modest: a local SmolVLA or PI0.5 policy proposes actions or residuals; Harness-Lite checks Cartesian, force, IK, and tool limits before execution. In a residual configuration, the nominal motion remains scripted, so this route is hybrid rather than pure VLA.
+The hybrid controller+VLA route is deliberately modest: a local SmolVLA or PI0.5 policy proposes actions or residuals; Harness-Lite checks Cartesian, force, IK, and tool limits before execution. In a residual configuration, the nominal motion remains scripted, so this route is hybrid rather than pure VLA. GPT-5.6 Luna is not part of this runtime loop.
 
 ```text
 RGB + state + task -> PolicyContext -> VLA candidate -> Harness-Lite -> CartesianAction -> Genesis

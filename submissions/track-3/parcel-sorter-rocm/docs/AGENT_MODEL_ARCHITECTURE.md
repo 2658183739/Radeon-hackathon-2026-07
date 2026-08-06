@@ -61,7 +61,6 @@ class ActionPolicy(Protocol):
 | Claim / 结论 | Evidence / 证据 | Allowed wording / 可用表述 |
 | --- | --- | --- |
 | GPT-5.6 Luna usage / Luna 使用 | Delivery and engineering workflow / 交付与工程流程 | Development/orchestration Agent / 开发与编排 Agent |
-| Scripted controller / 脚本控制器 | 8/10 trajectories and 59 s video / 8/10 轨迹与 59 秒视频 | Scripted-agent success / 脚本 Agent 成功 |
-| Hybrid Agent+VLA | 42/42 offline envelope checks / 42/42 离线包络检查 | Offline action validity only / 仅离线动作合法性 |
+| Scripted controller / 脚本控制器 | 8/10 trajectories and 59 s video / 8/10 轨迹与 59 秒视频 | Scripted-controller success / 脚本控制器成功 |
+| Hybrid controller+VLA / 混合控制器+VLA | 42/42 offline envelope checks / 42/42 离线包络检查 | Offline action validity only / 仅离线动作合法性 |
 | Pure VLA | 0/3 strict closed-loop trials / 0/3 严格闭环试验 | Failed, not passed / 失败，未通过 |
-| Sim-to-Real | Protocol only / 仅协议 | Measurement pending / 待测 |
