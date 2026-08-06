@@ -1,21 +1,15 @@
 # 项目说明
 
-Parcel Sorter ROCm 是一个以仿真为先的具身智能参赛项目：在单张 AMD Radeon GPU 上，使用 Franka Panda 模型完成包裹分拣。运行环境为 Genesis 1.2.3、ROCm 7.2.1、PyTorch 2.9.1 ROCm 和 LeRobot 0.6.1。
+Parcel Sorter ROCm 在单张 AMD Radeon GPU 上通过 ROCm 运行 Genesis 包裹抓取与分拣仿真。Franka Panda 抓取随机包裹、跨工作区搬运，并放入指定左/右目标区。
 
-**做了什么。** 系统在 Genesis 仿真中抓取随机包裹并将其送至指定左/右格口；记录确定性脚本专家 agent 的轨迹，构建本地审计的 primitive 数据集，并在明确安全和归因门下运行策略实验。
+三条执行路径严格分开。成功视频来自确定性控制器 `ScriptedPickPlaceExpert + ClosedLoopSupervisor`：它读取 Genesis 特权状态、执行有限状态监督，在 10 个开发回合中成功 8 个。它不是 GPT-5.6 Luna，也不是纯 VLA。
 
-**方法。** 俯视 RGB 与 43 维非特权状态输入策略；启用 primitive progress 时采用 20 维动作合约。固定频率的物理/控制循环施加有限值、笛卡尔、工具指令、IK 和力检查。统一证据台账标注数据集审计、ROCm 日志、离线消融和媒体边界。
+混合 VLA 路径中，SmolVLA 或 PI0.5 提出受限动作或残差，Harness-Lite 检查笛卡尔进度、接触力、IK 和工具指令边界。42 个离线动作包络结果只属于混合 VLA 的离线证据，不是闭环任务成功。严格纯 VLA 路径由学习策略负责全部声明任务动作，不允许专家完成或回退；结果为 0/3，未通过。
 
-**创新点。** 项目的贡献不是主张纯 VLA 已通过，而是可审计地分离参考示范、离线动作合约分析和严格纯 VLA 评测，并从锁定的上游 Panda MJCF 通过结构化方式生成版本化工具适配器。
+学习策略输入为俯视 RGB、语言与 43 维非特权状态；启用 primitive progress 后输出为 20 维动作。审计数据集包含 7 个独立 episode、4,557 帧；本地 SmolVLA checkpoint 训练 2,800 step。
 
-项目严格区分三条证据轨道：
+**GPT-5.6 Luna 是研发/编排 Agent。** 它通过 Codex 运行时的 Responses 风格文件、终端、Git 和浏览器工具调用，辅助代码实现、实验编排、证据核验和交付审核。GPT-5.6 Luna 不接收机器人观测、不调用 `ActionPolicy.predict`、不向机器人发送动作，因此不是机器人推理或控制模型。
 
-- 确定性脚本专家 agent：10 条轨迹中 8 条成功。该 agent 读取仿真特权状态并遵循有限状态任务监督器；它仅用于证明示范来源，不是 VLA 结果。
-- 离线策略消融：42 个 episode-stage 动作合约样本。原始 VLA 的动作包络通过数为 0/42；安全裁剪 VLA 和 Harness-Lite 均为 42/42。
-- 严格纯 VLA 评测：0/3 成功。该轨道未通过，不得表述为成功的 VLA 结果。
+工程贡献是可审计边界：统一的 `ActionPolicy` API、可复现脚本控制器、版本化 Panda 工具适配器、受限的混合 VLA 动作选择，以及把每项结果绑定到控制器和 checkpoint 的证据台账。
 
-经审计的 primitive 数据集包含 7 个独立 episode 和 4,557 帧，包含 RGB、43 维非特权状态，以及带 primitive progress 的 20 维动作合约。本地证据包括数据集审计、训练日志、消融 JSON 和 PNG 曲线，具体路径见 `docs/TRAINING_EVIDENCE.md`。
-
-评审链接：[PR #119（Open，base 为 `main`）](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119)；[仓库演示视频](https://github.com/2658183739/Radeon-hackathon-2026-07/blob/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4)；[raw MP4](https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4)。该视频仅展示确定性脚本专家 agent 的仿真结果，不改变严格纯 VLA 0/3 的结果。
-
-本仓库不主张 Sim-to-Real 迁移、真实机器人视频、TensorBoard 导出或公开数据集托管。证据边界见 `docs/SIM_TO_REAL_STATUS.md`。未主张上传 Bilibili。
+记录的运行环境为 Genesis 1.2.3、ROCm 7.2.1、PyTorch 2.9.1 ROCm、LeRobot 0.6.1 和 Python 3.12。本次提交仅提供仿真结果；不主张 Sim-to-Real、真实机器人视频或成功的纯 VLA 闭环结果。

@@ -98,7 +98,7 @@ def episode_canvas(overview: Image.Image, wrist: Image.Image | None, episode: in
     draw.rectangle((0, 0, WIDTH, 86), fill=(20, 28, 36))
     draw.rectangle((0, 86, 10, 932), fill=(237, 28, 36))
     text(draw, (34, 30), "GENESIS PARCEL SORTER", fonts["header"])
-    text(draw, (34, 62), "确定性脚本专家 Agent / Deterministic scripted expert agent", fonts["small"], fill=(184, 205, 218))
+    text(draw, (34, 62), "脚本专家 Agent / Deterministic scripted expert agent", fonts["small"], fill=(184, 205, 218))
     rounded(draw, (1570, 20, 1878, 66), (26, 81, 76), radius=8)
     text(draw, (1724, 43), "SUCCESS TRUE / 成功", fonts["badge"], anchor="mm")
 
@@ -134,8 +134,8 @@ def episode_canvas(overview: Image.Image, wrist: Image.Image | None, episode: in
     text(draw, (1570, 588), "Official Franka Panda", fonts["small"])
     text(draw, (1570, 692), "DEV SCREENING", fonts["small"], fill=(154, 177, 190))
     text(draw, (1570, 734), "8 / 10", fonts["status"], fill=(253, 201, 87))
-    text(draw, (1570, 787), "专家演示，非实体设备", fonts["tiny"], fill=(180, 196, 205))
-    text(draw, (1570, 816), "Simulation reference", fonts["tiny"], fill=(180, 196, 205))
+    text(draw, (1570, 787), "脚本 Agent，非纯 VLA", fonts["tiny"], fill=(180, 196, 205))
+    text(draw, (1570, 816), "Scripted agent - not pure VLA", fonts["tiny"], fill=(180, 196, 205))
 
     draw.rectangle((0, 932, WIDTH, HEIGHT), fill=(19, 28, 36))
     text(draw, (54, 974), subtitle_cn, fonts["subtitle"])
@@ -155,7 +155,7 @@ def final_canvas(thumbs: list[Image.Image], fonts: dict[str, ImageFont.FreeTypeF
         rounded(draw, (xy[0] + 14, xy[1] + 14, xy[0] + 128, xy[1] + 48), (26, 81, 76), radius=6)
         text(draw, (xy[0] + 71, xy[1] + 31), f"EP {SUCCESS_IDS[index]:02d}", fonts["tiny"], anchor="mm")
     draw.rectangle((0, 605, WIDTH, HEIGHT), fill=(19, 28, 36))
-    text(draw, (960, 678), "8 / 10 DEVELOPMENT SCREENING", fonts["final"], anchor="ma", fill=(103, 220, 179))
+    text(draw, (960, 678), "8 / 10 SCRIPTED-AGENT SUCCESSES", fonts["final"], anchor="ma", fill=(103, 220, 179))
     text(draw, (960, 735), "八个成功的确定性脚本专家 Agent 回合", fonts["subtitle"], anchor="ma")
     text(draw, (960, 786), "AMD Radeon + ROCm | Genesis 1.2.3 | Official Franka Panda", fonts["caption"], anchor="ma", fill=(201, 215, 223))
     text(draw, (960, 843), "github.com/2658183739/Radeon-hackathon-2026-07", fonts["url"], anchor="ma", fill=(245, 248, 250))

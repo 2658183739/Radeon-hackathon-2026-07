@@ -1,19 +1,28 @@
-# Submission Checklist
+# Submission Checklist / 提交检查清单
 
-| Item | Status | Evidence or note |
+| Requirement | Status | Evidence or next action |
 | --- | --- | --- |
-| AMD Radeon ROCm execution environment | recorded | ROCm 7.2.1; Genesis 1.2.3; `scripts/preflight_radeon.sh` |
-| Install and run instructions | recorded | root `README.md` |
-| Scripted expert-agent development result | recorded | 8/10; privileged simulator state; isolated from pure VLA |
-| Strict pure-VLA evaluation | not passed | 0/3; `submission_materials/RESULTS.json` |
-| Dataset audit | recorded | 7 episodes / 4,557 frames |
-| Offline ablation | recorded | 42 action-contract samples; `docs/ABLATION_RESULTS.md` |
-| Local training log and curve | recorded | `evidence/training/`; `docs/assets/` |
-| TensorBoard export | pending | not supplied |
-| Sim-to-Real experiment | pending | no claim |
-| Real-robot footage | pending | no claim |
-| Public dataset URL | pending | not supplied |
-| Public demo-video URL | recorded | [GitHub blob](https://github.com/2658183739/Radeon-hackathon-2026-07/blob/track3-parcel-sorter-final/submissions/track-3/parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4); [raw MP4](https://raw.githubusercontent.com/2658183739/Radeon-hackathon-2026-07/track3-parcel-sorter-rocm/videos/genesis_panda_8_success_reference_demo.mp4); deterministic scripted expert-agent simulation only |
-| Pull-request URL | open | [PR #119](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119), base `main`; confirmation: `docs/assets/pr-119-confirmation.png` |
+| Public fork of the official repository | ready | <https://github.com/2658183739/Radeon-hackathon-2026-07> |
+| Official pull request | ready | [PR #119](https://github.com/AMD-DEV-CONTEST/Radeon-hackathon-2026-07/pull/119), base `main` |
+| PR title follows guide | action required | Rename to `[Physical AI] 2658183739 - Parcel Sorter ROCm` |
+| Bilingual README with five required sections | ready | root `README.md` |
+| MIT or Apache-2.0 license | ready | `LICENSE`, MIT |
+| Install and run instructions | ready | README section 5; `Dockerfile.rocm` |
+| Agent model, API and architecture | ready | `docs/AGENT_MODEL_ARCHITECTURE.md` |
+| Public Bilibili/YouTube video | action required | Upload the 59-second MP4 and replace the placeholder in `docs/PR_DESCRIPTION_READY.md` |
+| Video under 3 minutes, 1080p, bilingual text | ready | 59.0 s, 1920x1080 H.264; `videos/video_metadata_decode.json` |
+| Five-second hook and final repository card | ready | `docs/assets/hook_5_seconds.gif`; final six seconds of MP4 |
+| Training evidence | ready | real 2,800-step log and curve in `evidence/training/` and `docs/assets/` |
+| Dataset audit | ready | 7 episodes / 4,557 frames; `evidence/training/pash-primitive-dataset-v2-audit.json` |
+| Ablation | ready | `docs/ABLATION_RESULTS.md` |
+| Sim-to-Real | not supplied | optional; no claim |
+| Real-robot footage | not supplied | optional; no claim |
+| TensorBoard screenshot | not supplied | optional; do not fabricate |
+| Public dataset URL | not supplied | optional; local audit and generation path are included |
+| No secrets | ready | focused credential-pattern scan passed |
+| No file over 100 MB | ready | file-size audit passed |
+| PR confirmation screenshot | ready | `docs/assets/pr-119-confirmation.png` |
+| AMD developer registration | user verification required | Confirm registration for every team member |
 
-Before packaging, rerun the Radeon preflight, verify the intended local artifact hashes, and confirm that no documentation converts reference or offline evidence into a pure-VLA success claim. The linked video is not real-robot footage and does not change the strict pure-VLA result of 0/3.
+The final user actions and code-review result are in
+[`FINAL_SUBMISSION_AUDIT.md`](FINAL_SUBMISSION_AUDIT.md).

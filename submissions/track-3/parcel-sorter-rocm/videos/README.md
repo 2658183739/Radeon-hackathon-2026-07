@@ -20,11 +20,13 @@ simulation streams are 224x224 and are not described as native 1080p.
 This is scripted-agent simulation evidence, not real-robot footage and not a
 pure-VLA result. The agent reads privileged simulator state. The strict pure-VLA campaign remains 0/3. A Bilibili/YouTube
 URL requires an authenticated publisher account and is pending; the small
-3.6 MB repository copy remains directly reviewable in the meantime.
+4.6 MB repository copy remains directly reviewable in the meantime. The
+on-screen label explicitly identifies the footage as scripted-agent evidence,
+not pure VLA.
 
 这是使用仿真特权状态的脚本专家 agent 证据，不是真实机器人视频，也不是纯 VLA 成绩。严格纯 VLA 结果仍为
-0/3。Bilibili/YouTube 地址需要已登录的发布账号，目前待补；仓库内约 3.6 MB 的
-视频副本可供评审直接查看。
+0/3。Bilibili/YouTube 地址需要已登录的发布账号，目前待补；仓库内约 4.6 MB 的
+视频副本可供评审直接查看。画面标签已明确标注为脚本 agent 证据，而不是纯 VLA。
 
 To rebuild the composite after reproducing the source recordings:
 

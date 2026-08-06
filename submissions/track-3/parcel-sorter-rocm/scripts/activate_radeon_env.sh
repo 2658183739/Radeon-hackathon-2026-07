@@ -14,13 +14,20 @@ is_rocm_env() {
 if [[ -n "${PARCEL_SORTER_VENV:-}" ]]; then
   candidates=("${PARCEL_SORTER_VENV}")
 else
-  candidates=("${ROOT_DIR}/.venv" "/workspace/rdna")
+  current_prefix="$(python3 -c 'import sys; print(sys.prefix)' 2>/dev/null || true)"
+  candidates=()
+  if [[ -n "${current_prefix}" ]]; then
+    candidates+=("${current_prefix}")
+  fi
+  candidates+=("${ROOT_DIR}/.venv" "/workspace/rdna")
 fi
 
 for candidate in "${candidates[@]}"; do
   if is_rocm_env "${candidate}"; then
-    # shellcheck disable=SC1091
-    source "${candidate}/bin/activate"
+    if [[ -f "${candidate}/bin/activate" ]]; then
+      # shellcheck disable=SC1091
+      source "${candidate}/bin/activate"
+    fi
     export PARCEL_SORTER_VENV="${candidate}"
     echo "Using Radeon Python environment: ${candidate}"
     return 0 2>/dev/null || exit 0
