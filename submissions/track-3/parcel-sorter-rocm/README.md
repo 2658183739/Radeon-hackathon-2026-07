@@ -50,7 +50,22 @@ The 45.6-second MP4 directly concatenates eight successful scripted-expert overv
 | `evidence/training/` | 训练日志、运行摘要、离线消融 JSON 与 TensorBoard 导入事件 |
 | `docs/assets/` | 由证据生成的训练/消融图与 README 预览素材 |
 | `videos/` | 原始成功片段拼接、来源清单和复现拼接脚本 |
-| `data/` | 提交 checkpoint 的数据状态与独立成功轨迹数据集说明 |
+| `data/` | 数据不入 Git；记录训练数据状态、生成入口和审计方法 |
+
+### 数据生成与模型文件 / Dataset Generation and Model Files
+
+| 文件 / file | 作用 / role |
+| --- | --- |
+| `configs/mobile_suction_collection_v1.json` | 定义包裹尺寸、质量、摩擦、位置和抓取配置；可复制后扩展 episode |
+| `scripts/collect_mobile_suction_dataset_rocm.py` | 逐 episode 调用仿真采集器，只合并通过完整任务成功检查的 LeRobot shard |
+| `scripts/evaluate_mobile_suction_lift_rocm.py` | 执行单回合移动、吸附、搬运和放置；`--record-dataset` 写入 30 Hz RGB-D 轨迹 |
+| `src/parcel_sorter/dataset.py` | 定义 43-D state、19-D action、全景/左腕 RGB-D 的 LeRobot writer |
+| `scripts/audit_dataset.py` | 在训练前检查 `info.json`、统计量和 RGB-D schema，失败时返回非零退出码 |
+| `scripts/build_dataset_split.py` | 从已审计数据生成可复现的 train/validation split |
+
+数据集和模型权重都不提交到 Git。脚本专家演示不读取 checkpoint，可以直接复现。2,800-update SmolVLA 训练的日志、配置和 checkpoint SHA-256 留在 `evidence/training/`，但 checkpoint payload 已不在本地或 Radeon 主机，因此本版本没有模型下载链接。要运行学习策略路线，需要自行提供兼容的 SmolVLA/PI0.5 base model 和 checkpoint。
+
+No dataset payload or learned weights are committed. The scripted demo is checkpoint-free. The repository retains the log, configuration, and SHA-256 record for the 2,800-update SmolVLA run, but not the checkpoint payload; learned-policy evaluation therefore requires a user-supplied compatible base model and checkpoint.
 
 <a id="development"></a>
 
@@ -136,4 +151,20 @@ bash scripts/run_demo.sh
 
 `run_demo.sh` fixes episode 0, loads no checkpoint, records a scripted-expert video, and exits nonzero if the episode is unsuccessful. A successful run writes `outputs/scripted-demo/expert/summary.json` and `outputs/scripted-demo/expert/videos/episode_000000.mp4`; inspect the summary before treating the run as valid.
 
-The submitted SmolVLA checkpoint records a different 7-episode, 4,557-frame training payload that is no longer locally available. The final delivery includes an independent successful-trajectory dataset (7 episodes, 6,454 frames, overhead plus left-wrist RGB-D); it must not be claimed as the checkpoint's training set. See [data status](data/README.md).
+### Generate and audit a fresh dataset
+
+This path requires the LeRobot-enabled Radeon environment. The collector keeps failed attempts in audit logs and merges only successful episode shards.
+
+```bash
+python scripts/collect_mobile_suction_dataset_rocm.py \
+  --config configs/mobile_suction_collection_v1.json \
+  --output outputs/mobile-suction-collection \
+  --backend rocm --wrist-rgbd
+
+python scripts/audit_dataset.py \
+  --dataset-root outputs/mobile-suction-collection/lerobot_dataset \
+  --require-depth-rgb \
+  --output outputs/mobile-suction-collection/dataset-audit.json
+```
+
+The recorded 2,800-update SmolVLA run used a different 7-episode, 4,557-frame training payload that is no longer available. A separately collected 7-episode, 6,454-frame success set remains local and is deliberately not uploaded; neither dataset is committed to this repository. See [data status](data/README.md).

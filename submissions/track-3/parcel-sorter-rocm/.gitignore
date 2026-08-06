@@ -14,5 +14,12 @@ artifacts/patches/*
 !artifacts/patches/lerobot-libero-frozen-eval.patch
 checkpoints/
 datasets/
+dataset-release/
+lerobot_dataset/
 wandb/
 outputs/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+pytorch_model.bin
