@@ -81,6 +81,18 @@ PROFILE_COLOR_NAMES = {
     "electronics_box": "green",
     "medium_carton": "purple",
 }
+PI05_POLICY_MODES = frozenset({"pi05_residual", "pi05_absolute"})
+GRASP_MODE_ROUTE_MISMATCH_FAILURE = "grasp_mode_route_mismatch_before_actuation"
+
+
+def grasp_mode_route_failure_stage(
+    *, required: bool, matched: bool | None
+) -> str | None:
+    """Classify a required VLA mode-route mismatch before task actuation."""
+
+    if required and matched is False:
+        return GRASP_MODE_ROUTE_MISMATCH_FAILURE
+    return None
 
 
 def _flat(values: object) -> list[float]:
@@ -495,9 +507,9 @@ def main() -> int:
         parser.error("VLA goal verdict requires --vla-checkpoint")
     if vla_routes_grasp_mode and (
         args.vla_checkpoint is None
-        or args.policy_mode not in {"pi05_residual", "pi05_absolute"}
+        or args.policy_mode not in {*PI05_POLICY_MODES, "shadow"}
     ):
-        parser.error("VLA grasp-mode selection requires a PI0.5 policy mode")
+        parser.error("VLA grasp-mode selection requires PI0.5 or shadow mode")
     if args.record_pi05_residual_dataset is not None:
         if args.vla_checkpoint is None or args.policy_mode != "pi05_residual":
             parser.error("PI0.5 residual recording requires a PI0.5 residual policy")
@@ -914,6 +926,7 @@ def main() -> int:
     policy_trace: list[dict[str, object]] = []
     vla_selected_grasp_mode: str | None = None
     vla_grasp_mode_match: bool | None = None
+    grasp_mode_route_mismatch_before_actuation = False
     routing_mode_consensus = None
     if vla_routes_grasp_mode:
         if camera is None or policy_controller is None:
@@ -1014,6 +1027,13 @@ def main() -> int:
         routing_mode_consensus = select_pi05_mode_consensus(routing_mode_logits)
         vla_selected_grasp_mode = routing_mode_consensus.selected_mode
         vla_grasp_mode_match = vla_selected_grasp_mode == expected_grasp_mode
+        grasp_mode_route_mismatch_before_actuation = (
+            grasp_mode_route_failure_stage(
+                required=args.require_vla_grasp_mode,
+                matched=vla_grasp_mode_match,
+            )
+            is not None
+        )
         args.grasp_mode = vla_selected_grasp_mode
         args.cooperative_cradle = args.grasp_mode == "cooperative_cradle"
         harness_config = MobileHarnessConfig(
@@ -2251,7 +2271,11 @@ def main() -> int:
     pregrasp_start_arm_qpos = np.asarray(_flat(robot.get_qpos()))[arm_dofs]
     pregrasp_target_arm_qpos = pregrasp_values[arm_dofs]
     pregrasp_physics_steps = 1200 if args.cooperative_cradle else 480
-    if args.policy_mode == "pi05_absolute" and scene_stable:
+    if (
+        args.policy_mode == "pi05_absolute"
+        and scene_stable
+        and not grasp_mode_route_mismatch_before_actuation
+    ):
         record_control_frame(
             stage="pregrasp",
             base_action=np.zeros(3),
@@ -2263,7 +2287,10 @@ def main() -> int:
             right_tool_command=1.0,
             force_policy_sample=True,
         )
-    for pregrasp_step in range(1, pregrasp_physics_steps + 1 if scene_stable else 1):
+    pregrasp_iterations = pregrasp_physics_steps if scene_stable else 1
+    if grasp_mode_route_mismatch_before_actuation:
+        pregrasp_iterations = 0
+    for pregrasp_step in range(1, pregrasp_iterations + 1):
         progress = min(pregrasp_step / 480.0, 1.0)
         smooth_progress = progress * progress * (3.0 - 2.0 * progress)
         if args.cooperative_cradle or args.grasp_mode == "top_suction":
@@ -2312,9 +2339,6 @@ def main() -> int:
             right_quaternion=pregrasp_quaternions[1],
             right_tool_command=1.0,
         )
-        if args.require_vla_grasp_mode and vla_grasp_mode_match is False:
-            scene_stable = False
-            break
     pregrasp_tracking_error_m = (
         math.dist(_flat(left_hand.get_pos()), pregrasp_targets[0].tolist()),
         math.dist(_flat(right_hand.get_pos()), pregrasp_targets[1].tolist()),
@@ -2382,7 +2406,11 @@ def main() -> int:
     top_quasistatic_wait_steps = 0
     top_quasistatic_max_hand_speed_m_s = 0.0
     approach_step_limit = 3600 if args.grasp_mode == "top_suction" else 2400
-    if args.policy_mode == "pi05_absolute" and scene_stable:
+    if (
+        args.policy_mode == "pi05_absolute"
+        and scene_stable
+        and not grasp_mode_route_mismatch_before_actuation
+    ):
         record_control_frame(
             stage="grasp_approach",
             base_action=np.zeros(3),
@@ -2395,7 +2423,11 @@ def main() -> int:
             suction_controller=suction,
             force_policy_sample=True,
         )
-    for approach_step in range(approach_step_limit if scene_stable else 0):
+    for approach_step in range(
+        approach_step_limit
+        if scene_stable and not grasp_mode_route_mismatch_before_actuation
+        else 0
+    ):
         current_position = np.asarray(_flat(hand.get_pos()))
         current_hand_speed_m_s = float(np.linalg.norm(_flat(hand.get_vel())))
         current_quaternion = tuple(_flat(hand.get_quat()))
@@ -3441,6 +3473,14 @@ def main() -> int:
             cradle_monitor is None or cradle_monitor.max_contact_force_n < 35.0
         )
     )
+    failure_stage = (
+        grasp_mode_route_failure_stage(
+            required=args.require_vla_grasp_mode,
+            matched=vla_grasp_mode_match,
+        )
+        if not success
+        else None
+    )
     dataset_saved = False
     if writer is not None:
         if success and recorded_frames > 0:
@@ -3793,6 +3833,10 @@ def main() -> int:
         "selected_grasp_mode": vla_selected_grasp_mode,
         "executed_grasp_mode": args.grasp_mode,
         "grasp_mode_match": vla_grasp_mode_match,
+        "grasp_mode_route_mismatch_before_actuation": (
+            grasp_mode_route_mismatch_before_actuation
+        ),
+        "failure_stage": failure_stage,
         "goal_arrival_verified": latest_policy_goal_verified,
         "goal_progress_threshold": 0.90,
         "goal_arrival_tolerance_m": 0.015,
@@ -3902,6 +3946,7 @@ def main() -> int:
         "parcel_orientation": args.parcel_orientation,
         "grasp_mode": args.grasp_mode,
         "expected_grasp_mode": expected_grasp_mode,
+        "failure_stage": failure_stage,
         "vla_grasp_mode_selection": {
             "required": args.require_vla_grasp_mode,
             "routes_execution": vla_routes_grasp_mode,
@@ -3910,6 +3955,8 @@ def main() -> int:
             "selected": vla_selected_grasp_mode,
             "executed": args.grasp_mode,
             "matched": vla_grasp_mode_match,
+            "mismatch_before_actuation": grasp_mode_route_mismatch_before_actuation,
+            "failure_stage": failure_stage,
             "sample_count": (
                 args.vla_mode_votes if routing_mode_consensus is not None else 0
             ),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 from collections import deque
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -37,6 +38,22 @@ from .mobile_pi05_contract import (
     project_pi05_residual_action,
 )
 from .pi05_state_token_adapter import PI05_STATE_TOKEN_PROTOCOL
+
+
+PI05_BASE_MODEL_ENV = "PARCEL_PI05_BASE_MODEL"
+
+
+def resolve_peft_base_checkpoint(declared_path: str | None) -> str:
+    """Resolve a local PEFT base model without rewriting adapter metadata."""
+
+    override = os.environ.get(PI05_BASE_MODEL_ENV, "").strip()
+    selected = override or str(declared_path or "").strip()
+    if not selected:
+        raise RuntimeError(
+            "PEFT VLA checkpoint does not identify its base model and "
+            f"{PI05_BASE_MODEL_ENV} is unset"
+        )
+    return selected
 
 
 @dataclass(frozen=True)
@@ -469,9 +486,9 @@ class MobileVLAHarnessController:
                 )
                 install_pi05_mode_head_adapter(pooling=mode_head_pooling)
                 self.uses_mode_head_adapter = True
-            base_checkpoint = peft_config.base_model_name_or_path
-            if not base_checkpoint:
-                raise RuntimeError("PEFT VLA checkpoint does not identify its base model")
+            base_checkpoint = resolve_peft_base_checkpoint(
+                peft_config.base_model_name_or_path
+            )
             base_policy = policy_class.from_pretrained(
                 base_checkpoint,
                 config=config,

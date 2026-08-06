@@ -18,6 +18,62 @@ from parcel_sorter.mobile_adaptive_retry import classify_mobile_failure
 
 
 MAX_EXPERT_EPISODE_DATASET_BYTES = 25_000_000
+PI05_CAMPAIGN_POLICY_MODES = ("pi05_residual", "pi05_absolute")
+PI05_VLA_ROUTING_POLICY_MODES = frozenset((*PI05_CAMPAIGN_POLICY_MODES, "shadow"))
+GRASP_MODE_ROUTE_MISMATCH_FAILURE = "grasp_mode_route_mismatch_before_actuation"
+
+
+def _grasp_mode_route_mismatch(summary: dict[str, Any]) -> bool:
+    """Detect a required route mismatch without relying on scene stability."""
+
+    if summary.get("failure_stage") == GRASP_MODE_ROUTE_MISMATCH_FAILURE:
+        return True
+    policy = summary.get("policy")
+    if not isinstance(policy, dict):
+        policy = {}
+    selection = summary.get("vla_grasp_mode_selection")
+    if not isinstance(selection, dict):
+        selection = {}
+    if selection.get("failure_stage") == GRASP_MODE_ROUTE_MISMATCH_FAILURE:
+        return True
+    if selection.get("mismatch_before_actuation") is True:
+        return True
+
+    def first_present(*values: object) -> object | None:
+        for value in values:
+            if value is not None:
+                return value
+        return None
+
+    routes_execution = first_present(
+        selection.get("routes_execution"),
+        summary.get("vla_routes_grasp_mode"),
+        policy.get("vla_routes_grasp_mode"),
+    )
+    matched = first_present(
+        selection.get("matched"),
+        summary.get("grasp_mode_match"),
+        policy.get("grasp_mode_match"),
+    )
+    required = first_present(
+        selection.get("required"),
+        summary.get("grasp_mode_verdict_required"),
+        policy.get("grasp_mode_verdict_required"),
+    )
+    return routes_execution is True and matched is False and required is not False
+
+
+def _collection_failure_stage(
+    return_code: int,
+    summary: dict[str, Any],
+) -> str | None:
+    """Prefer explicit VLA route failures over generic physical-gate labels."""
+
+    if return_code != 0 and not summary:
+        return "runtime_failure"
+    if not bool(summary.get("success")) and _grasp_mode_route_mismatch(summary):
+        return GRASP_MODE_ROUTE_MISMATCH_FAILURE
+    return classify_mobile_failure(summary)
 
 
 def _validate_episode(item: dict[str, Any], seen: set[str]) -> None:
@@ -427,9 +483,9 @@ def main() -> int:
         parser.error("VLA goal verdict requires --smolvla-checkpoint")
     if args.require_vla_grasp_mode and (
         args.smolvla_checkpoint is None
-        or args.policy_mode not in {"pi05_residual", "pi05_absolute"}
+        or args.policy_mode not in PI05_VLA_ROUTING_POLICY_MODES
     ):
-        parser.error("VLA grasp-mode selection requires a PI0.5 policy mode")
+        parser.error("VLA grasp-mode selection requires PI0.5 or shadow mode")
     if args.record_pi05_absolute_replay and (
         args.smolvla_checkpoint is None
         or args.policy_mode != "pi05_absolute"
@@ -715,7 +771,7 @@ def main() -> int:
             "parameters": item,
             "return_code": completed.returncode,
             "success": success,
-            "failure_stage": classify_mobile_failure(summary),
+            "failure_stage": _collection_failure_stage(completed.returncode, summary),
             "lift_success": summary.get("lift_success"),
             "transport_success": summary.get("transport_success"),
             "placed_before_release": summary.get("placed_before_release"),

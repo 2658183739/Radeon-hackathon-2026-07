@@ -1,5 +1,36 @@
 # Agent, Model, API and Architecture / Agent、模型、API 与架构
 
+## 2026-08-06 runtime update / 2026-08-06 运行更新
+
+The repository now includes a bounded task-level Responses Agent in the v21
+hybrid path. The configured primary model is `gpt-5.6-luna`, but the gateway
+did not return a valid Luna response in the recorded campaign; the immutable
+trace therefore reports `actual_model=gpt-5.5` and `fallback_used=true`. The
+Agent emits only goal, grasp family, recovery strategy, and evidence
+references. It has no servo, pose, joint, tool, safety, or checkpoint authority.
+
+仓库现在包含用于 v21 混合路径的受限任务级 Responses Agent。配置的首选模型是
+`gpt-5.6-luna`，但本次记录运行中网关没有返回有效 Luna 响应，因此不可变 trace
+如实记录 `actual_model=gpt-5.5`、`fallback_used=true`。Agent 只能输出目标、抓取
+类别、恢复策略和证据引用，不拥有伺服、位姿、关节、工具、安全或 checkpoint 权限。
+
+The successful runtime is:
+
+```text
+structured task observation
+  -> Responses Task Agent
+  -> fail-closed directive validation
+  -> v21 PI0.5 three-vote grasp-mode routing
+  -> deterministic continuous-motion controller
+  -> force/workspace gates
+  -> Genesis
+```
+
+Three delivered episodes completed 0.531-0.554 m transport with overview and
+left-wrist videos. This is an **Agent-conditioned, VLA-routed,
+scripted-motion hybrid**, not pure VLA. The earlier strict pure-VLA result
+remains 0/3. See [the v21 result page](V21_AGENT_VLA_HYBRID_RESULTS.md).
+
 ## Development/Robot Boundary / 开发与机器人边界
 
 **GPT-5.6 Luna is the development and orchestration Agent.** The model ID is `gpt-5.6-luna`. It assists with bounded engineering, evidence review, media review and delivery work through the Codex Runtime's Responses-style tool calls for filesystem, shell, Git and browser operations. It is not a robot reasoning or control model: it does not receive live robot observations, call `ActionPolicy.predict`, or transmit robot actions.

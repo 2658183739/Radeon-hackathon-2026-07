@@ -16,12 +16,22 @@ those eight overview streams in episode order without trimming or re-encoding.
 | Raw VLA, offline action envelope / 原始 VLA 离线动作包络 | 0/42 | Raw actions exceed at least one execution limit / 至少越过一项执行边界 |
 | Safety-clipped VLA, same offline test / 安全裁剪 VLA | 42/42 | Offline action validity only / 仅离线动作有效性 |
 | Harness-Lite, same offline test | 42/42 | Offline action validity only / 仅离线动作有效性 |
+| Agent-conditioned, v21 VLA-routed, scripted-motion hybrid | 3/3 delivered | Complete 0.531-0.554 m tasks; not pure VLA / 完整长距离任务，非纯 VLA |
 | Strict pure VLA, closed loop / 严格纯 VLA 闭环 | 0/3 | Did not complete the task / 未完成任务 |
 
 The offline rows are hybrid Agent+VLA measurements. They are not task-success
 rates, and they are not the controller used in the video.
 
 离线结果属于混合 Agent+VLA 测量，不是任务成功率，也不是视频使用的控制器。
+
+The new v21 row is a closed-loop task result with explicit hybrid attribution.
+The Agent supplied task conditioning, the v21 PI0.5 mode head routed
+`side_suction` by 3/3 vote, and a deterministic controller executed continuous
+motion. See [v21 Agent + VLA hybrid results](V21_AGENT_VLA_HYBRID_RESULTS.md).
+
+新增的 v21 行是带明确混合归因的闭环任务结果：Agent 提供任务条件，v21 PI0.5
+模式头以 3/3 票选择 `side_suction`，确定性控制器执行连续运动。详情见
+[v21 Agent + VLA 混合结果](V21_AGENT_VLA_HYBRID_RESULTS.md)。
 
 ## Training record / 训练记录
 
