@@ -48,11 +48,13 @@ The policy uses `observation.state` and `observation.images.overhead_rgb`. The s
 
 策略输入为 `observation.state` 与 `observation.images.overhead_rgb`，状态 43 维、动作 20 维，策略不读取仿真特权状态。数据集含 24 条 primitive 任务文本。数据集二进制和 checkpoint 目前仍在远程训练工作区，公开链接待上传后回填。
 
-## Screenshot Boundary / 截图口径
+## TensorBoard Import Boundary / TensorBoard 导入口径
 
-The repository provides a log-derived training curve and an evidence board, not a TensorBoard screenshot. TensorBoard was not used as the authoritative tracker for this run, so no TensorBoard image is fabricated. Reviewers can reproduce every displayed number from the JSON summary and full log above.
+TensorBoard was not the authoritative training-time tracker for this run. After training, the saved 2,800-update text log was converted into TensorBoard event files with [`import_training_log_to_tensorboard.py`](assets/import_training_log_to_tensorboard.py). The screenshot below is the resulting TensorBoard view; it is evidence that the recorded log can be inspected in TensorBoard, not a claim of native training-time telemetry. The [import manifest](../evidence/training/tensorboard-import-v1/import_manifest.json) records the source log and conversion boundary.
 
-仓库提供由日志生成的训练曲线和证据板，不冒充 TensorBoard 截图。本次运行未把 TensorBoard 作为权威记录工具，因此不会伪造 TensorBoard 页面；图中每个数值都能由上面的 JSON 摘要与完整日志复核。
+本次运行没有把 TensorBoard 作为训练时的权威记录工具。训练结束后，仓库使用 [`import_training_log_to_tensorboard.py`](assets/import_training_log_to_tensorboard.py) 将保存的 2,800-update 文本日志转换为 TensorBoard event 文件。下图是导入后的真实 TensorBoard 页面，用来说明日志可以在 TensorBoard 中复核，不代表训练期间已实时接入 TensorBoard。[导入清单](../evidence/training/tensorboard-import-v1/import_manifest.json) 记录了源日志和转换口径。
+
+![TensorBoard view imported after training from the recorded text log](assets/tensorboard_log_import.png)
 
 ```bash
 python3 docs/assets/generate_training_evidence_figures.py --repo-root .
